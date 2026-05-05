@@ -5,20 +5,42 @@ import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import NotificationBell from '../components/NotificationBell'
 
-function RideCard({ ride, onBook }) {
+function formatTime(t) {
+  if (!t) return ''
+  const [h, m] = t.split(':')
+  const hr = parseInt(h)
+  return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`
+}
+
+function formatDate(d) {
+  const date = new Date(d)
+  const today = new Date()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
+  return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+function RideCard({ ride, onBook, myUserId }) {
   const [expanded, setExpanded] = useState(false)
-  const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
-  const colors = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706']
-  const color = colors[ride.driver_id?.charCodeAt(0) % colors.length] || '#2563eb'
   const isToOffice = ride.ride_type === 'to_office'
+  const isMyRide = ride.driver_id === myUserId
+  const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
+  const colors = ['#2563eb','#7c3aed','#059669','#dc2626','#d97706']
+  const color = colors[ride.driver_id?.charCodeAt(0) % colors.length] || '#2563eb'
 
   return (
     <div style={{
       background: '#fff', borderRadius: 16, padding: 16,
       boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: 12,
-      border: '1px solid #f0f0f0',
+      border: isMyRide ? '2px solid #facc15' : '1px solid #f0f0f0',
     }}>
-      {/* Header */}
+      {isMyRide && (
+        <div style={{ background: '#facc15', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#111', display: 'inline-block', marginBottom: 8 }}>
+          YOUR RIDE
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <div style={{
           width: 42, height: 42, borderRadius: '50%', background: color,
@@ -32,9 +54,7 @@ function RideCard({ ride, onBook }) {
               background: isToOffice ? '#dbeafe' : '#fce7f3',
               color: isToOffice ? '#1d4ed8' : '#be185d',
               borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600,
-            }}>
-              {isToOffice ? '🏢 To Office' : '🏠 To Home'}
-            </span>
+            }}>{isToOffice ? '🏢 To Office' : '🏠 To Home'}</span>
           </div>
           <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
             {ride.vehicle_model} · {ride.vehicle_number}
@@ -42,11 +62,10 @@ function RideCard({ ride, onBook }) {
         </div>
       </div>
 
-      {/* Details grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
         {[
-          { icon: '🕐', val: ride.ride_time },
-          { icon: '📅', val: new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) },
+          { icon: '🕐', val: formatTime(ride.ride_time) },
+          { icon: '📅', val: formatDate(ride.ride_date) },
           { icon: '📍', val: ride.from_location },
           { icon: '🏁', val: ride.to_location },
         ].map((item, i) => (
@@ -57,42 +76,34 @@ function RideCard({ ride, onBook }) {
         ))}
       </div>
 
-      {/* Route expand */}
       {expanded && ride.route_description && (
         <div style={{ marginTop: 10, background: '#f0f4ff', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#444' }}>
           🛣️ {ride.route_description}
         </div>
       )}
 
-      {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '4px 12px', fontSize: 13, fontWeight: 700 }}>
             ₹{ride.fare}
           </span>
           <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
-            🪑 {ride.seats_available} left
+            🪑 {ride.seats_available} seat{ride.seats_available !== 1 ? 's' : ''} left
           </span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {ride.route_description && (
-            <button onClick={() => setExpanded(!expanded)} style={{
-              background: '#f3f4f6', border: 'none', borderRadius: 8,
-              padding: '6px 10px', fontSize: 11, color: '#666',
-            }}>
+            <button onClick={() => setExpanded(!expanded)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#666', cursor: 'pointer' }}>
               {expanded ? '▲' : 'Route ▼'}
             </button>
           )}
-          <button onClick={() => onBook(ride)} style={{
-            background: '#111', color: '#fff', border: 'none',
-            borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600,
-          }}>
-            Book ₹{ride.fare + 4}
-          </button>
+          {!isMyRide && (
+            <button onClick={() => onBook(ride)} style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              Book ₹{ride.fare + 2}
+            </button>
+          )}
         </div>
       </div>
-
-      {/* Pricing note */}
       <div style={{ fontSize: 10, color: '#bbb', marginTop: 6, textAlign: 'right' }}>
         Includes ₹2 PoolKaro platform fee
       </div>
@@ -101,7 +112,7 @@ function RideCard({ ride, onBook }) {
 }
 
 export default function Home() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const navigate = useNavigate()
   const [rides, setRides] = useState([])
   const [loading, setLoading] = useState(true)
@@ -115,8 +126,8 @@ export default function Home() {
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('rides')
-      .select('*, profiles(full_name, vehicle_model, vehicle_number)')
-      .eq('status', 'active')
+      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating)')
+      .in('status', ['active', 'full'])
       .gte('ride_date', today)
       .order('ride_date', { ascending: true })
       .order('ride_time', { ascending: true })
@@ -129,78 +140,71 @@ export default function Home() {
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
     if (search) {
       const q = search.toLowerCase()
-      return (
-        r.from_location?.toLowerCase().includes(q) ||
-        r.to_location?.toLowerCase().includes(q) ||
-        r.route_description?.toLowerCase().includes(q)
-      )
+      return r.from_location?.toLowerCase().includes(q) || r.to_location?.toLowerCase().includes(q) || r.route_description?.toLowerCase().includes(q)
     }
     return true
   })
 
-  function handleBook(ride) {
-    navigate(`/book/${ride.id}`)
-  }
-
   return (
-    <div style={{ paddingBottom: 90 }}>
-      {/* Header */}
+    <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
       <div style={{ background: '#111', padding: '20px 16px 14px', position: 'sticky', top: 0, zIndex: 40 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 22 }}>🚗 PoolKaro</div>
-            <div style={{ color: '#666', fontSize: 11 }}>
+            <div style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px' }}>
+              <span style={{ color: '#facc15' }}>Pool</span>Karo
+            </div>
+            <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
               {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'Hyderabad IT Carpool'}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NotificationBell />
-            <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 13 }}>
-              🔄
+            <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 16, cursor: 'pointer' }}>
+              ↺
             </button>
           </div>
         </div>
         <input
-          placeholder="🔍  Search area (Uppal, Kokapet, Gachibowli...)"
-          style={{
-            width: '100%', padding: '10px 14px', borderRadius: 10,
-            border: 'none', fontSize: 13, background: '#222',
-            color: '#fff', boxSizing: 'border-box',
-          }}
+          placeholder="Search area (Uppal, Kokapet, Madhapur...)"
+          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: 'none', fontSize: 13, background: '#222', color: '#fff', boxSizing: 'border-box' }}
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
       </div>
 
-      {/* Filter chips */}
       <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8 }}>
-        {[['all', '🚗 All'], ['to_office', '🏢 To Office'], ['to_home', '🏠 To Home']].map(([v, l]) => (
+        {[['all','All Rides'],['to_office','🏢 To Office'],['to_home','🏠 To Home']].map(([v,l]) => (
           <button key={v} onClick={() => setFilter(v)} style={{
-            padding: '6px 14px', borderRadius: 20, border: 'none',
+            padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
             background: filter === v ? '#111' : '#fff',
             color: filter === v ? '#fff' : '#555',
-            fontWeight: filter === v ? 700 : 400,
-            fontSize: 12,
+            fontWeight: filter === v ? 700 : 400, fontSize: 12,
             boxShadow: filter === v ? 'none' : '0 1px 4px rgba(0,0,0,0.08)',
           }}>{l}</button>
         ))}
       </div>
 
-      {/* Ride list */}
       <div style={{ padding: '8px 16px' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Loading rides...</div>
+          <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🚗</div>
+            Loading rides...
+          </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ textAlign: 'center', padding: 60 }}>
             <div style={{ fontSize: 48 }}>🔍</div>
-            <div style={{ color: '#aaa', marginTop: 8 }}>No rides found</div>
-            <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Try a different area or check back later</div>
+            <div style={{ color: '#555', fontWeight: 600, marginTop: 12 }}>No rides found</div>
+            <div style={{ color: '#aaa', fontSize: 13, marginTop: 6 }}>
+              {search ? `No rides matching "${search}"` : 'No rides posted for today yet'}
+            </div>
+            <button onClick={() => navigate('/post')} style={{ marginTop: 16, padding: '10px 20px', background: '#111', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+              + Post a Ride
+            </button>
           </div>
         ) : (
-          filtered.map(ride => <RideCard key={ride.id} ride={ride} onBook={handleBook} />)
+          filtered.map(ride => <RideCard key={ride.id} ride={ride} onBook={r => navigate(`/book/${r.id}`)} myUserId={user?.id} />)
         )}
       </div>
-
       <BottomNav />
     </div>
   )
