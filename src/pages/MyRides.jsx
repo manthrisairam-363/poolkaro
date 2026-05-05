@@ -51,7 +51,7 @@ function PassengerCard({ booking }) {
           fontWeight: 700, fontSize: 13, flexShrink: 0,
         }}>{initials}</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{rider?.full_name || 'Rider'}</div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{rider?.full_name || 'Co-rider'}</div>
           <div style={{ color: '#888', fontSize: 12 }}>📱 {rider?.phone || 'No phone'}</div>
         </div>
         <span style={{
@@ -288,7 +288,7 @@ export default function MyRides() {
               {/* Driver contact */}
               {b.rides?.profiles && (
                 <div style={{ marginTop: 8, background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>🚗 Driver</div>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>🚗 Car Owner</div>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{b.rides.profiles.full_name}</div>
                   <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} />
                 </div>

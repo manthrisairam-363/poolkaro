@@ -77,7 +77,7 @@ export default function Profile() {
               color: profile?.role === 'driver' ? '#1d4ed8' : profile?.role === 'rider' ? '#be185d' : '#16a34a',
               borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600,
             }}>
-              {profile?.role === 'driver' ? '🚗 Driver' : profile?.role === 'rider' ? '🙋 Rider' : '🔄 Driver & Rider'}
+              {profile?.role === 'driver' ? '🚗 Car Owner' : profile?.role === 'rider' ? '🙋 Co-rider' : '🔄 Car Owner & Co-rider'}
             </div>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default function Profile() {
 
               <label style={label}>Role</label>
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                {[['driver','🚗 Driver'],['rider','🙋 Rider'],['both','🔄 Both']].map(([v,l]) => (
+                {[['driver','🚗 Car Owner'],['rider','🙋 Co-rider'],['both','🔄 Both']].map(([v,l]) => (
                   <button key={v} onClick={() => set('role', v)} style={{
                     flex: 1, padding: '8px 4px', borderRadius: 8, fontSize: 12,
                     border: `2px solid ${form.role === v ? '#111' : '#e5e7eb'}`,

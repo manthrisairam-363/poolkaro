@@ -122,7 +122,7 @@ export default function BookRide() {
             ['🕐 Time', `${ride.ride_time?.slice(0,5)} · ${new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`],
             ['🚘 Vehicle', `${driver?.vehicle_model} · ${driver?.vehicle_number}`],
             ['💰 Fare paid', `₹${ride.fare + 2}`],
-            ['💳 Driver receives', `₹${ride.fare - 2} via UPI`],
+            ['💳 Car Owner receives', `₹${ride.fare - 2} via UPI`],
           ].map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
               <span style={{ fontSize: 12, color: '#888' }}>{k}</span>
@@ -176,7 +176,7 @@ export default function BookRide() {
       <div style={{ padding: 16 }}>
         {/* Driver card */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#888', marginBottom: 12 }}>DRIVER</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#888', marginBottom: 12 }}>CAR OWNER</div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{
               width: 48, height: 48, borderRadius: '50%', background: '#2563eb',
@@ -241,7 +241,7 @@ export default function BookRide() {
             <span style={{ fontSize: 18, fontWeight: 800, color: '#16a34a' }}>₹{ride.fare + 2}</span>
           </div>
           <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
-            Driver receives ₹{ride.fare - 2} instantly to their UPI • PoolKaro earns ₹4
+            Car Owner receives ₹{ride.fare - 2} instantly to their UPI • PoolKaro earns ₹4
           </div>
         </div>
 

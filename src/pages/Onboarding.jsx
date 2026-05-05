@@ -168,7 +168,7 @@ export default function Onboarding() {
                 PoolKaro processes all payments instantly.{'\n'}
                 {form.role !== 'rider'
                   ? '• When a rider books your seat, ₹ goes to your UPI ID in minutes\n• No waiting, no bank transfers'
-                  : '• When you book a seat, the fare goes directly to the driver'}
+                  : '• When you book a seat, the fare goes directly to the Car Owner'}
                 {'\n'}• We collect only ₹2 platform fee
               </div>
             </div>

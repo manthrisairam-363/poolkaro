@@ -27,7 +27,7 @@ function RideCard({ ride, onBook }) {
         }}>{initials}</div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>{ride.profiles?.full_name || 'Driver'}</span>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>{ride.profiles?.full_name || 'Car Owner'}</span>
             <span style={{
               background: isToOffice ? '#dbeafe' : '#fce7f3',
               color: isToOffice ? '#1d4ed8' : '#be185d',
