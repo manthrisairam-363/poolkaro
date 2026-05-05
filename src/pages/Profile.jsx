@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
+import { StarDisplay } from '../components/RatingModal'
 
 export default function Profile() {
   const { user, profile, signOut, fetchProfile } = useAuth()
@@ -162,13 +163,27 @@ export default function Profile() {
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>My Stats</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            {[['🚗','Rides Given','0'],['🙋','Rides Taken','0'],['⭐','Rating','New']].map(([icon,label,val]) => (
-              <div key={label} style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
-                <div style={{ fontSize: 20 }}>{icon}</div>
-                <div style={{ fontWeight: 700, fontSize: 16, marginTop: 4 }}>{val}</div>
-                <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{label}</div>
-              </div>
-            ))}
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20 }}>🚗</div>
+              <div style={{ fontWeight: 700, fontSize: 16, marginTop: 4 }}>{profile?.total_rides_given || 0}</div>
+              <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>Rides Given</div>
+            </div>
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20 }}>🙋</div>
+              <div style={{ fontWeight: 700, fontSize: 16, marginTop: 4 }}>{profile?.total_rides_taken || 0}</div>
+              <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>Rides Taken</div>
+            </div>
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20 }}>⭐</div>
+              {profile?.total_ratings > 0 ? (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4 }}>{Number(profile.avg_rating).toFixed(1)}</div>
+                  <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>{profile.total_ratings} rating{profile.total_ratings > 1 ? 's' : ''}</div>
+                </>
+              ) : (
+                <div style={{ fontWeight: 700, fontSize: 14, marginTop: 4, color: '#aaa' }}>New</div>
+              )}
+            </div>
           </div>
         </div>
 
