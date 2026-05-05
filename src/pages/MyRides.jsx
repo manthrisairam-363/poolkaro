@@ -174,12 +174,12 @@ function DriverRideCard({ ride, onCancel }) {
             {expanded ? '▲ Hide Passengers' : `👥 View ${bookedCount} Passenger${bookedCount > 1 ? 's' : ''}`}
           </button>
         )}
-        {ride.status === 'active' && (
+        {(ride.status === 'active' || ride.status === 'full') && (
           <button onClick={() => onCancel(ride.id)} style={{
             padding: '8px 14px', background: '#fef2f2', color: '#dc2626',
-            border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}>
-            Cancel
+            🚫 Cancel Ride
           </button>
         )}
       </div>
@@ -225,8 +225,26 @@ export default function MyRides() {
   }
 
   async function cancelRide(rideId) {
-    if (!confirm('Cancel this ride? All passengers will be notified.')) return
+    if (!confirm('Cancel this ride?\n\nAll co-riders who booked will be notified.')) return
+    // Cancel the ride
     await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
+    // Cancel all bookings for this ride
+    await supabase.from('bookings').update({ status: 'cancelled' }).eq('ride_id', rideId)
+    fetchData()
+  }
+
+  async function cancelBooking(bookingId, rideId, seatsBooked) {
+    if (!confirm('Cancel your booking?\n\nThis cannot be undone.')) return
+    // Cancel the booking
+    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
+    // Restore seats on the ride
+    const { data: ride } = await supabase.from('rides').select('seats_available, status').eq('id', rideId).maybeSingle()
+    if (ride) {
+      await supabase.from('rides').update({
+        seats_available: ride.seats_available + seatsBooked,
+        status: ride.status === 'full' ? 'active' : ride.status,
+      }).eq('id', rideId)
+    }
     fetchData()
   }
 
@@ -305,20 +323,31 @@ export default function MyRides() {
                   {b.payment_status === 'paid' ? '✅ Confirmed' : '⏳ Pending'}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                {b.payment_status === 'paid' && b.status !== 'completed' && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                {b.payment_status === 'paid' && b.status !== 'completed' && b.status !== 'cancelled' && (
                   <button onClick={() => navigate(`/live/${b.id}`)} style={{
                     flex: 1, padding: 9, background: '#111', color: '#facc15',
                     border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   }}>📍 Live Ride</button>
                 )}
-                {b.payment_status === 'paid' && (
-                  <button onClick={() => navigate(`/live/${b.id}`)} style={{
+                {b.payment_status === 'paid' && b.status !== 'cancelled' && (
+                  <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{
                     flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed',
                     border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  }}>⭐ Rate Ride</button>
+                  }}>⭐ Rate</button>
+                )}
+                {b.status !== 'cancelled' && b.status !== 'completed' && (
+                  <button onClick={() => cancelBooking(b.id, b.ride_id, b.seats_booked)} style={{
+                    flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626',
+                    border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}>🚫 Cancel</button>
                 )}
               </div>
+              {b.status === 'cancelled' && (
+                <div style={{ marginTop: 8, background: '#fef2f2', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+                  ❌ Booking Cancelled
+                </div>
+              )}
             </div>
           ))
         )}
