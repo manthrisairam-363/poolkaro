@@ -293,7 +293,7 @@ export default function MyRides() {
                   <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} />
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
                   Paid ₹{b.total_paid}
                 </span>
@@ -304,6 +304,20 @@ export default function MyRides() {
                 }}>
                   {b.payment_status === 'paid' ? '✅ Confirmed' : '⏳ Pending'}
                 </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                {b.payment_status === 'paid' && b.status !== 'completed' && (
+                  <button onClick={() => navigate(`/live/${b.id}`)} style={{
+                    flex: 1, padding: 9, background: '#111', color: '#facc15',
+                    border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}>📍 Live Ride</button>
+                )}
+                {b.payment_status === 'paid' && (
+                  <button onClick={() => navigate(`/live/${b.id}`)} style={{
+                    flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed',
+                    border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}>⭐ Rate Ride</button>
+                )}
               </div>
             </div>
           ))
