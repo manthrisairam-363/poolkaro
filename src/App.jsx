@@ -7,6 +7,7 @@ import PostRide from './pages/PostRide'
 import MyRides from './pages/MyRides'
 import Profile from './pages/Profile'
 import BookRide from './pages/BookRide'
+import LiveRide from './pages/LiveRide'
 
 function Loader() {
   return (
@@ -34,6 +35,7 @@ function AppRoutes() {
       <Route path="/my-rides" element={<MyRides />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/book/:id" element={<BookRide />} />
+      <Route path="/live/:bookingId" element={<LiveRide />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

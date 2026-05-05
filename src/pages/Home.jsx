@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
+import NotificationBell from '../components/NotificationBell'
 
 function RideCard({ ride, onBook }) {
   const [expanded, setExpanded] = useState(false)
@@ -152,9 +153,12 @@ export default function Home() {
               {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'Hyderabad IT Carpool'}
             </div>
           </div>
-          <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 13 }}>
-            🔄
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <NotificationBell />
+            <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 13 }}>
+              🔄
+            </button>
+          </div>
         </div>
         <input
           placeholder="🔍  Search area (Uppal, Kokapet, Gachibowli...)"

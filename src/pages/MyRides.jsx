@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
@@ -201,6 +202,7 @@ function DriverRideCard({ ride, onCancel }) {
 
 export default function MyRides() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('posted')
   const [rides, setRides] = useState([])
   const [bookings, setBookings] = useState([])
