@@ -56,6 +56,14 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       setError('Please add your vehicle details in Profile first')
       return
     }
+    // Check wallet balance
+    const { data: walletData } = await supabase
+      .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+    const balance = walletData?.balance || 0
+    if (balance < 200) {
+      setError('Your wallet balance is low. Add ₹2 minimum to post a ride.')
+      return
+    }
     setLoading(true)
     const { error: err } = await supabase.from('rides').insert({
       driver_id: user.id,

@@ -21,6 +21,7 @@ export default function BookRide() {
   const [step, setStep] = useState('confirm') // confirm | success
   const [error, setError] = useState('')
   const [alreadyBooked, setAlreadyBooked] = useState(false)
+  const [walletBalance, setWalletBalance] = useState(0)
 
   useEffect(() => { fetchRide() }, [id])
 
@@ -42,6 +43,11 @@ export default function BookRide() {
       .eq('rider_id', user.id)
       .maybeSingle()
     if (existing) setAlreadyBooked(true)
+
+    // Check wallet balance
+    const { data: walletData } = await supabase
+      .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+    setWalletBalance(walletData?.balance || 0)
     setLoading(false)
   }
 
@@ -51,6 +57,7 @@ export default function BookRide() {
     if (alreadyBooked) { setError("You've already booked this ride!"); return }
     if (!profile?.upi_id) { setError('Please add your UPI ID in Profile before booking'); return }
     if (ride.seats_available < 1) { setError('Sorry, this ride is full'); return }
+    if (walletBalance < 200) { setError('Insufficient wallet balance. Add ₹2 minimum to your wallet first.'); return }
 
     setBooking(true)
     const { error: err } = await supabase.from('bookings').insert({
@@ -208,7 +215,16 @@ export default function BookRide() {
           </div>
         </div>
 
-        {error && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 14 }}>⚠️ {error}</div>}
+        {error && (
+          <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 14 }}>
+            ⚠️ {error}
+            {error.includes('wallet') && (
+              <button onClick={() => navigate('/wallet')} style={{ display: 'block', marginTop: 8, padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                💰 Go to Wallet →
+              </button>
+            )}
+          </div>
+        )}
 
         <button onClick={confirmBooking} disabled={booking || alreadyBooked}
           style={{ width: '100%', padding: 15, background: alreadyBooked ? '#e5e7eb' : '#111', color: alreadyBooked ? '#999' : '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: alreadyBooked ? 'not-allowed' : 'pointer', marginBottom: 10 }}>

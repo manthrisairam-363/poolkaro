@@ -8,6 +8,7 @@ import MyRides from './pages/MyRides'
 import Profile from './pages/Profile'
 import BookRide from './pages/BookRide'
 import LiveRide from './pages/LiveRide'
+import Wallet from './pages/Wallet'
 
 function Loader() {
   return (
@@ -16,8 +17,10 @@ function Loader() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: 12,
     }}>
-      <div style={{ fontSize: 48 }}>🚗</div>
-      <div style={{ color: '#facc15', fontWeight: 800, fontSize: 24 }}>PoolKaro</div>
+      <div style={{ width: 72, height: 72, borderRadius: 20, background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>🚗</div>
+      <div style={{ fontWeight: 800, fontSize: 24 }}>
+        <span style={{ color: '#facc15' }}>Pool</span><span style={{ color: '#fff' }}>Karo</span>
+      </div>
       <div style={{ color: '#555', fontSize: 13 }}>Loading...</div>
     </div>
   )
@@ -36,6 +39,7 @@ function AppRoutes() {
       <Route path="/profile" element={<Profile />} />
       <Route path="/book/:id" element={<BookRide />} />
       <Route path="/live/:bookingId" element={<LiveRide />} />
+      <Route path="/wallet" element={<Wallet />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
