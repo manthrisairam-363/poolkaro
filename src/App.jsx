@@ -4,15 +4,16 @@ import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
 import PostRide from './pages/PostRide'
+import MyRides from './pages/MyRides'
+import Profile from './pages/Profile'
+import BookRide from './pages/BookRide'
 
-// Loading screen
 function Loader() {
   return (
     <div style={{
       minHeight: '100vh', background: '#111',
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      gap: 12,
+      alignItems: 'center', justifyContent: 'center', gap: 12,
     }}>
       <div style={{ fontSize: 48 }}>🚗</div>
       <div style={{ color: '#facc15', fontWeight: 800, fontSize: 24 }}>PoolKaro</div>
@@ -21,24 +22,18 @@ function Loader() {
   )
 }
 
-// Protected route wrapper
 function AppRoutes() {
   const { user, profile, loading } = useAuth()
-
   if (loading) return <Loader />
-
-  // Not logged in → show login
   if (!user) return <Login />
-
-  // Logged in but no profile yet → onboarding
   if (!profile?.onboarding_complete) return <Onboarding />
-
-  // Fully authenticated → show app
   return (
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/post" element={<PostRide />} />
-      {/* More pages coming: /book/:id, /my-rides, /profile */}
+      <Route path="/my-rides" element={<MyRides />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/book/:id" element={<BookRide />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -3,15 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
-
-const AREAS = [
-  'Uppal Ring Road','Nagole','LB Nagar','Dilsukhnagar','Vanasthalipuram',
-  'Secunderabad','Ameerpet','SR Nagar','Begumpet','Hitech City',
-  'Madhapur','Gachibowli','Kondapur','Kokapet','Nanakramguda',
-  'Kukatpally','KPHB','Miyapur','Bachupally','Kompally',
-  'Mehdipatnam','Tolichowki','Manikonda','Rajendra Nagar','Owaisi',
-  'Shamshabad','Attapur','Puppalaguda','Financial District','Jubilee Hills',
-]
+import LocationInput from '../components/LocationInput'
 
 const inp = {
   width: '100%', padding: '11px 14px',
@@ -131,17 +123,19 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
         <div style={{ height: 14 }} />
 
         {/* From / To */}
-        <label style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, display: 'block' }}>From *</label>
-        <select style={inp} value={form.from_location} onChange={e => set('from_location', e.target.value)}>
-          <option value="">Select starting area...</option>
-          {AREAS.map(a => <option key={a}>{a}</option>)}
-        </select>
+        <LocationInput
+          label="From *"
+          value={form.from_location}
+          onChange={v => set('from_location', v)}
+          placeholder="Type area e.g. Uppal, GAR Kokapet..."
+        />
 
-        <label style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, display: 'block' }}>To *</label>
-        <select style={inp} value={form.to_location} onChange={e => set('to_location', e.target.value)}>
-          <option value="">Select destination...</option>
-          {AREAS.map(a => <option key={a}>{a}</option>)}
-        </select>
+        <LocationInput
+          label="To *"
+          value={form.to_location}
+          onChange={v => set('to_location', v)}
+          placeholder="Type destination e.g. Kokapet, Madhapur..."
+        />
 
         {/* Route */}
         <label style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, display: 'block' }}>Route (via locations)</label>
