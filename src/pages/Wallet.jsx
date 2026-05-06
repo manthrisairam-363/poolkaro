@@ -97,35 +97,11 @@ export default function Wallet() {
   }
 
   async function handleRecharge() {
-    const amount = customAmount ? parseInt(customAmount) : selectedAmount
-    if (!amount || amount < 20) { alert('Minimum recharge is ₹20'); return }
-    if (amount > 10000) { alert('Maximum recharge is ₹10,000'); return }
-
-    setRecharging(true)
-
-    // TODO: Replace with real Razorpay when live
-    // For now simulate recharge
-    const amountPaise = amount * 100
-
-    await supabase.from('wallets').update({
-      balance: (wallet?.balance || 0) + amountPaise,
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', user.id)
-
-    await supabase.from('wallet_transactions').insert({
-      user_id: user.id,
-      amount: amountPaise,
-      type: 'recharge',
-      description: `Wallet recharge of ₹${amount}`,
-    })
-
-    setRecharging(false)
+    // 🔒 REAL PAYMENT COMING SOON
+    // Razorpay integration will be added here once KYC is approved
+    // Do NOT enable fake recharge in production
+    alert('Payments coming soon! We are setting up secure UPI payments. Your ₹10 welcome bonus is enough to get started.')
     setShowRecharge(false)
-    setCustomAmount('')
-    setSelectedAmount(50)
-    setSuccess(`₹${amount} added to your wallet! ✅`)
-    setTimeout(() => setSuccess(''), 3000)
-    fetchWallet()
   }
 
   const balanceRupees = (wallet?.balance || 0) / 100
@@ -269,11 +245,20 @@ export default function Wallet() {
               </div>
             </div>
 
-            <button onClick={handleRecharge} disabled={recharging} style={{
-              width: '100%', padding: 15, background: '#111', color: '#fff',
-              border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 10,
+            {/* Coming soon notice */}
+            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, color: '#c2410c', fontWeight: 700, marginBottom: 4 }}>
+                🔒 Secure Payments Coming Soon
+              </div>
+              <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
+                We are setting up Razorpay UPI payments. You'll be able to recharge your wallet very soon. Your ₹10 welcome bonus is active!
+              </div>
+            </div>
+            <button onClick={handleRecharge} style={{
+              width: '100%', padding: 15, background: '#e5e7eb', color: '#999',
+              border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'not-allowed', marginBottom: 10,
             }}>
-              {recharging ? 'Processing...' : `💳 Pay ₹${customAmount || selectedAmount || 0} via UPI`}
+              🔒 Coming Soon
             </button>
             <button onClick={() => { setShowRecharge(false); setCustomAmount('') }} style={{
               width: '100%', padding: 12, background: '#f3f4f6', color: '#666',
