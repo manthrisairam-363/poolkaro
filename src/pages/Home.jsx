@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatTime, formatDate } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -10,16 +11,6 @@ function formatTime(t) {
   const [h, m] = t.split(':')
   const hr = parseInt(h)
   return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`
-}
-
-function formatDate(d) {
-  const date = new Date(d)
-  const today = new Date()
-  const tomorrow = new Date(today)
-  tomorrow.setDate(today.getDate() + 1)
-  if (date.toDateString() === today.toDateString()) return 'Today'
-  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
-  return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function RideCard({ ride, onBook, myUserId }) {

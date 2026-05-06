@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatTime } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -27,9 +28,7 @@ export default function PostRide() {
 
   function generateWhatsApp() {
     const dateStr = new Date(form.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-    const [h, m] = form.ride_time.split(':')
-    const hr = parseInt(h)
-    const timeStr = `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`
+    const timeStr = formatTime(form.ride_time)
     return `🚗 Carpool Available – ${dateStr}
 
 🕘 Ride Time: ${timeStr}

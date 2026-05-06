@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatTime, formatDate } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -117,7 +118,7 @@ function DriverRideCard({ ride, onCancel, onEdit }) {
             {ride.from_location} → {ride.to_location}
           </div>
           <div style={{ color: '#888', fontSize: 12, marginTop: 3 }}>
-            {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {ride.ride_time?.slice(0, 5)}
+            {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {formatTime(ride.ride_time)}
           </div>
           {ride.route_description && (
             <div style={{ color: '#aaa', fontSize: 11, marginTop: 2 }}>🛣️ {ride.route_description}</div>
@@ -309,7 +310,7 @@ export default function MyRides() {
                 {b.rides?.from_location} → {b.rides?.to_location}
               </div>
               <div style={{ color: '#888', fontSize: 12, marginTop: 3 }}>
-                {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {b.rides?.ride_time?.slice(0, 5)}
+                {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {formatTime(b.rides?.ride_time)}
               </div>
               {/* Driver contact */}
               {b.rides?.profiles && (
