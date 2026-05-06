@@ -82,7 +82,7 @@ function PassengerCard({ booking }) {
 }
 
 // Driver's posted ride card with passenger list
-function DriverRideCard({ ride, onCancel }) {
+function DriverRideCard({ ride, onCancel, onEdit }) {
   const [expanded, setExpanded] = useState(false)
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
@@ -175,11 +175,19 @@ function DriverRideCard({ ride, onCancel }) {
           </button>
         )}
         {(ride.status === 'active' || ride.status === 'full') && (
+          <button onClick={() => onEdit(ride.id)} style={{
+            padding: '8px 14px', background: '#f0f4ff', color: '#2563eb',
+            border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}>
+            ✏️ Edit
+          </button>
+        )}
+        {(ride.status === 'active' || ride.status === 'full') && (
           <button onClick={() => onCancel(ride.id)} style={{
             padding: '8px 14px', background: '#fef2f2', color: '#dc2626',
             border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}>
-            🚫 Cancel Ride
+            🚫 Cancel
           </button>
         )}
       </div>
@@ -282,7 +290,7 @@ export default function MyRides() {
               <div style={{ color: '#aaa', marginTop: 8 }}>No rides posted yet</div>
               <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Tap + below to post your first ride</div>
             </div>
-          ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} />)
+          ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} />)
 
         ) : (
           bookings.length === 0 ? (
