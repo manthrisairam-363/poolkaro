@@ -70,7 +70,10 @@ export default function Profile() {
             fontWeight: 800, fontSize: 24,
           }}>{initials}</div>
           <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>{profile?.full_name || 'Your Name'}</div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {profile?.full_name || 'Your Name'}
+              {profile?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>✓ VERIFIED</span>}
+            </div>
             <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
             <div style={{
               marginTop: 6, display: 'inline-block',
@@ -200,6 +203,23 @@ export default function Profile() {
               <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
               <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
             </div>
+          ))}
+        </div>
+
+        {/* Links */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
+          {[
+            { label: '📄 Terms of Use & Privacy Policy', path: '/terms' },
+            { label: '⚙️ Admin Dashboard', path: '/admin', adminOnly: true },
+          ].filter(l => !l.adminOnly || ['manthrisairam@gmail.com','manthrisai@gmail.com'].includes(user?.email))
+          .map(l => (
+            <button key={l.path} onClick={() => navigate(l.path)} style={{
+              width: '100%', padding: '14px 16px', background: 'none', border: 'none',
+              borderBottom: '1px solid #f5f5f5', textAlign: 'left', cursor: 'pointer',
+              fontSize: 14, color: '#333', display: 'flex', justifyContent: 'space-between',
+            }}>
+              {l.label} <span style={{ color: '#ccc' }}>›</span>
+            </button>
           ))}
         </div>
 

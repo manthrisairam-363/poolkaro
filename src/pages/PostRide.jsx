@@ -17,7 +17,7 @@ export default function PostRide() {
   const [form, setForm] = useState({
     ride_type: 'to_office', ride_date: today, ride_time: '',
     from_location: '', to_location: '', route_description: '',
-    fare: '', seats_available: '2',
+    fare: '', seats_available: '2', recurring: 'once',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -64,24 +64,33 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       return
     }
     setLoading(true)
-    const { error: err } = await supabase.from('rides').insert({
-      driver_id: user.id,
-      ride_type: form.ride_type,
-      ride_date: form.ride_date,
-      ride_time: form.ride_time,
-      from_location: form.from_location,
-      to_location: form.to_location,
+    // Build list of dates to post
+    const dates = []
+    const start = new Date(form.ride_date)
+    const days = form.recurring === 'once' ? 1 : 28
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start)
+      d.setDate(start.getDate() + i)
+      const dow = d.getDay()
+      if (form.recurring === 'weekdays' && (dow === 0 || dow === 6)) continue
+      dates.push(d.toISOString().split('T')[0])
+    }
+    const rideBase = {
+      driver_id: user.id, ride_type: form.ride_type, ride_time: form.ride_time,
+      from_location: form.from_location, to_location: form.to_location,
       route_description: form.route_description || null,
-      fare: Number(form.fare),
-      seats_available: Number(form.seats_available),
+      fare: Number(form.fare), seats_available: Number(form.seats_available),
       seats_total: Number(form.seats_available),
-      vehicle_model: profile.vehicle_model,
-      vehicle_number: profile.vehicle_number,
-      status: 'active',
-    })
+      vehicle_model: profile.vehicle_model, vehicle_number: profile.vehicle_number,
+      status: 'active', is_recurring: form.recurring !== 'once',
+    }
+    const rideObjects = dates.map(date => ({ ...rideBase, ride_date: date }))
+    const { error: err } = await supabase.from('rides').insert(rideObjects)
     setLoading(false)
     if (err) { setError(err.message); return }
-    setWaMessage(generateWhatsApp())
+    const ridesPosted = form.recurring === 'once' ? 1 : form.recurring === 'weekdays' ? 20 : 28
+    setWaMessage(generateWhatsApp() + (form.recurring !== 'once' ? `
+🔁 Recurring: ${form.recurring === 'weekdays' ? 'Mon-Fri' : 'Daily'} for 4 weeks (${ridesPosted} rides posted)` : ''))
     setPosted(true)
   }
 
@@ -182,8 +191,29 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
           </div>
         )}
 
+        {/* Recurring */}
+        <div style={{ marginBottom: 16 }}>
+          <span style={label}>🔁 Repeat This Ride</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            {[['once','One Time'],['weekdays','Mon–Fri'],['daily','Every Day']].map(([v,l]) => (
+              <button key={v} onClick={() => set('recurring', v)} style={{
+                padding: '10px 4px', borderRadius: 10, cursor: 'pointer', fontSize: 12,
+                border: `2px solid ${form.recurring === v ? '#111' : '#e5e7eb'}`,
+                background: form.recurring === v ? '#111' : '#fff',
+                color: form.recurring === v ? '#fff' : '#666',
+                fontWeight: form.recurring === v ? 700 : 400,
+              }}>{l}</button>
+            ))}
+          </div>
+          {form.recurring !== 'once' && (
+            <div style={{ marginTop: 8, background: '#f0f4ff', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#2563eb' }}>
+              📅 Posts rides for next 4 weeks automatically. You can cancel individual days from My Rides.
+            </div>
+          )}
+        </div>
+
         <button onClick={postRide} disabled={loading} style={{ width: '100%', padding: 14, background: '#111', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-          {loading ? 'Posting...' : '🚗 Post Ride'}
+          {loading ? 'Posting...' : form.recurring !== 'once' ? '🔁 Post Recurring Ride' : '🚗 Post Ride'}
         </button>
       </div>
       <BottomNav />

@@ -10,6 +10,8 @@ import BookRide from './pages/BookRide'
 import LiveRide from './pages/LiveRide'
 import Wallet from './pages/Wallet'
 import EditRide from './pages/EditRide'
+import AdminDashboard from './pages/AdminDashboard'
+import TermsPrivacy from './pages/TermsPrivacy'
 
 function Loader() {
   return (
@@ -18,11 +20,11 @@ function Loader() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: 12,
     }}>
-      <div style={{ width: 72, height: 72, borderRadius: 20, background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>🚗</div>
-      <div style={{ fontWeight: 800, fontSize: 24 }}>
+      <div style={{ width: 80, height: 80, borderRadius: 24, background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, boxShadow: '0 8px 32px rgba(250,204,21,0.3)' }}>🚗</div>
+      <div style={{ fontWeight: 800, fontSize: 28, letterSpacing: '-1px' }}>
         <span style={{ color: '#facc15' }}>Pool</span><span style={{ color: '#fff' }}>Karo</span>
       </div>
-      <div style={{ color: '#555', fontSize: 13 }}>Loading...</div>
+      <div style={{ color: '#555', fontSize: 13 }}>Hyderabad IT Carpool</div>
     </div>
   )
 }
@@ -42,6 +44,8 @@ function AppRoutes() {
       <Route path="/live/:bookingId" element={<LiveRide />} />
       <Route path="/wallet" element={<Wallet />} />
       <Route path="/edit-ride/:id" element={<EditRide />} />
+      <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/terms" element={<TermsPrivacy />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

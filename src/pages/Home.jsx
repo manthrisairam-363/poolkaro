@@ -40,7 +40,10 @@ function RideCard({ ride, onBook, myUserId }) {
         }}>{initials}</div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>{ride.profiles?.full_name || 'Car Owner'}</span>
+            <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {ride.profiles?.full_name || 'Car Owner'}
+              {ride.profiles?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
+            </span>
             <span style={{
               background: isToOffice ? '#dbeafe' : '#fce7f3',
               color: isToOffice ? '#1d4ed8' : '#be185d',
@@ -81,6 +84,11 @@ function RideCard({ ride, onBook, myUserId }) {
           <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
             🪑 {ride.seats_available} seat{ride.seats_available !== 1 ? 's' : ''} left
           </span>
+          {ride.is_recurring && (
+            <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 600 }}>
+              🔁 Daily
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {ride.route_description && (
@@ -117,7 +125,7 @@ export default function Home() {
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('rides')
-      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating)')
+      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified)')
       .in('status', ['active', 'full'])
       .gte('ride_date', today)
       .order('ride_date', { ascending: true })
