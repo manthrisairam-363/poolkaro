@@ -141,11 +141,11 @@ export default function Onboarding() {
         {currentStep === 'personal' && (
           <>
             <label style={s.label}>Full Name *</label>
-            <input style={s.input} placeholder="Manthri Sairam" value={form.full_name} onChange={e => set('full_name', e.target.value)} />
+            <input style={s.input} placeholder="Your full name" value={form.full_name} onChange={e => set('full_name', e.target.value)} />
             <label style={s.label}>Phone Number</label>
-            <input style={s.input} placeholder="9533126221" value={form.phone} onChange={e => set('phone', e.target.value)} readOnly={!!user?.phone} />
+            <input style={s.input} placeholder="10-digit mobile number" value={form.phone} onChange={e => set('phone', e.target.value)} readOnly={!!user?.phone} />
             <label style={s.label}>Email (optional)</label>
-            <input style={s.input} type="email" placeholder="sairam@company.com" value={form.email} onChange={e => set('email', e.target.value)} />
+            <input style={s.input} type="email" placeholder="your@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
           </>
         )}
 
@@ -153,9 +153,9 @@ export default function Onboarding() {
         {currentStep === 'vehicle' && (
           <>
             <label style={s.label}>Vehicle Model *</label>
-            <input style={s.input} placeholder="Tata Tiago EV" value={form.vehicle_model} onChange={e => set('vehicle_model', e.target.value)} />
+            <input style={s.input} placeholder="e.g. Tata Nexon, Hyundai Creta" value={form.vehicle_model} onChange={e => set('vehicle_model', e.target.value)} />
             <label style={s.label}>Vehicle Number *</label>
-            <input style={s.input} placeholder="TS08JW1467" value={form.vehicle_number} onChange={e => set('vehicle_number', e.target.value.toUpperCase())} />
+            <input style={s.input} placeholder="e.g. TS09AB1234" value={form.vehicle_number} onChange={e => set('vehicle_number', e.target.value.toUpperCase())} />
           </>
         )}
 
@@ -173,7 +173,7 @@ export default function Onboarding() {
               </div>
             </div>
             <label style={s.label}>Your UPI ID *</label>
-            <input style={s.input} placeholder="9533126221@upi or name@okicici" value={form.upi_id} onChange={e => set('upi_id', e.target.value)} />
+            <input style={s.input} placeholder="e.g. 9876543210@upi or name@okaxis" value={form.upi_id} onChange={e => set('upi_id', e.target.value)} />
             <div style={{ fontSize: 11, color: '#666', marginTop: -8, marginBottom: 14 }}>
               Examples: 9876543210@paytm · name@okaxis · name@ybl
             </div>

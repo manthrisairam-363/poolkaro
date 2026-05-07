@@ -144,10 +144,10 @@ export default function Profile() {
               </div>
 
               <label style={label}>Vehicle Model</label>
-              <input style={inp} placeholder="Tata Tiago EV" value={form.vehicle_model} onChange={e => set('vehicle_model', e.target.value)} />
+              <input style={inp} placeholder="e.g. Tata Nexon, Hyundai Creta" value={form.vehicle_model} onChange={e => set('vehicle_model', e.target.value)} />
 
               <label style={label}>Vehicle Number</label>
-              <input style={inp} placeholder="TS08JW1467" value={form.vehicle_number} onChange={e => set('vehicle_number', e.target.value.toUpperCase())} />
+              <input style={inp} placeholder="e.g. TS09AB1234" value={form.vehicle_number} onChange={e => set('vehicle_number', e.target.value.toUpperCase())} />
 
               <label style={label}>UPI ID</label>
               <input style={inp} placeholder="9876543210@upi" value={form.upi_id} onChange={e => set('upi_id', e.target.value)} />
