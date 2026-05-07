@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import { StarDisplay } from '../components/RatingModal'
+import { getCompanyFromEmail, isCompanyEmail } from '../lib/companyDomains'
 
 export default function Profile() {
   const { user, profile, signOut, fetchProfile } = useAuth()
@@ -75,13 +76,15 @@ export default function Profile() {
               {profile?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>✓ VERIFIED</span>}
             </div>
             <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
-            <div style={{
-              marginTop: 6, display: 'inline-block',
-              background: profile?.role === 'driver' ? '#dbeafe' : profile?.role === 'rider' ? '#fce7f3' : '#f0fdf4',
-              color: profile?.role === 'driver' ? '#1d4ed8' : profile?.role === 'rider' ? '#be185d' : '#16a34a',
-              borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600,
-            }}>
-              {profile?.role === 'driver' ? '🚗 Car Owner' : profile?.role === 'rider' ? '🙋 Co-rider' : '🔄 Car Owner & Co-rider'}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+              <span style={{
+                background: profile?.role === 'driver' ? '#dbeafe' : profile?.role === 'rider' ? '#fce7f3' : '#f0fdf4',
+                color: profile?.role === 'driver' ? '#1d4ed8' : profile?.role === 'rider' ? '#be185d' : '#16a34a',
+                borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600,
+              }}>
+                {profile?.role === 'driver' ? '🚗 Car Owner' : profile?.role === 'rider' ? '🙋 Co-rider' : '🔄 Car Owner & Co-rider'}
+              </span>
+              {(() => { const co = getCompanyFromEmail(user?.email); return co ? <span style={{ background: co.bg, color: co.color, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>🏢 {co.name}</span> : isCompanyEmail(user?.email) ? <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>🏢 IT Professional</span> : null })()}
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatTime, formatDate } from '../lib/utils'
+import { getCompanyFromEmail } from '../lib/companyDomains'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -33,9 +34,10 @@ function RideCard({ ride, onBook, myUserId }) {
         }}>{initials}</div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               {ride.profiles?.full_name || 'Car Owner'}
               {ride.profiles?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
+              {(() => { const co = getCompanyFromEmail(ride.profiles?.email); return co ? <span style={{ background: co.bg, color: co.color, fontSize: 9, padding: '2px 6px', borderRadius: 8, fontWeight: 700 }}>{co.name}</span> : null })()}
             </span>
             <span style={{
               background: isToOffice ? '#dbeafe' : '#fce7f3',
@@ -118,7 +120,7 @@ export default function Home() {
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('rides')
-      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified)')
+      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email)')
       .in('status', ['active', 'full'])
       .gte('ride_date', today)
       .order('ride_date', { ascending: true })
