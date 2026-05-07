@@ -4,13 +4,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
-function formatTime(t) {
-  if (!t) return ''
-  const [h, m] = t.split(':')
-  const hr = parseInt(h)
-  return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`
-}
-
 export default function BookRide() {
   const { id } = useParams()
   const navigate = useNavigate()

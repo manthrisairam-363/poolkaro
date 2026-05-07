@@ -6,13 +6,6 @@ import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import NotificationBell from '../components/NotificationBell'
 
-function formatTime(t) {
-  if (!t) return ''
-  const [h, m] = t.split(':')
-  const hr = parseInt(h)
-  return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`
-}
-
 function RideCard({ ride, onBook, myUserId }) {
   const [expanded, setExpanded] = useState(false)
   const isToOffice = ride.ride_type === 'to_office'
