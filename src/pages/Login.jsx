@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { sendFirebaseOTP, verifyFirebaseOTP } from '../lib/firebase'
 
 export default function Login() {
   const [tab, setTab] = useState('phone')
@@ -22,15 +23,10 @@ export default function Login() {
     setError('')
     if (!phone || phone.length < 10) { setError('Enter valid 10-digit mobile number'); return }
     setLoading(true)
-    const { error: err } = await supabase.auth.signInWithOtp({ phone: `+91${phone}` })
+    const result = await sendFirebaseOTP(`+91${phone}`)
     setLoading(false)
-    if (err) {
-      // If phone provider not set up yet
-      if (err.message.includes('not enabled') || err.message.includes('provider')) {
-        setError('Phone OTP is being set up. Please use Google login or email for now.')
-      } else {
-        setError(err.message)
-      }
+    if (!result.success) {
+      setError(result.error || 'Failed to send OTP. Try again.')
       return
     }
     setOtpSent(true)
@@ -41,11 +37,35 @@ export default function Login() {
     setError('')
     if (!otp || otp.length !== 6) { setError('Enter 6-digit OTP'); return }
     setLoading(true)
-    const { error: err } = await supabase.auth.verifyOtp({
-      phone: `+91${phone}`, token: otp, type: 'sms'
+    const result = await verifyFirebaseOTP(otp)
+    if (!result.success) {
+      setError(result.error || 'Invalid OTP. Try again.')
+      setLoading(false)
+      return
+    }
+    // Firebase verified! Now sign into Supabase with phone
+    const { error: err } = await supabase.auth.signInWithOtp({
+      phone: `+91${phone}`,
     })
+    // If Supabase phone not set up, create session via email workaround
+    if (err) {
+      // Use Firebase UID to create/find Supabase user
+      const firebaseUid = result.firebaseUser.uid
+      const tempEmail = `${phone}@poolkaro.phone`
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: tempEmail,
+        password: firebaseUid,
+      })
+      if (signInErr) {
+        // Create account if doesn't exist
+        await supabase.auth.signUp({
+          email: tempEmail,
+          password: firebaseUid,
+          options: { data: { phone: `+91${phone}` } }
+        })
+      }
+    }
     setLoading(false)
-    if (err) setError('Invalid OTP. Please try again.')
   }
 
   async function googleLogin() {
@@ -254,6 +274,9 @@ export default function Login() {
           )}
         </div>
       </div>
+
+      {/* Invisible recaptcha for Firebase */}
+      <div id="recaptcha-container"></div>
 
       <div style={{ color: '#333', fontSize: 11, marginTop: 20, textAlign: 'center', lineHeight: 1.8 }}>
         By continuing you agree to our Terms & Privacy Policy
