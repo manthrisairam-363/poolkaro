@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { sendFirebaseOTP, verifyFirebaseOTP } from '../lib/firebase'
 
 export default function Login() {
-  const [tab, setTab] = useState('phone')
+  const [tab, setTab] = useState('google')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // Phone
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
   const [otpSent, setOtpSent] = useState(false)
@@ -20,53 +18,10 @@ export default function Login() {
   const [showEmail, setShowEmail] = useState(false)
 
   async function sendOTP() {
-    setError('')
-    if (!phone || phone.length < 10) { setError('Enter valid 10-digit mobile number'); return }
-    setLoading(true)
-    const result = await sendFirebaseOTP(`+91${phone}`)
-    setLoading(false)
-    if (!result.success) {
-      setError(result.error || 'Failed to send OTP. Try again.')
-      return
-    }
-    setOtpSent(true)
-    setSuccess(`OTP sent to +91 ${phone}`)
+    setError('Phone OTP coming soon. Please use Google login.')
   }
 
-  async function verifyOTP() {
-    setError('')
-    if (!otp || otp.length !== 6) { setError('Enter 6-digit OTP'); return }
-    setLoading(true)
-    const result = await verifyFirebaseOTP(otp)
-    if (!result.success) {
-      setError(result.error || 'Invalid OTP. Try again.')
-      setLoading(false)
-      return
-    }
-    // Firebase verified! Now sign into Supabase with phone
-    const { error: err } = await supabase.auth.signInWithOtp({
-      phone: `+91${phone}`,
-    })
-    // If Supabase phone not set up, create session via email workaround
-    if (err) {
-      // Use Firebase UID to create/find Supabase user
-      const firebaseUid = result.firebaseUser.uid
-      const tempEmail = `${phone}@poolkaro.phone`
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: tempEmail,
-        password: firebaseUid,
-      })
-      if (signInErr) {
-        // Create account if doesn't exist
-        await supabase.auth.signUp({
-          email: tempEmail,
-          password: firebaseUid,
-          options: { data: { phone: `+91${phone}` } }
-        })
-      }
-    }
-    setLoading(false)
-  }
+  async function verifyOTP() {}
 
   async function googleLogin() {
     setError('')
@@ -125,7 +80,7 @@ export default function Login() {
 
         {/* Tab buttons */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-          {[['phone', '📱 Phone'], ['google', '🔵 Google']].map(([v, l]) => (
+          {[['google', '🔵 Google'], ['phone', '📱 Phone']].map(([v, l]) => (
             <button key={v} onClick={() => { setTab(v); setError(''); setSuccess('') }} style={{
               flex: 1, padding: '11px', borderRadius: 12, cursor: 'pointer',
               background: tabActive(v) ? '#facc15' : 'transparent',
@@ -148,73 +103,25 @@ export default function Login() {
         )}
 
         {/* PHONE TAB */}
-        {tab === 'phone' && !otpSent && (
-          <>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#aaa', marginBottom: 8, display: 'block' }}>
-              Mobile Number
-            </label>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              <div style={{
-                padding: '13px 12px', background: '#222',
-                border: '1.5px solid #333', borderRadius: 12,
-                color: '#fff', fontSize: 14, display: 'flex',
-                alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-              }}>
-                🇮🇳 +91
-              </div>
-              <input
-                style={{ ...inp, marginBottom: 0, flex: 1 }}
-                type="tel" maxLength={10}
-                placeholder="98765 43210"
-                value={phone}
-                onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
-                onKeyDown={e => e.key === 'Enter' && sendOTP()}
-              />
+        {tab === 'phone' && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📱</div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+              Phone OTP Coming Soon
             </div>
-            <button onClick={sendOTP} disabled={loading} style={{
-              width: '100%', padding: 15, background: '#facc15',
+            <div style={{ color: '#666', fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
+              We're setting up secure phone verification.{'
+'}
+              For now, please use Google login — it's faster!
+            </div>
+            <button onClick={() => { setTab('google'); setError('') }} style={{
+              width: '100%', padding: 13, background: '#facc15',
               color: '#111', border: 'none', borderRadius: 12,
-              fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 12,
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
             }}>
-              {loading ? 'Sending OTP...' : 'Send OTP →'}
+              🔵 Use Google Login Instead
             </button>
-            <div style={{ fontSize: 11, color: '#555', textAlign: 'center' }}>
-              We'll send a 6-digit OTP to verify your number
-            </div>
-          </>
-        )}
-
-        {tab === 'phone' && otpSent && (
-          <>
-            <div style={{ color: '#22c55e', fontSize: 13, textAlign: 'center', marginBottom: 14 }}>
-              OTP sent to +91 {phone}
-            </div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#aaa', marginBottom: 8, display: 'block' }}>
-              Enter 6-digit OTP
-            </label>
-            <input
-              style={{ ...inp, textAlign: 'center', letterSpacing: 8, fontSize: 22 }}
-              type="number" maxLength={6}
-              placeholder="000000"
-              value={otp}
-              onChange={e => setOtp(e.target.value.slice(0, 6))}
-              onKeyDown={e => e.key === 'Enter' && verifyOTP()}
-            />
-            <button onClick={verifyOTP} disabled={loading} style={{
-              width: '100%', padding: 15, background: '#facc15',
-              color: '#111', border: 'none', borderRadius: 12,
-              fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 10,
-            }}>
-              {loading ? 'Verifying...' : '✅ Verify & Login'}
-            </button>
-            <button onClick={() => { setOtpSent(false); setOtp(''); setError('') }} style={{
-              width: '100%', padding: 12, background: 'transparent',
-              color: '#666', border: '1px solid #333', borderRadius: 12,
-              fontSize: 13, cursor: 'pointer',
-            }}>
-              ← Change Number
-            </button>
-          </>
+          </div>
         )}
 
         {/* GOOGLE TAB */}
@@ -274,9 +181,6 @@ export default function Login() {
           )}
         </div>
       </div>
-
-      {/* Invisible recaptcha for Firebase */}
-      <div id="recaptcha-container"></div>
 
       <div style={{ color: '#333', fontSize: 11, marginTop: 20, textAlign: 'center', lineHeight: 1.8 }}>
         By continuing you agree to our Terms & Privacy Policy
