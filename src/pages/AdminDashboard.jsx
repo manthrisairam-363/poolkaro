@@ -4,14 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { formatTime, formatDate } from '../lib/utils'
 
-// Admin emails — add yours here
-const ADMIN_EMAILS = [
-  'manthrisairam@gmail.com',
-  'manthrisai@gmail.com',
-]
-
 export default function AdminDashboard() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [users, setUsers] = useState([])
@@ -19,14 +13,20 @@ export default function AdminDashboard() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('overview')
+  const [accessChecked, setAccessChecked] = useState(false)
 
-  // Check admin access
-  const isAdmin = ADMIN_EMAILS.includes(user?.email)
+  // Check admin access from DATABASE (not just email)
+  const isAdmin = profile?.is_admin === true
 
   useEffect(() => {
-    if (!isAdmin) { navigate('/'); return }
+    // Wait for profile to load before checking
+    if (profile === null) return // still loading
+    if (!profile?.is_admin) {
+      navigate('/')
+      return
+    }
     fetchAll()
-  }, [])
+  }, [profile])
 
   async function fetchAll() {
     setLoading(true)

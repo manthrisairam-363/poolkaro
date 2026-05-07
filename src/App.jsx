@@ -12,6 +12,7 @@ import Wallet from './pages/Wallet'
 import EditRide from './pages/EditRide'
 import AdminDashboard from './pages/AdminDashboard'
 import TermsPrivacy from './pages/TermsPrivacy'
+import { usePushNotifications } from './lib/pushNotifications'
 
 function Loader() {
   return (
@@ -31,6 +32,8 @@ function Loader() {
 
 function AppRoutes() {
   const { user, profile, loading } = useAuth()
+  // Auto-register push notifications when logged in
+  usePushNotifications(user?.id)
   if (loading) return <Loader />
   if (!user) return <Login />
   if (!profile?.onboarding_complete) return <Onboarding />

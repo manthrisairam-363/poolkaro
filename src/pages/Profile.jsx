@@ -211,7 +211,7 @@ export default function Profile() {
           {[
             { label: '📄 Terms of Use & Privacy Policy', path: '/terms' },
             { label: '⚙️ Admin Dashboard', path: '/admin', adminOnly: true },
-          ].filter(l => !l.adminOnly || ['manthrisairam@gmail.com','manthrisai@gmail.com'].includes(user?.email))
+          ].filter(l => !l.adminOnly || profile?.is_admin === true)
           .map(l => (
             <button key={l.path} onClick={() => navigate(l.path)} style={{
               width: '100%', padding: '14px 16px', background: 'none', border: 'none',

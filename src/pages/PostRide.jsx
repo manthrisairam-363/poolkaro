@@ -60,8 +60,17 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
     const balance = walletData?.balance || 0
     if (balance < 200) {
-      setError('Your wallet balance is low. Add ₹2 minimum to post a ride.')
+      setError('Insufficient wallet balance. Add minimum ₹2 to post a ride.')
       return
+    }
+    // Warn for recurring rides with low balance
+    const seats = Number(form.seats_available)
+    const estimatedBookings = form.recurring === 'once' ? seats : seats * (form.recurring === 'weekdays' ? 20 : 28)
+    const estimatedCost = estimatedBookings * 200 // ₹2 per booking in paise
+    if (form.recurring !== 'once' && balance < estimatedCost) {
+      const canCover = Math.floor(balance / 200)
+      setError(`⚠️ Low balance: ₹${balance/100} covers ~${canCover} bookings. Top up wallet to ensure all bookings go through. Proceeding anyway...`)
+      // Don't return — let them post but warn
     }
     setLoading(true)
     // Build list of dates to post
