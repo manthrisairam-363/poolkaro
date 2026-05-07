@@ -96,12 +96,98 @@ export default function Wallet() {
     setLoading(false)
   }
 
+  async function loadRazorpay() {
+    return new Promise(resolve => {
+      if (window.Razorpay) { resolve(true); return }
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.onload = () => resolve(true)
+      script.onerror = () => resolve(false)
+      document.body.appendChild(script)
+    })
+  }
+
   async function handleRecharge() {
-    // 🔒 REAL PAYMENT COMING SOON
-    // Razorpay integration will be added here once KYC is approved
-    // Do NOT enable fake recharge in production
-    alert('Payments coming soon! We are setting up secure UPI payments. Your ₹10 welcome bonus is enough to get started.')
-    setShowRecharge(false)
+    const amount = customAmount ? parseInt(customAmount) : selectedAmount
+    if (!amount || amount < 20) { alert('Minimum recharge is ₹20'); return }
+    if (amount > 10000) { alert('Maximum recharge is ₹10,000'); return }
+
+    setRecharging(true)
+
+    try {
+      // Load Razorpay SDK
+      const loaded = await loadRazorpay()
+      if (!loaded) { alert('Failed to load payment gateway. Check your internet.'); setRecharging(false); return }
+
+      // Create order via Edge Function
+      const orderRes = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-order`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ action: 'create_order', amount, user_id: user.id })
+        }
+      )
+      const order = await orderRes.json()
+      if (!order.id) throw new Error('Failed to create order')
+
+      // Open Razorpay checkout
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: 'INR',
+        name: 'PoolKaro',
+        description: `Wallet Recharge ₹${amount}`,
+        order_id: order.id,
+        prefill: { contact: profile?.phone || '' },
+        theme: { color: '#facc15' },
+        handler: async (response) => {
+          // Verify payment via Edge Function
+          const verifyRes = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-order`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify({
+                action: 'verify_payment',
+                amount,
+                user_id: user.id,
+                payment_id: response.razorpay_payment_id,
+                order_id: response.razorpay_order_id,
+                signature: response.razorpay_signature,
+              })
+            }
+          )
+          const result = await verifyRes.json()
+          if (result.success) {
+            setSuccess(`₹${amount} added to your wallet! ✅`)
+            setTimeout(() => setSuccess(''), 4000)
+            fetchWallet()
+          } else {
+            alert('Payment verification failed. Contact support.')
+          }
+          setRecharging(false)
+          setShowRecharge(false)
+          setCustomAmount('')
+          setSelectedAmount(50)
+        },
+        modal: {
+          ondismiss: () => { setRecharging(false) }
+        }
+      }
+      const rzp = new window.Razorpay(options)
+      rzp.open()
+
+    } catch (err) {
+      alert('Payment failed: ' + err.message)
+      setRecharging(false)
+    }
   }
 
   const balanceRupees = (wallet?.balance || 0) / 100
@@ -245,20 +331,12 @@ export default function Wallet() {
               </div>
             </div>
 
-            {/* Coming soon notice */}
-            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, color: '#c2410c', fontWeight: 700, marginBottom: 4 }}>
-                🔒 Secure Payments Coming Soon
-              </div>
-              <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
-                We are setting up Razorpay UPI payments. You'll be able to recharge your wallet very soon. Your ₹10 welcome bonus is active!
-              </div>
-            </div>
-            <button onClick={handleRecharge} style={{
-              width: '100%', padding: 15, background: '#e5e7eb', color: '#999',
-              border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'not-allowed', marginBottom: 10,
+            <button onClick={handleRecharge} disabled={recharging} style={{
+              width: '100%', padding: 15, background: '#111', color: '#fff',
+              border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700,
+              cursor: recharging ? 'not-allowed' : 'pointer', marginBottom: 10,
             }}>
-              🔒 Coming Soon
+              {recharging ? 'Opening Payment...' : `💳 Pay ₹${customAmount || selectedAmount || 0} via UPI`}
             </button>
             <button onClick={() => { setShowRecharge(false); setCustomAmount('') }} style={{
               width: '100%', padding: 12, background: '#f3f4f6', color: '#666',
