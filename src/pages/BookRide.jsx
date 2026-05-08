@@ -31,7 +31,11 @@ export default function BookRide() {
     setOwner(data.profiles)
 
     const { data: existing } = await supabase
-      .from('bookings').select('id').eq('ride_id', id).eq('rider_id', user.id).maybeSingle()
+      .from('bookings').select('id')
+      .eq('ride_id', id)
+      .eq('rider_id', user.id)
+      .eq('status', 'confirmed')  // only block if ACTIVE booking exists
+      .maybeSingle()
     if (existing) setAlreadyBooked(true)
 
     const { data: wallet } = await supabase
