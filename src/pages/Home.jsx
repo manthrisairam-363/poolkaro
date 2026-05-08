@@ -181,7 +181,7 @@ export default function Home() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
             <div style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px' }}>
-              <span style={{ color: '#facc15' }}>Pool</span>Karo
+              <span style={{ color: '#facc15' }}>Pool</span><span style={{ color: '#fff' }}>Karo</span>
             </div>
             <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
               {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'Hyderabad IT Carpool'}
@@ -206,8 +206,14 @@ export default function Home() {
             color: hasActiveFilters ? '#111' : '#fff',
             border: 'none', borderRadius: 10, padding: '10px 14px',
             fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+            display: 'flex', alignItems: 'center', gap: 4,
           }}>
-            {hasActiveFilters ? `🔧 ${[filterFrom,filterTo,filterDate!=='all'?filterDate:'',filterTime!=='all'?filterTime:''].filter(Boolean).length}` : '🔧'}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={hasActiveFilters ? '#111' : '#fff'} strokeWidth="2.5" strokeLinecap="round">
+              <line x1="4" y1="6" x2="20" y2="6"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+              <line x1="11" y1="18" x2="13" y2="18"/>
+            </svg>
+            {hasActiveFilters && <span style={{ fontSize: 11, fontWeight: 800 }}>{[filterFrom,filterTo,filterDate!=='all'?filterDate:'',filterTime!=='all'?filterTime:''].filter(Boolean).length}</span>}
           </button>
         </div>
 

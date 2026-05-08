@@ -22,7 +22,7 @@ function Loader() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: 12,
     }}>
-      <div style={{ width: 80, height: 80, borderRadius: 24, background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, boxShadow: '0 8px 32px rgba(250,204,21,0.3)' }}>🚗</div>
+      <div style={{ width: 80, height: 80, borderRadius: 24, background: 'linear-gradient(135deg, #facc15, #f59e0b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, boxShadow: '0 8px 32px rgba(250,204,21,0.4)' }}>🚗</div>
       <div style={{ fontWeight: 800, fontSize: 28, letterSpacing: '-1px' }}>
         <span style={{ color: '#facc15' }}>Pool</span><span style={{ color: '#fff' }}>Karo</span>
       </div>

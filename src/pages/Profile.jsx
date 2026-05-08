@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import { StarDisplay } from '../components/RatingModal'
 import { getCompanyFromEmail, isCompanyEmail } from '../lib/companyDomains'
+import { CITIES } from '../lib/cities'
 
 export default function Profile() {
   const { user, profile, signOut, fetchProfile } = useAuth()
@@ -20,6 +21,7 @@ export default function Profile() {
     vehicle_number: profile?.vehicle_number || '',
     upi_id: profile?.upi_id || '',
     role: profile?.role || 'both',
+    city: profile?.city || 'hyderabad',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -34,6 +36,7 @@ export default function Profile() {
       vehicle_number: form.vehicle_number?.toUpperCase(),
       upi_id: form.upi_id,
       role: form.role,
+      city: form.city,
     }).eq('id', user.id)
     setLoading(false)
     if (!error) {
@@ -198,7 +201,7 @@ export default function Profile() {
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>About PoolKaro</div>
           {[
             ['🚗', 'Version', '1.0.0 Beta'],
-            ['📍', 'City', 'Hyderabad'],
+            ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'],
             ['💰', 'Platform Fee', '₹2 per booking'],
             ['⚡', 'Payments', 'Instant UPI'],
           ].map(([icon, k, v]) => (
