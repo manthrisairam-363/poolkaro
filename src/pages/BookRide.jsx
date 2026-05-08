@@ -31,12 +31,12 @@ export default function BookRide() {
     setOwner(data.profiles)
 
     const { data: existing } = await supabase
-      .from('bookings').select('id')
+      .from('bookings').select('id, seats_booked')
       .eq('ride_id', id)
       .eq('rider_id', user.id)
-      .eq('status', 'confirmed')  // only block if ACTIVE booking exists
+      .eq('status', 'confirmed')
       .maybeSingle()
-    if (existing) setAlreadyBooked(true)
+    if (existing) setAlreadyBooked(true) // show info but don't block
 
     const { data: wallet } = await supabase
       .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
@@ -47,7 +47,6 @@ export default function BookRide() {
   async function confirmBooking() {
     setError('')
     if (ride.driver_id === user.id) { setError("You can't book your own ride!"); return }
-    if (alreadyBooked) { setError("You've already booked this ride!"); return }
     if (walletBalance < 200) { setError('Insufficient wallet balance. Add ₹2 minimum to your wallet.'); return }
     if (ride.seats_available < 1) { setError('Sorry, this ride is full'); return }
 
@@ -242,8 +241,8 @@ export default function BookRide() {
       <div style={{ padding: 16 }}>
 
         {alreadyBooked && (
-          <div style={{ background: '#fef9c3', color: '#854d0e', padding: '12px 14px', borderRadius: 10, fontSize: 13, marginBottom: 14, fontWeight: 600 }}>
-            ⚠️ You've already booked this ride
+          <div style={{ background: '#f0f4ff', color: '#2563eb', padding: '12px 14px', borderRadius: 10, fontSize: 13, marginBottom: 14, fontWeight: 600 }}>
+            ℹ️ You already have a seat booked. You can book one more for a colleague.
           </div>
         )}
 
@@ -343,14 +342,13 @@ export default function BookRide() {
           </div>
         )}
 
-        <button onClick={confirmBooking} disabled={booking || alreadyBooked} style={{
+        <button onClick={confirmBooking} disabled={booking} style={{
           width: '100%', padding: 15,
-          background: alreadyBooked ? '#e5e7eb' : '#111',
-          color: alreadyBooked ? '#999' : '#fff',
+          background: '#111', color: '#fff',
           border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700,
-          cursor: alreadyBooked ? 'not-allowed' : 'pointer', marginBottom: 10,
+          cursor: booking ? 'not-allowed' : 'pointer', marginBottom: 10,
         }}>
-          {booking ? 'Confirming...' : alreadyBooked ? 'Already Booked' : '✅ Confirm Booking (₹2 from wallet)'}
+          {booking ? 'Confirming...' : '✅ Confirm Booking (₹2 from wallet)'}
         </button>
 
         <button onClick={() => navigate(-1)} style={{ width: '100%', padding: 12, background: '#f3f4f6', color: '#666', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}>
