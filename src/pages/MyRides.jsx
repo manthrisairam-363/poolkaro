@@ -64,7 +64,7 @@ function PassengerCard({ booking }) {
       {/* Booking details */}
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[
-          ['💰 Paid', `₹${booking.total_paid}`],
+          ['💰 Platform fee', '₹2 (wallet)'],
           ['📥 You receive', `₹${booking.driver_receives}`],
           ['🪑 Seats', booking.seats_booked],
           ['📅 Booked', new Date(booking.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })],
@@ -322,7 +322,10 @@ export default function MyRides() {
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                  Paid ₹{b.total_paid}
+                  ✅ Seat Confirmed
+                </span>
+                <span style={{ background: '#dbeafe', color: '#1d4ed8', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
+                  Pay ₹{b.ride_fare} to owner
                 </span>
                 <span style={{
                   background: b.payment_status === 'paid' ? '#f0fdf4' : '#fff7ed',

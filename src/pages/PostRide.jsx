@@ -196,7 +196,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
             <div style={{ fontSize: 13 }}>
               {form.seats_available} seats × ₹{form.fare - 2} = <strong>₹{form.seats_available * (form.fare - 2)}</strong>
             </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>After ₹2 PoolKaro fee per seat</div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>PoolKaro deducts ₹2 per confirmed booking</div>
           </div>
         )}
 
