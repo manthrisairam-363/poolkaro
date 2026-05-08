@@ -112,6 +112,13 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterFrom, setFilterFrom] = useState('')
+  const [filterTo, setFilterTo] = useState('')
+  const [filterDate, setFilterDate] = useState('all') // all | today | tomorrow
+  const [filterTime, setFilterTime] = useState('all') // all | morning | evening
+
+  const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
   useEffect(() => {
     fetchRides()
@@ -143,9 +150,24 @@ export default function Home() {
     setLoading(false)
   }
 
+  const today = new Date().toISOString().split('T')[0]
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+
   const filtered = rides.filter(r => {
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
+    if (filterFrom && !r.from_location?.toLowerCase().includes(filterFrom.toLowerCase())) return false
+    if (filterTo && !r.to_location?.toLowerCase().includes(filterTo.toLowerCase())) return false
+    if (filterDate === 'today' && r.ride_date !== today) return false
+    if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
+    if (filterTime === 'morning') {
+      const hr = parseInt(r.ride_time?.split(':')[0] || 0)
+      if (hr >= 12) return false
+    }
+    if (filterTime === 'evening') {
+      const hr = parseInt(r.ride_time?.split(':')[0] || 0)
+      if (hr < 12) return false
+    }
     if (search) {
       const q = search.toLowerCase()
       return r.from_location?.toLowerCase().includes(q) || r.to_location?.toLowerCase().includes(q) || r.route_description?.toLowerCase().includes(q)
@@ -172,12 +194,66 @@ export default function Home() {
             </button>
           </div>
         </div>
-        <input
-          placeholder="Search area (Uppal, Kokapet, Madhapur...)"
-          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: 'none', fontSize: 13, background: '#222', color: '#fff', boxSizing: 'border-box' }}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input
+            placeholder="🔍 Search area..."
+            style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none', fontSize: 13, background: '#222', color: '#fff', boxSizing: 'border-box' }}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button onClick={() => setShowFilters(!showFilters)} style={{
+            background: hasActiveFilters ? '#facc15' : '#222',
+            color: hasActiveFilters ? '#111' : '#fff',
+            border: 'none', borderRadius: 10, padding: '10px 14px',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+          }}>
+            {hasActiveFilters ? `🔧 ${[filterFrom,filterTo,filterDate!=='all'?filterDate:'',filterTime!=='all'?filterTime:''].filter(Boolean).length}` : '🔧'}
+          </button>
+        </div>
+
+        {/* Advanced Filter Panel */}
+        {showFilters && (
+          <div style={{ marginTop: 10, background: '#1a1a1a', borderRadius: 12, padding: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>FROM</div>
+                <input placeholder="e.g. Uppal"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
+                  value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>TO</div>
+                <input placeholder="e.g. Kokapet"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
+                  value={filterTo} onChange={e => setFilterTo(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+              {[['all','📅 Any Day'],['today','Today'],['tomorrow','Tomorrow']].map(([v,l]) => (
+                <button key={v} onClick={() => setFilterDate(v)} style={{
+                  padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11,
+                  background: filterDate === v ? '#facc15' : '#333',
+                  color: filterDate === v ? '#111' : '#aaa', fontWeight: filterDate === v ? 700 : 400,
+                }}>{l}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+              {[['all','🕐 Any Time'],['morning','🌅 Morning (<12PM)'],['evening','🌆 Evening (>12PM)']].map(([v,l]) => (
+                <button key={v} onClick={() => setFilterTime(v)} style={{
+                  padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11,
+                  background: filterTime === v ? '#facc15' : '#333',
+                  color: filterTime === v ? '#111' : '#aaa', fontWeight: filterTime === v ? 700 : 400,
+                }}>{l}</button>
+              ))}
+            </div>
+            {hasActiveFilters && (
+              <button onClick={() => { setFilterFrom(''); setFilterTo(''); setFilterDate('all'); setFilterTime('all') }}
+                style={{ width: '100%', padding: '7px', background: '#333', color: '#aaa', border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
+                ✕ Clear All Filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8 }}>
