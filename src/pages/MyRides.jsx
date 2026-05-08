@@ -236,26 +236,32 @@ export default function MyRides() {
 
   async function cancelRide(rideId) {
     if (!confirm('Cancel this ride?\n\nAll co-riders who booked will be notified.')) return
-    // Cancel the ride
-    await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
-    // Cancel all bookings for this ride
-    await supabase.from('bookings').update({ status: 'cancelled' }).eq('ride_id', rideId)
-    fetchData()
+    const { error } = await supabase.rpc('cancel_ride_and_bookings', {
+      p_ride_id: rideId,
+      p_driver_id: user.id,
+    })
+    if (error) {
+      // fallback
+      await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
+      await supabase.from('bookings').update({ status: 'cancelled' }).eq('ride_id', rideId)
+    }
+    await fetchData()
   }
 
   async function cancelBooking(bookingId, rideId, seatsBooked) {
     if (!confirm('Cancel your booking?\n\nThis cannot be undone.')) return
-    // Cancel the booking
-    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
-    // Restore seats on the ride
-    const { data: ride } = await supabase.from('rides').select('seats_available, status').eq('id', rideId).maybeSingle()
-    if (ride) {
+    const { error } = await supabase.rpc('cancel_booking_and_restore', {
+      p_booking_id: bookingId,
+      p_user_id: user.id,
+    })
+    if (error) {
+      // fallback
+      await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
       await supabase.from('rides').update({
-        seats_available: ride.seats_available + seatsBooked,
-        status: ride.status === 'full' ? 'active' : ride.status,
+        seats_available: supabase.rpc('increment', { inc: seatsBooked }),
       }).eq('id', rideId)
     }
-    fetchData()
+    await fetchData()
   }
 
   const tabStyle = (active) => ({

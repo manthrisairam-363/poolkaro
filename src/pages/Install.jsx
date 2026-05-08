@@ -148,7 +148,7 @@ export default function Install() {
       </button>
 
       <div style={{ color: '#444', fontSize: 11, textAlign: 'center' }}>
-        poolkaro.vercel.app · Free forever · No App Store needed
+        poolkaro.vercel.app · No App Store · No Subscription
       </div>
     </div>
   )
