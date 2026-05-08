@@ -1,15 +1,55 @@
 import { useState, useRef, useEffect } from 'react'
 
 const SUGGESTED_AREAS = [
-  'Uppal Ring Road','Nagole','LB Nagar','Dilsukhnagar','Vanasthalipuram',
-  'Secunderabad','Ameerpet','SR Nagar','Begumpet','Hitech City',
-  'Madhapur','Gachibowli','Kondapur','Kokapet','Nanakramguda',
-  'Kukatpally','KPHB','Miyapur','Bachupally','Kompally',
-  'Mehdipatnam','Tolichowki','Manikonda','Rajendra Nagar','Owaisi',
-  'Shamshabad','Attapur','Puppalaguda','Financial District','Jubilee Hills',
-  'GAR Kokapet','Lakshmi Infobahn','Mindspace','WaveRock','DLF Cybercity',
-  'Raheja Mindspace','Salarpuria','ICICI Bank Tower','ISB','BITS Hyderabad',
-  'Inorbit Mall','Biodiversity','Khajaguda','Narsingi','Tellapur',
+  // IT Corridors & Tech Parks
+  'HITEC City', 'Madhapur', 'Gachibowli', 'Kondapur', 'Kokapet',
+  'Nanakramguda', 'Financial District', 'Mindspace', 'DLF Cybercity',
+  'Raheja Mindspace', 'WaveRock', 'Salarpuria', 'Incor 9',
+  'Divyasree Techno Park', 'Lanco Hills', 'Aparna Cyber Life',
+  'ISB Hyderabad', 'BITS Hyderabad', 'Inorbit Mall', 'Jubilee Hills',
+  'Banjara Hills', 'Khajaguda', 'Narsingi', 'Puppalaguda',
+  'Manikonda', 'Tellapur', 'Gopanpally', 'Serilingampally',
+
+  // East Hyderabad
+  'Uppal Ring Road', 'Uppal', 'Nagole', 'LB Nagar', 'Dilsukhnagar',
+  'Vanasthalipuram', 'Hayathnagar', 'Pocharam', 'Ghatkesar',
+  'Boduppal', 'Peerzadiguda', 'Medipally', 'Ramanthapur',
+  'Tarnaka', 'Malkajgiri', 'Sainikpuri', 'Neredmet',
+  'AS Rao Nagar', 'ECIL', 'Kapra', 'Kushaiguda',
+
+  // West Hyderabad
+  'Kukatpally', 'KPHB', 'Miyapur', 'Bachupally', 'Kompally',
+  'Nizampet', 'Pragati Nagar', 'Chandanagar', 'Lingampally',
+  'Patancheru', 'Isnapur', 'Dundigal', 'Quthbullapur',
+  'Alwal', 'Suraram', 'Jeedimetla', 'Balanagar',
+
+  // North Hyderabad
+  'Secunderabad', 'Begumpet', 'Bowenpally', 'Trimulgherry',
+  'Karkhana', 'Maredpally', 'Marredpally', 'Paradise',
+  'SD Road', 'Clock Tower', 'West Maredpally', 'East Marredpally',
+  'Lalaguda', 'Tirumalagiri', 'Rasoolpura',
+
+  // Central Hyderabad
+  'Ameerpet', 'SR Nagar', 'Erragadda', 'Sanath Nagar',
+  'Punjagutta', 'Somajiguda', 'Raj Bhavan', 'Lakdi Ka Pul',
+  'Nampally', 'Abids', 'Koti', 'Sultan Bazar', 'Mozamjahi Market',
+  'Charminar', 'Falaknuma', 'Mehdipatnam', 'Masab Tank',
+  'Tolichowki', 'Attapur', 'Rethibowli',
+
+  // South Hyderabad
+  'Rajendra Nagar', 'Owaisi', 'Shamshabad', 'RGI Airport',
+  'Shamirpet', 'Medchal', 'Kandlakoya', 'Keesara',
+
+  // Outer Ring Road & New Areas
+  'Kokapet ORR', 'Nanakramguda ORR', 'Gachibowli ORR',
+  'Shamshabad ORR', 'Patancheru ORR', 'Kompally ORR',
+
+  // IT Company Areas
+  'GAR Kokapet', 'Lakshmi Infobahn', 'Phoenix Hyderabad',
+  'L&T Infocity', 'Tata Consultancy Deccan Park', 'Infosys SDB',
+  'Wipro SEZ', 'Capgemini Gachibowli', 'Accenture Hi-Tech City',
+  'Microsoft Hyderabad', 'Amazon Hyderabad', 'Google Hyderabad',
+  'Facebook Hyderabad', 'Apple India', 'Deloitte Hyderabad',
 ]
 
 export default function LocationInput({ label, value, onChange, placeholder }) {
