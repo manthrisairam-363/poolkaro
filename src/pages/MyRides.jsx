@@ -241,7 +241,23 @@ export default function MyRides() {
         .order('created_at', { ascending: false }),
     ])
     if (!ridesRes.error) setRides(ridesRes.data || [])
-    if (!bookingsRes.error) setBookings(bookingsRes.data || [])
+    if (!bookingsRes.error) {
+      const allBookings = bookingsRes.data || []
+      // Group confirmed bookings by ride_id
+      const grouped = {}
+      allBookings.filter(b => b.status === 'confirmed').forEach(b => {
+        if (grouped[b.ride_id]) {
+          grouped[b.ride_id].seats_booked += b.seats_booked
+          grouped[b.ride_id].total_paid += b.total_paid
+          grouped[b.ride_id].ride_fare += b.ride_fare
+        } else {
+          grouped[b.ride_id] = { ...b }
+        }
+      })
+      // Add cancelled bookings separately (not grouped)
+      const cancelled = allBookings.filter(b => b.status === 'cancelled')
+      setBookings([...Object.values(grouped), ...cancelled])
+    }
     setLoading(false)
   }
 
@@ -275,6 +291,9 @@ export default function MyRides() {
     await fetchData()
   }
 
+  const activeBookings = bookings.filter(b => b.status === 'confirmed')
+  const cancelledBookings = bookings.filter(b => b.status === 'cancelled')
+
   const tabStyle = (active) => ({
     flex: 1, padding: '10px', background: 'none', border: 'none',
     fontWeight: active ? 700 : 400, fontSize: 14,
@@ -293,7 +312,7 @@ export default function MyRides() {
             🚗 I Posted ({rides.length})
           </button>
           <button style={tabStyle(tab === 'booked')} onClick={() => setTab('booked')}>
-            🎫 I Booked ({bookings.length})
+            🎫 I Booked ({activeBookings.length})
           </button>
         </div>
       </div>
@@ -312,13 +331,16 @@ export default function MyRides() {
           ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} />)
 
         ) : (
-          bookings.length === 0 ? (
+          activeBookings.length === 0 && cancelledBookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 40 }}>🎫</div>
               <div style={{ color: '#aaa', marginTop: 8 }}>No bookings yet</div>
               <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Find a ride on the home screen</div>
             </div>
-          ) : bookings.map(b => (
+          ) : (
+            <>
+              {/* Active bookings */}
+              {activeBookings.map(b => (
             <div key={b.id} style={{
               background: '#fff', borderRadius: 14, padding: 14,
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10,
@@ -373,13 +395,36 @@ export default function MyRides() {
                   }}>🚫 Cancel</button>
                 )}
               </div>
-              {b.status === 'cancelled' && (
-                <div style={{ marginTop: 8, background: '#fef2f2', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
-                  ❌ Booking Cancelled
-                </div>
-              )}
             </div>
-          ))
+          ))}
+
+              {/* Cancelled bookings - collapsed section */}
+              {cancelledBookings.length > 0 && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{
+                    fontSize: 12, color: '#aaa', cursor: 'pointer',
+                    padding: '8px 0', userSelect: 'none', listStyle: 'none',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span>▶</span> {cancelledBookings.length} cancelled booking{cancelledBookings.length > 1 ? 's' : ''} (tap to show)
+                  </summary>
+                  {cancelledBookings.map(b => (
+                    <div key={b.id} style={{
+                      background: '#fafafa', borderRadius: 12, padding: 12,
+                      marginTop: 8, border: '1px solid #f0f0f0', opacity: 0.7,
+                    }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#888' }}>
+                        {b.rides?.from_location} → {b.rides?.to_location}
+                      </div>
+                      <div style={{ color: '#bbb', fontSize: 12, marginTop: 2 }}>
+                        {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ❌ Cancelled
+                      </div>
+                    </div>
+                  ))}
+                </details>
+              )}
+            </>
+          )
         )}
       </div>
       <BottomNav />
