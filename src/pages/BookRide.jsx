@@ -18,6 +18,7 @@ export default function BookRide() {
   const [alreadyBooked, setAlreadyBooked] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
   const [bookingData, setBookingData] = useState(null)
+  const [seatsToBook, setSeatsToBook] = useState(1)
 
   useEffect(() => { fetchRide() }, [id])
 
@@ -47,19 +48,19 @@ export default function BookRide() {
   async function confirmBooking() {
     setError('')
     if (ride.driver_id === user.id) { setError("You can't book your own ride!"); return }
-    if (walletBalance < 200) { setError('Insufficient wallet balance. Add ₹2 minimum to your wallet.'); return }
-    if (ride.seats_available < 1) { setError('Sorry, this ride is full'); return }
+    if (walletBalance < 200 * seatsToBook) { setError(`Insufficient wallet balance. Need ₹${2 * seatsToBook} for ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''}.`); return }
+    if (ride.seats_available < seatsToBook) { setError(`Only ${ride.seats_available} seat${ride.seats_available !== 1 ? 's' : ''} available`); return }
 
     setBooking(true)
     const { data: bk, error: err } = await supabase.from('bookings').insert({
       ride_id: ride.id,
       rider_id: user.id,
-      seats_booked: 1,
-      ride_fare: ride.fare,
-      platform_fee: 2,
-      driver_deduction: 2,
-      total_paid: ride.fare + 2,
-      driver_receives: ride.fare - 2,
+      seats_booked: seatsToBook,
+      ride_fare: ride.fare * seatsToBook,
+      platform_fee: 2 * seatsToBook,
+      driver_deduction: 2 * seatsToBook,
+      total_paid: (ride.fare + 2) * seatsToBook,
+      driver_receives: (ride.fare - 2) * seatsToBook,
       payment_status: 'paid',
       status: 'confirmed',
     }).select().single()
@@ -67,8 +68,8 @@ export default function BookRide() {
     if (err) { setError(err.message); setBooking(false); return }
 
     await supabase.from('rides').update({
-      seats_available: ride.seats_available - 1,
-      status: ride.seats_available - 1 <= 0 ? 'full' : 'active',
+      seats_available: ride.seats_available - seatsToBook,
+      status: ride.seats_available - seatsToBook <= 0 ? 'full' : 'active',
     }).eq('id', ride.id)
 
     setBookingData(bk)
@@ -156,8 +157,11 @@ export default function BookRide() {
 
             {/* Amount highlight */}
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 40, fontWeight: 800, color: '#facc15' }}>₹{ride.fare}</div>
-              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>to {owner?.full_name}</div>
+              <div style={{ fontSize: 40, fontWeight: 800, color: '#facc15' }}>₹{bookingData?.ride_fare || ride.fare}</div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                to {owner?.full_name}
+                {bookingData?.seats_booked > 1 && ` · ${bookingData.seats_booked} seats`}
+              </div>
             </div>
 
             {/* UPI ID */}
@@ -298,35 +302,60 @@ export default function BookRide() {
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 12, letterSpacing: 1 }}>PAYMENT DETAILS</div>
 
+          {/* Seats selector */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              How many seats?
+              <span style={{ color: '#888', fontWeight: 400, fontSize: 11, marginLeft: 6 }}>
+                (max {ride.seats_available} available)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[1, 2, 3, 4].filter(n => n <= ride.seats_available).map(n => (
+                <button key={n} onClick={() => setSeatsToBook(n)} style={{
+                  width: 48, height: 48, borderRadius: 10, border: 'none', cursor: 'pointer',
+                  background: seatsToBook === n ? '#111' : '#f3f4f6',
+                  color: seatsToBook === n ? '#fff' : '#333',
+                  fontWeight: 700, fontSize: 16,
+                }}>{n}</button>
+              ))}
+            </div>
+            {seatsToBook > 1 && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
+                Booking for yourself + {seatsToBook - 1} colleague{seatsToBook > 2 ? 's' : ''}
+              </div>
+            )}
+          </div>
+
           {/* Platform fee */}
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>PoolKaro Platform Fee</div>
-              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Deducted from your wallet</div>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹2 × {seatsToBook} seat{seatsToBook > 1 ? 's' : ''} — from wallet</div>
             </div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#16a34a' }}>₹2</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#16a34a' }}>₹{2 * seatsToBook}</span>
           </div>
 
           {/* Ride fare */}
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Ride Fare</div>
-              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Pay directly to car owner via UPI</div>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹{ride.fare} × {seatsToBook} seat{seatsToBook > 1 ? 's' : ''} — pay to car owner</div>
             </div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#2563eb' }}>₹{ride.fare}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#2563eb' }}>₹{ride.fare * seatsToBook}</span>
           </div>
 
           {/* Wallet balance */}
-          <div style={{ background: walletBalance >= 200 ? '#f0fdf4' : '#fef2f2', borderRadius: 8, padding: '10px 12px', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ background: walletBalance >= 200 * seatsToBook ? '#f0fdf4' : '#fef2f2', borderRadius: 8, padding: '10px 12px', display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, color: '#555' }}>💰 Your wallet balance</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: walletBalance >= 200 ? '#16a34a' : '#dc2626' }}>
-              ₹{walletBalance / 100} {walletBalance < 200 ? '⚠️ Low!' : '✅'}
+            <span style={{ fontSize: 13, fontWeight: 700, color: walletBalance >= 200 * seatsToBook ? '#16a34a' : '#dc2626' }}>
+              ₹{walletBalance / 100} {walletBalance < 200 * seatsToBook ? '⚠️ Low!' : '✅'}
             </span>
           </div>
 
           <div style={{ marginTop: 12, padding: '10px 12px', background: '#f8f9fa', borderRadius: 8 }}>
             <div style={{ fontSize: 11, color: '#888', lineHeight: 1.7 }}>
-              ℹ️ After confirming, you'll see the car owner's UPI ID to pay ₹{ride.fare} directly via GPay, PhonePe or Paytm.
+              ℹ️ After confirming, you'll see the car owner's UPI ID to pay ₹{ride.fare * seatsToBook} directly.
             </div>
           </div>
         </div>
@@ -348,7 +377,7 @@ export default function BookRide() {
           border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700,
           cursor: booking ? 'not-allowed' : 'pointer', marginBottom: 10,
         }}>
-          {booking ? 'Confirming...' : '✅ Confirm Booking (₹2 from wallet)'}
+          {booking ? 'Confirming...' : `✅ Confirm ${seatsToBook} Seat${seatsToBook > 1 ? 's' : ''} (₹${2 * seatsToBook} from wallet)`}
         </button>
 
         <button onClick={() => navigate(-1)} style={{ width: '100%', padding: 12, background: '#f3f4f6', color: '#666', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}>

@@ -102,7 +102,18 @@ function DriverRideCard({ ride, onCancel, onEdit }) {
       .eq('ride_id', ride.id)
       .eq('status', 'confirmed')
       .eq('payment_status', 'paid')
-    setPassengers(data || [])
+    // Group by rider_id — combine multiple bookings from same person
+    const grouped = {}
+    ;(data || []).forEach(b => {
+      if (grouped[b.rider_id]) {
+        grouped[b.rider_id].seats_booked += b.seats_booked
+        grouped[b.rider_id].ride_fare += b.ride_fare
+        grouped[b.rider_id].driver_receives += b.driver_receives
+      } else {
+        grouped[b.rider_id] = { ...b }
+      }
+    })
+    setPassengers(Object.values(grouped))
     setLoadingPax(false)
   }
 
