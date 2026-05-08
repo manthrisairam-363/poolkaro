@@ -87,20 +87,21 @@ function DriverRideCard({ ride, onCancel, onEdit }) {
   const [expanded, setExpanded] = useState(false)
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
-  const bookedCount = ride.seats_total - ride.seats_available
+  const bookedCount = Math.max(0, ride.seats_total - ride.seats_available)
   const isToOffice = ride.ride_type === 'to_office'
   const statusColor = { active: '#16a34a', full: '#2563eb', cancelled: '#dc2626', completed: '#888' }
 
   async function loadPassengers() {
     if (expanded) { setExpanded(false); return }
     setExpanded(true)
-    if (passengers.length > 0) return // already loaded
+    // Always reload to get fresh data
     setLoadingPax(true)
     const { data } = await supabase
       .from('bookings')
       .select('*, profiles(full_name, phone, upi_id)')
       .eq('ride_id', ride.id)
       .eq('status', 'confirmed')
+      .eq('payment_status', 'paid')
     setPassengers(data || [])
     setLoadingPax(false)
   }

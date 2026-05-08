@@ -12,6 +12,7 @@ import Wallet from './pages/Wallet'
 import EditRide from './pages/EditRide'
 import AdminDashboard from './pages/AdminDashboard'
 import TermsPrivacy from './pages/TermsPrivacy'
+import Install from './pages/Install'
 import { usePushNotifications } from './lib/pushNotifications'
 
 function Loader() {
@@ -49,6 +50,7 @@ function AppRoutes() {
       <Route path="/edit-ride/:id" element={<EditRide />} />
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/terms" element={<TermsPrivacy />} />
+      <Route path="/install" element={<Install />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

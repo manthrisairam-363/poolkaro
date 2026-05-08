@@ -113,7 +113,21 @@ export default function Home() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
 
-  useEffect(() => { fetchRides() }, [])
+  useEffect(() => {
+    fetchRides()
+
+    // Realtime: auto-refresh when any ride changes
+    const channel = supabase
+      .channel('rides-changes')
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'rides'
+      }, () => {
+        fetchRides() // auto-refresh home when seats change
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [])
 
   async function fetchRides() {
     setLoading(true)
