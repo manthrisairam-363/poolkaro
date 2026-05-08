@@ -64,7 +64,7 @@ export default function Profile() {
     <div style={{ paddingBottom: 90, background: '#f5f6fa', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ background: '#111', padding: '20px 16px 30px' }}>
-        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 20 }}>👤 Profile</div>
+        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 20 }}>My Profile</div>
         {/* Avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
@@ -116,7 +116,7 @@ export default function Profile() {
             // View mode
             <div style={{ display: 'grid', gap: 10 }}>
               {[
-                ['👤 Name', profile?.full_name],
+                ['✏️ Name', profile?.full_name],
                 ['📱 Phone', profile?.phone],
                 ['📧 Email', user?.email],
                 ['🚘 Vehicle', profile?.vehicle_model ? `${profile.vehicle_model} · ${profile.vehicle_number}` : 'Not set'],
@@ -157,6 +157,27 @@ export default function Profile() {
 
               <label style={label}>UPI ID</label>
               <input style={inp} placeholder="9876543210@upi" value={form.upi_id} onChange={e => set('upi_id', e.target.value)} />
+
+              <label style={label}>Your City</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                {Object.entries(CITIES).map(([key, city]) => (
+                  <button key={key} onClick={() => set('city', key)}
+                    disabled={!city.active}
+                    style={{
+                      padding: '10px 8px', borderRadius: 10,
+                      cursor: city.active ? 'pointer' : 'default',
+                      border: `2px solid ${form.city === key ? '#111' : '#e5e7eb'}`,
+                      background: form.city === key ? '#111' : '#fff',
+                      color: form.city === key ? '#fff' : city.active ? '#333' : '#ccc',
+                      fontWeight: form.city === key ? 700 : 400,
+                      fontSize: 12, textAlign: 'left',
+                      opacity: city.active ? 1 : 0.5,
+                    }}>
+                    {city.icon} {city.name}
+                    {!city.active && <span style={{ fontSize: 9, display: 'block', color: '#bbb' }}>Coming soon</span>}
+                  </button>
+                ))}
+              </div>
 
               <button onClick={saveProfile} disabled={loading} style={{
                 width: '100%', padding: 13, background: '#111', color: '#fff',
