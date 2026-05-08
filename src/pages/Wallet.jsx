@@ -60,7 +60,7 @@ function TransactionItem({ txn }) {
 }
 
 export default function Wallet() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [wallet, setWallet] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
