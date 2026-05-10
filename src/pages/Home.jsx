@@ -1,105 +1,92 @@
 import { useState, useEffect } from 'react'
-import { formatTime, formatDate } from '../lib/utils'
-import { getCompanyFromEmail } from '../lib/companyDomains'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import NotificationBell from '../components/NotificationBell'
+import { formatTime, formatDate } from '../lib/utils'
+import { getCompanyFromEmail } from '../lib/companyDomains'
 
-function RideCard({ ride, onBook, myUserId }) {
+function RideCard({ ride, onBook, myId }) {
   const [expanded, setExpanded] = useState(false)
-  const isToOffice = ride.ride_type === 'to_office'
-  const isMyRide = ride.driver_id === myUserId
-  const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
-  const colors = ['#2563eb','#7c3aed','#059669','#dc2626','#d97706']
-  const color = colors[ride.driver_id?.charCodeAt(0) % colors.length] || '#2563eb'
+  const isOffice = ride.ride_type === 'to_office'
+  const isOwn = ride.driver_id === myId
+  const initials = ride.profiles?.full_name?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?'
+  const company = getCompanyFromEmail(ride.profiles?.email)
 
   return (
     <div style={{
-      background: '#fff', borderRadius: 16, padding: 16,
-      boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: 12,
-      border: isMyRide ? '2px solid #facc15' : '1px solid #f0f0f0',
+      background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 10,
+      borderLeft: `3px solid ${isOwn ? '#facc15' : '#2a2a2a'}`,
     }}>
-      {isMyRide && (
-        <div style={{ background: '#facc15', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#111', display: 'inline-block', marginBottom: 8 }}>
+      {isOwn && (
+        <div style={{ background: '#facc15', borderRadius: 6, padding: '2px 8px', fontSize: 9, fontWeight: 800, color: '#000', display: 'inline-block', marginBottom: 10 }}>
           YOUR RIDE
         </div>
       )}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <div style={{
-          width: 42, height: 42, borderRadius: '50%', background: color,
-          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, fontSize: 15, flexShrink: 0,
-        }}>{initials}</div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#facc15', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+          {initials}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>{ride.profiles?.full_name || 'Car Owner'}</span>
+            {ride.profiles?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 8, padding: '1px 5px', borderRadius: 5, fontWeight: 700 }}>✓</span>}
+            {company && <span style={{ background: '#222', color: '#facc15', fontSize: 8, padding: '1px 6px', borderRadius: 5, fontWeight: 700, border: '1px solid #333' }}>{company.name}</span>}
+          </div>
+          <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{ride.vehicle_model} · {ride.vehicle_number}</div>
+        </div>
+        <span style={{ background: isOffice ? '#0f1a2e' : '#1a0f1e', color: isOffice ? '#60a5fa' : '#c084fc', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 600, border: `1px solid ${isOffice ? '#1e3a5f' : '#3b1f5e'}`, flexShrink: 0 }}>
+          {isOffice ? '🏢 Office' : '🏠 Home'}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {ride.profiles?.full_name || 'Car Owner'}
-              {ride.profiles?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
-              {(() => { const co = getCompanyFromEmail(ride.profiles?.email); return co ? <span style={{ background: co.bg, color: co.color, fontSize: 9, padding: '2px 6px', borderRadius: 8, fontWeight: 700 }}>{co.name}</span> : null })()}
-            </span>
-            <span style={{
-              background: isToOffice ? '#dbeafe' : '#fce7f3',
-              color: isToOffice ? '#1d4ed8' : '#be185d',
-              borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600,
-            }}>{isToOffice ? '🏢 To Office' : '🏠 To Home'}</span>
-          </div>
-          <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
-            {ride.vehicle_model} · {ride.vehicle_number}
-          </div>
+          <div style={{ fontSize: 10, color: '#555', marginBottom: 2, letterSpacing: 0.5 }}>FROM</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{ride.from_location}</div>
+        </div>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#facc15', fontSize: 14, fontWeight: 800 }}>→</div>
+        <div style={{ flex: 1, textAlign: 'right' }}>
+          <div style={{ fontSize: 10, color: '#555', marginBottom: 2, letterSpacing: 0.5 }}>TO</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{ride.to_location}</div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {[
-          { icon: '🕐', val: formatTime(ride.ride_time) },
-          { icon: '📅', val: formatDate(ride.ride_date) },
-          { icon: '📍', val: ride.from_location },
-          { icon: '🏁', val: ride.to_location },
-        ].map((item, i) => (
-          <div key={i} style={{ background: '#f8f9fa', borderRadius: 8, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 13 }}>{item.icon}</span>
-            <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.val}</span>
-          </div>
+          `🕐 ${formatTime(ride.ride_time)}`,
+          `📅 ${formatDate(ride.ride_date)}`,
+        ].map((t, i) => (
+          <div key={i} style={{ background: '#222', borderRadius: 8, padding: '5px 10px', fontSize: 11, color: '#ccc' }}>{t}</div>
         ))}
+        {ride.is_recurring && <div style={{ background: '#1a1a00', borderRadius: 8, padding: '5px 10px', fontSize: 11, color: '#facc15', border: '1px solid #333' }}>🔁 Daily</div>}
       </div>
 
       {expanded && ride.route_description && (
-        <div style={{ marginTop: 10, background: '#f0f4ff', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#444' }}>
+        <div style={{ background: '#222', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 11, color: '#888' }}>
           🛣️ {ride.route_description}
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '4px 12px', fontSize: 13, fontWeight: 700 }}>
-            ₹{ride.fare}
-          </span>
-          <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
-            🪑 {ride.seats_available} seat{ride.seats_available !== 1 ? 's' : ''} left
-          </span>
-          {ride.is_recurring && (
-            <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 600 }}>
-              🔁 Daily
-            </span>
-          )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ background: '#facc15', color: '#000', borderRadius: 20, padding: '5px 14px', fontSize: 14, fontWeight: 800 }}>₹{ride.fare}</span>
+          <span style={{ fontSize: 11, color: '#555' }}>🪑 {ride.seats_available} left</span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {ride.route_description && (
-            <button onClick={() => setExpanded(!expanded)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#666', cursor: 'pointer' }}>
-              {expanded ? '▲' : 'Route ▼'}
+            <button onClick={() => setExpanded(!expanded)} style={{ background: '#222', border: '1px solid #333', color: '#666', borderRadius: 8, padding: '6px 10px', fontSize: 11 }}>
+              {expanded ? '▲' : '▼'}
             </button>
           )}
-          {!isMyRide && (
-            <button onClick={() => onBook(ride)} style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          {!isOwn && (
+            <button onClick={() => onBook(ride)} style={{ background: '#facc15', color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 800 }}>
               Book ₹{ride.fare + 2}
             </button>
           )}
         </div>
-      </div>
-      <div style={{ fontSize: 10, color: '#bbb', marginTop: 6, textAlign: 'right' }}>
-        Includes ₹2 PoolKaro platform fee
       </div>
     </div>
   )
@@ -115,186 +102,128 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false)
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
-  const [filterDate, setFilterDate] = useState('all') // all | today | tomorrow
-  const [filterTime, setFilterTime] = useState('all') // all | morning | evening
+  const [filterDate, setFilterDate] = useState('all')
+  const [filterTime, setFilterTime] = useState('all')
 
-  const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
+  const activeFilters = [filterFrom, filterTo, filterDate!=='all'?filterDate:'', filterTime!=='all'?filterTime:''].filter(Boolean).length
 
   useEffect(() => {
     fetchRides()
-
-    // Realtime: auto-refresh when any ride changes
-    const channel = supabase
-      .channel('rides-changes')
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'rides'
-      }, () => {
-        fetchRides() // auto-refresh home when seats change
-      })
-      .subscribe()
-
-    return () => supabase.removeChannel(channel)
+    const ch = supabase.channel('rides').on('postgres_changes',{event:'*',schema:'public',table:'rides'},()=>fetchRides()).subscribe()
+    return () => supabase.removeChannel(ch)
   }, [])
 
   async function fetchRides() {
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
-    const { data, error } = await supabase
-      .from('rides')
-      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email)')
-      .in('status', ['active', 'full'])
-      .gte('ride_date', today)
-      .order('ride_date', { ascending: true })
-      .order('ride_time', { ascending: true })
-    if (!error) setRides(data || [])
+    const { data } = await supabase
+      .from('rides').select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email)')
+      .in('status',['active','full']).gte('ride_date',today)
+      .order('ride_date',{ascending:true}).order('ride_time',{ascending:true})
+    setRides(data||[])
     setLoading(false)
   }
 
   const today = new Date().toISOString().split('T')[0]
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const tomorrow = new Date(Date.now()+86400000).toISOString().split('T')[0]
 
   const filtered = rides.filter(r => {
-    if (filter === 'to_office' && r.ride_type !== 'to_office') return false
-    if (filter === 'to_home' && r.ride_type !== 'to_home') return false
-    if (filterFrom && !r.from_location?.toLowerCase().includes(filterFrom.toLowerCase())) return false
-    if (filterTo && !r.to_location?.toLowerCase().includes(filterTo.toLowerCase())) return false
-    if (filterDate === 'today' && r.ride_date !== today) return false
-    if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
-    if (filterTime === 'morning') {
-      const hr = parseInt(r.ride_time?.split(':')[0] || 0)
-      if (hr >= 12) return false
-    }
-    if (filterTime === 'evening') {
-      const hr = parseInt(r.ride_time?.split(':')[0] || 0)
-      if (hr < 12) return false
-    }
-    if (search) {
-      const q = search.toLowerCase()
-      return r.from_location?.toLowerCase().includes(q) || r.to_location?.toLowerCase().includes(q) || r.route_description?.toLowerCase().includes(q)
-    }
+    if (filter==='to_office'&&r.ride_type!=='to_office') return false
+    if (filter==='to_home'&&r.ride_type!=='to_home') return false
+    if (filterFrom&&!r.from_location?.toLowerCase().includes(filterFrom.toLowerCase())) return false
+    if (filterTo&&!r.to_location?.toLowerCase().includes(filterTo.toLowerCase())) return false
+    if (filterDate==='today'&&r.ride_date!==today) return false
+    if (filterDate==='tomorrow'&&r.ride_date!==tomorrow) return false
+    if (filterTime==='morning'&&parseInt(r.ride_time?.split(':')[0]||0)>=12) return false
+    if (filterTime==='evening'&&parseInt(r.ride_time?.split(':')[0]||0)<12) return false
+    if (search) { const q=search.toLowerCase(); return r.from_location?.toLowerCase().includes(q)||r.to_location?.toLowerCase().includes(q)||r.route_description?.toLowerCase().includes(q) }
     return true
   })
 
+  const inp = { width:'100%', padding:'9px 12px', borderRadius:10, border:'1px solid #2a2a2a', background:'#161616', color:'#fff', fontSize:12, boxSizing:'border-box' }
+
   return (
-    <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
-      <div style={{ background: '#111', padding: '20px 16px 14px', position: 'sticky', top: 0, zIndex: 40 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+    <div style={{ background:'#0f0f0f', minHeight:'100vh', paddingBottom:90 }}>
+      <div style={{ background:'#0f0f0f', borderBottom:'1px solid #1a1a1a', padding:'16px 16px 12px', position:'sticky', top:0, zIndex:40 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
           <div>
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px' }}>
-              <span style={{ color: '#facc15' }}>Pool</span><span style={{ color: '#fff' }}>Karo</span>
+            <div style={{ fontWeight:800, fontSize:24, letterSpacing:'-0.5px' }}>
+              <span style={{ color:'#facc15' }}>Pool</span><span style={{ color:'#fff' }}>Karo</span>
             </div>
-            <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
-              {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'Hyderabad IT Carpool'}
+            <div style={{ color:'#444', fontSize:11, marginTop:1 }}>
+              {profile?.full_name ? `Welcome back, ${profile.full_name.split(' ')[0]}` : 'Hyderabad IT Carpool'}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display:'flex', gap:8 }}>
             <NotificationBell />
-            <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 16, cursor: 'pointer' }}>
-              ↺
-            </button>
+            <button onClick={fetchRides} style={{ background:'#1a1a1a', border:'1px solid #2a2a2a', borderRadius:10, padding:'8px 12px', color:'#facc15', fontSize:16 }}>↺</button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input
-            placeholder="🔍 Search area..."
-            style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none', fontSize: 13, background: '#222', color: '#fff', boxSizing: 'border-box' }}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <button onClick={() => setShowFilters(!showFilters)} style={{
-            background: hasActiveFilters ? '#facc15' : '#222',
-            color: hasActiveFilters ? '#111' : '#fff',
-            border: 'none', borderRadius: 10, padding: '10px 14px',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
-            display: 'flex', alignItems: 'center', gap: 4,
+
+        <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+          <input placeholder="Search Uppal, Kokapet, HITEC City..." style={{ flex:1, ...inp }} value={search} onChange={e=>setSearch(e.target.value)} />
+          <button onClick={()=>setShowFilters(!showFilters)} style={{
+            background: activeFilters>0?'#facc15':'#1a1a1a',
+            color: activeFilters>0?'#000':'#666',
+            border:`1px solid ${activeFilters>0?'#facc15':'#2a2a2a'}`,
+            borderRadius:10, padding:'9px 13px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:4, flexShrink:0,
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={hasActiveFilters ? '#111' : '#fff'} strokeWidth="2.5" strokeLinecap="round">
-              <line x1="4" y1="6" x2="20" y2="6"/>
-              <line x1="8" y1="12" x2="16" y2="12"/>
-              <line x1="11" y1="18" x2="13" y2="18"/>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
             </svg>
-            {hasActiveFilters && <span style={{ fontSize: 11, fontWeight: 800 }}>{[filterFrom,filterTo,filterDate!=='all'?filterDate:'',filterTime!=='all'?filterTime:''].filter(Boolean).length}</span>}
+            {activeFilters>0&&<span style={{fontSize:10,fontWeight:800}}>{activeFilters}</span>}
           </button>
         </div>
 
-        {/* Advanced Filter Panel */}
         {showFilters && (
-          <div style={{ marginTop: 10, background: '#1a1a1a', borderRadius: 12, padding: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <div style={{ background:'#1a1a1a', borderRadius:12, padding:14, border:'1px solid #2a2a2a', marginBottom:10 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
               <div>
-                <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>FROM</div>
-                <input placeholder="e.g. Uppal"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
-                  value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+                <div style={{ fontSize:9, color:'#555', marginBottom:4, letterSpacing:1 }}>FROM</div>
+                <input placeholder="e.g. Uppal" style={inp} value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} />
               </div>
               <div>
-                <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>TO</div>
-                <input placeholder="e.g. Kokapet"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
-                  value={filterTo} onChange={e => setFilterTo(e.target.value)} />
+                <div style={{ fontSize:9, color:'#555', marginBottom:4, letterSpacing:1 }}>TO</div>
+                <input placeholder="e.g. Kokapet" style={inp} value={filterTo} onChange={e=>setFilterTo(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-              {[['all','📅 Any Day'],['today','Today'],['tomorrow','Tomorrow']].map(([v,l]) => (
-                <button key={v} onClick={() => setFilterDate(v)} style={{
-                  padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11,
-                  background: filterDate === v ? '#facc15' : '#333',
-                  color: filterDate === v ? '#111' : '#aaa', fontWeight: filterDate === v ? 700 : 400,
-                }}>{l}</button>
+            <div style={{ display:'flex', gap:6, marginBottom:8, flexWrap:'wrap' }}>
+              {[['all','Any Day'],['today','Today'],['tomorrow','Tomorrow']].map(([v,l])=>(
+                <button key={v} onClick={()=>setFilterDate(v)} style={{ padding:'5px 12px', borderRadius:20, border:'none', fontSize:11, background:filterDate===v?'#facc15':'#222', color:filterDate===v?'#000':'#666', fontWeight:filterDate===v?700:400 }}>{l}</button>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-              {[['all','🕐 Any Time'],['morning','🌅 Morning (<12PM)'],['evening','🌆 Evening (>12PM)']].map(([v,l]) => (
-                <button key={v} onClick={() => setFilterTime(v)} style={{
-                  padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11,
-                  background: filterTime === v ? '#facc15' : '#333',
-                  color: filterTime === v ? '#111' : '#aaa', fontWeight: filterTime === v ? 700 : 400,
-                }}>{l}</button>
+            <div style={{ display:'flex', gap:6, marginBottom:activeFilters>0?10:0 }}>
+              {[['all','Any Time'],['morning','🌅 Morning'],['evening','🌆 Evening']].map(([v,l])=>(
+                <button key={v} onClick={()=>setFilterTime(v)} style={{ padding:'5px 12px', borderRadius:20, border:'none', fontSize:11, background:filterTime===v?'#facc15':'#222', color:filterTime===v?'#000':'#666', fontWeight:filterTime===v?700:400 }}>{l}</button>
               ))}
             </div>
-            {hasActiveFilters && (
-              <button onClick={() => { setFilterFrom(''); setFilterTo(''); setFilterDate('all'); setFilterTime('all') }}
-                style={{ width: '100%', padding: '7px', background: '#333', color: '#aaa', border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
-                ✕ Clear All Filters
-              </button>
-            )}
+            {activeFilters>0&&<button onClick={()=>{setFilterFrom('');setFilterTo('');setFilterDate('all');setFilterTime('all')}} style={{ width:'100%', padding:'7px', background:'#222', color:'#666', border:'none', borderRadius:8, fontSize:12 }}>✕ Clear All</button>}
           </div>
         )}
+
+        <div style={{ display:'flex', gap:6 }}>
+          {[['all','All'],['to_office','🏢 To Office'],['to_home','🏠 To Home']].map(([v,l])=>(
+            <button key={v} onClick={()=>setFilter(v)} style={{ padding:'5px 14px', borderRadius:20, border:`1px solid ${filter===v?'#facc15':'#2a2a2a'}`, background:filter===v?'#facc15':'transparent', color:filter===v?'#000':'#555', fontWeight:filter===v?700:400, fontSize:12 }}>{l}</button>
+          ))}
+        </div>
       </div>
 
-      <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8 }}>
-        {[['all','All Rides'],['to_office','🏢 To Office'],['to_home','🏠 To Home']].map(([v,l]) => (
-          <button key={v} onClick={() => setFilter(v)} style={{
-            padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-            background: filter === v ? '#111' : '#fff',
-            color: filter === v ? '#fff' : '#555',
-            fontWeight: filter === v ? 700 : 400, fontSize: 12,
-            boxShadow: filter === v ? 'none' : '0 1px 4px rgba(0,0,0,0.08)',
-          }}>{l}</button>
-        ))}
-      </div>
-
-      <div style={{ padding: '8px 16px' }}>
+      <div style={{ padding:'12px 16px' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🚗</div>
-            Loading rides...
+          <div style={{ textAlign:'center', padding:60, color:'#333' }}>
+            <div style={{ fontSize:32 }}>🚗</div>
+            <div style={{ marginTop:8, color:'#444' }}>Loading rides...</div>
           </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60 }}>
-            <div style={{ fontSize: 48 }}>🔍</div>
-            <div style={{ color: '#555', fontWeight: 600, marginTop: 12 }}>No rides found</div>
-            <div style={{ color: '#aaa', fontSize: 13, marginTop: 6 }}>
-              {search ? `No rides matching "${search}"` : 'No rides posted for today yet'}
-            </div>
-            <button onClick={() => navigate('/post')} style={{ marginTop: 16, padding: '10px 20px', background: '#111', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-              + Post a Ride
-            </button>
+        ) : filtered.length===0 ? (
+          <div style={{ textAlign:'center', padding:60 }}>
+            <div style={{ fontSize:48, marginBottom:12 }}>🔍</div>
+            <div style={{ color:'#fff', fontWeight:600 }}>No rides found</div>
+            <div style={{ color:'#444', fontSize:13, marginTop:6 }}>{search?`No rides for "${search}"`:'No rides posted yet'}</div>
+            <button onClick={()=>navigate('/post')} style={{ marginTop:16, padding:'10px 24px', background:'#facc15', color:'#000', border:'none', borderRadius:10, fontWeight:800, fontSize:13 }}>+ Post a Ride</button>
           </div>
-        ) : (
-          filtered.map(ride => <RideCard key={ride.id} ride={ride} onBook={r => navigate(`/book/${r.id}`)} myUserId={user?.id} />)
-        )}
+        ) : filtered.map(ride=><RideCard key={ride.id} ride={ride} onBook={r=>navigate(`/book/${r.id}`)} myId={user?.id} />)}
       </div>
+
       <BottomNav />
     </div>
   )

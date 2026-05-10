@@ -6,8 +6,8 @@ import LocationInput from '../components/LocationInput'
 
 const inp = {
   width: '100%', padding: '11px 14px',
-  border: '1.5px solid #e5e7eb', borderRadius: 10,
-  fontSize: 14, background: '#fafafa',
+  border: '1px solid #2a2a2a', borderRadius: 10,
+  fontSize: 14, background: '#161616',
   fontFamily: 'inherit', boxSizing: 'border-box',
 }
 const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, display: 'block' }
@@ -129,7 +129,7 @@ export default function EditRide() {
   const today = new Date().toISOString().split('T')[0]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f6fa', paddingBottom: 40 }}>
+    <div style={{ minHeight: '100vh', background: '#0f0f0f', paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ background: '#111', padding: '20px 16px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => navigate('/my-rides')}
@@ -167,7 +167,7 @@ export default function EditRide() {
           </div>
         )}
 
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
 
           {/* Ride type — locked if bookings */}
           {!hasBookings && (
@@ -247,7 +247,7 @@ export default function EditRide() {
         </div>
 
         {/* Recurring rides coming soon */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, marginTop: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginTop: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>🔁 Recurring Rides</div>
           <div style={{ color: '#888', fontSize: 13, lineHeight: 1.6 }}>
             Post once for your daily commute (Mon–Fri). Coming soon — this will save you from posting every day!

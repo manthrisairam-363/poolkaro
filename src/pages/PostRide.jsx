@@ -7,7 +7,7 @@ import BottomNav from '../components/BottomNav'
 import LocationInput from '../components/LocationInput'
 
 const inp = { width: '100%', padding: '11px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 14, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box' }
-const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, display: 'block' }
+const label = { fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 5, display: 'block' }
 
 export default function PostRide() {
   const navigate = useNavigate()
@@ -105,7 +105,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
 
   if (posted) return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa', paddingBottom: 90 }}>
-      <div style={{ background: '#111', padding: '20px 16px' }}>
+      <div style={{ background: '#0f0f0f', padding: '20px 16px' }}>
         <div style={{ color: '#facc15', fontWeight: 800, fontSize: 20 }}>🎉 Ride Posted!</div>
         <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>Share it in your WhatsApp group</div>
       </div>
@@ -129,8 +129,8 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
   )
 
   return (
-    <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
-      <div style={{ background: '#111', padding: '20px 16px 16px' }}>
+    <div style={{ background: '#0f0f0f', minHeight: '100vh', paddingBottom: 90 }}>
+      <div style={{ background: '#0f0f0f', padding: '20px 16px 16px' }}>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20 }}>+ Post a Ride</div>
         <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>Share your route, earn from empty seats</div>
       </div>
@@ -139,8 +139,8 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
         {error && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
         {!profile?.vehicle_model && (
-          <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-            <div style={{ fontSize: 13, color: '#c2410c', fontWeight: 600 }}>⚠️ Vehicle details missing</div>
+          <div style={{ background: '#2a1500', border: '1px solid #78350f', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: '#f97316', fontWeight: 600 }}>⚠️ Vehicle details missing</div>
             <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>Please add your vehicle in Profile before posting</div>
             <button onClick={() => navigate('/profile')} style={{ marginTop: 8, padding: '6px 14px', background: '#111', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               Go to Profile →
@@ -191,12 +191,12 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
         </div>
 
         {form.fare && Number(form.fare) > 0 && (
-          <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '12px 14px', marginBottom: 16, border: '1px solid #bbf7d0' }}>
-            <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 700, marginBottom: 4 }}>💰 Your Earnings</div>
+          <div style={{ background: '#0a2a1a', borderRadius: 10, padding: '12px 14px', marginBottom: 16, border: '1px solid #166534' }}>
+            <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 700, marginBottom: 4 }}>💰 Your Earnings</div>
             <div style={{ fontSize: 13 }}>
               {form.seats_available} seats × ₹{form.fare - 2} = <strong>₹{form.seats_available * (form.fare - 2)}</strong>
             </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>PoolKaro deducts ₹2 per confirmed booking</div>
+            <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>PoolKaro deducts ₹2 per confirmed booking</div>
           </div>
         )}
 

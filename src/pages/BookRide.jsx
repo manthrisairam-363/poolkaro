@@ -100,7 +100,7 @@ export default function BookRide() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f6fa' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f0f' }}>
       <div style={{ textAlign: 'center', color: '#aaa' }}>
         <div style={{ fontSize: 40 }}>🚗</div>
         <div style={{ marginTop: 8 }}>Loading ride...</div>
@@ -236,7 +236,7 @@ export default function BookRide() {
   const company = getCompanyFromEmail(owner?.email)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>
+    <div style={{ minHeight: '100vh', background: '#0f0f0f' }}>
       <div style={{ background: '#111', padding: '20px 16px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>Confirm Booking</div>
@@ -251,7 +251,7 @@ export default function BookRide() {
         )}
 
         {/* Car Owner */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
+        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 12, letterSpacing: 1 }}>CAR OWNER</div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
@@ -277,7 +277,7 @@ export default function BookRide() {
         </div>
 
         {/* Ride Details */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
+        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 12, letterSpacing: 1 }}>RIDE DETAILS</div>
           {[
             ['📍 From', ride.from_location],
@@ -286,7 +286,7 @@ export default function BookRide() {
             ['📅 Date', new Date(ride.ride_date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })],
             ['🪑 Seats', `${ride.seats_available} of ${ride.seats_total} available`],
           ].map(([k,v]) => (
-            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #222', marginBottom: 10 }}>
               <span style={{ fontSize: 13, color: '#888' }}>{k}</span>
               <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
             </div>
@@ -299,7 +299,7 @@ export default function BookRide() {
         </div>
 
         {/* Payment Breakdown - CLEAR */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 16 }}>
+        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 12, letterSpacing: 1 }}>PAYMENT DETAILS</div>
 
           {/* Seats selector */}
@@ -328,7 +328,7 @@ export default function BookRide() {
           </div>
 
           {/* Platform fee */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #222', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>PoolKaro Platform Fee</div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹2 × {seatsToBook} seat{seatsToBook > 1 ? 's' : ''} — from wallet</div>
@@ -337,7 +337,7 @@ export default function BookRide() {
           </div>
 
           {/* Ride fare */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #222', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Ride Fare</div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹{ride.fare} × {seatsToBook} seat{seatsToBook > 1 ? 's' : ''} — pay to car owner</div>
@@ -353,7 +353,7 @@ export default function BookRide() {
             </span>
           </div>
 
-          <div style={{ marginTop: 12, padding: '10px 12px', background: '#f8f9fa', borderRadius: 8 }}>
+          <div style={{ marginTop: 12, padding: '10px 12px', background: '#222', borderRadius: 8 }}>
             <div style={{ fontSize: 11, color: '#888', lineHeight: 1.7 }}>
               ℹ️ After confirming, you'll see the car owner's UPI ID to pay ₹{ride.fare * seatsToBook} directly.
             </div>
@@ -380,7 +380,7 @@ export default function BookRide() {
           {booking ? 'Confirming...' : `✅ Confirm ${seatsToBook} Seat${seatsToBook > 1 ? 's' : ''} (₹${2 * seatsToBook} from wallet)`}
         </button>
 
-        <button onClick={() => navigate(-1)} style={{ width: '100%', padding: 12, background: '#f3f4f6', color: '#666', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}>
+        <button onClick={() => navigate(-1)} style={{ width: '100%', padding: 12, background: '#222', color: '#888', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}>
           Cancel
         </button>
 
