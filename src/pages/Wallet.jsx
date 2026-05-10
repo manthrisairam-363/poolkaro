@@ -28,7 +28,7 @@ function TransactionItem({ txn }) {
     <div style={{
       display: 'flex', justifyContent: 'space-between',
       alignItems: 'center', padding: '12px 0',
-      borderBottom: '1px solid #222',
+      borderBottom: '1px solid #f5f5f5',
     }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <div style={{
@@ -194,7 +194,7 @@ export default function Wallet() {
   const isLowBalance = balanceRupees < 10
 
   return (
-    <div style={{ background: '#111', minHeight: '100vh', paddingBottom: 90 }}>
+    <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
 
       {/* Header */}
       <div style={{ background: '#111', padding: '20px 16px 24px' }}>

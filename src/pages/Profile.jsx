@@ -61,7 +61,7 @@ export default function Profile() {
   const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4, display: 'block' }
 
   return (
-    <div style={{ paddingBottom: 90, background: '#111', minHeight: '100vh' }}>
+    <div style={{ paddingBottom: 90, background: '#f5f6fa', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ background: '#111', padding: '20px 16px 30px' }}>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 20 }}>My Profile</div>
@@ -69,7 +69,7 @@ export default function Profile() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
-            background: '#facc15', color: '#fff',
+            background: '#facc15', color: '#111',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontWeight: 800, fontSize: 24,
           }}>{initials}</div>
@@ -101,7 +101,7 @@ export default function Profile() {
         )}
 
         {/* Profile card */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Personal Details</div>
             <button onClick={() => setEditing(!editing)} style={{
@@ -122,7 +122,7 @@ export default function Profile() {
                 ['🚘 Vehicle', profile?.vehicle_model ? `${profile.vehicle_model} · ${profile.vehicle_number}` : 'Not set'],
                 ['💳 UPI ID', profile?.upi_id || 'Not set'],
               ].map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
                   <span style={{ fontSize: 13, color: '#888' }}>{k}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: v?.includes('Not set') ? '#ccc' : '#111' }}>{v || '—'}</span>
                 </div>
@@ -190,20 +190,20 @@ export default function Profile() {
         </div>
 
         {/* Stats card */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>My Stats</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <div style={{ background: '#222', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
               <div style={{ fontSize: 20 }}>🚗</div>
               <div style={{ fontWeight: 700, fontSize: 16, marginTop: 4 }}>{profile?.total_rides_given || 0}</div>
               <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>Rides Given</div>
             </div>
-            <div style={{ background: '#222', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
               <div style={{ fontSize: 20 }}>🙋</div>
               <div style={{ fontWeight: 700, fontSize: 16, marginTop: 4 }}>{profile?.total_rides_taken || 0}</div>
               <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>Rides Taken</div>
             </div>
-            <div style={{ background: '#222', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
               <div style={{ fontSize: 20 }}>⭐</div>
               {profile?.total_ratings > 0 ? (
                 <>
@@ -218,7 +218,7 @@ export default function Profile() {
         </div>
 
         {/* App info */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>About PoolKaro</div>
           {[
             ['🚗', 'Version', '1.0.0 Beta'],
@@ -226,7 +226,7 @@ export default function Profile() {
             ['💰', 'Platform Fee', '₹2 per booking'],
             ['⚡', 'Payments', 'Instant UPI'],
           ].map(([icon, k, v]) => (
-            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
               <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
               <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
             </div>
@@ -242,8 +242,8 @@ export default function Profile() {
           .map(l => (
             <button key={l.path} onClick={() => navigate(l.path)} style={{
               width: '100%', padding: '14px 16px', background: 'none', border: 'none',
-              borderBottom: '1px solid #222', textAlign: 'left', cursor: 'pointer',
-              fontSize: 14, color: '#fff', display: 'flex', justifyContent: 'space-between',
+              borderBottom: '1px solid #f5f5f5', textAlign: 'left', cursor: 'pointer',
+              fontSize: 14, color: '#333', display: 'flex', justifyContent: 'space-between',
             }}>
               {l.label} <span style={{ color: '#ccc' }}>›</span>
             </button>
