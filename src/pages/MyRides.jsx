@@ -40,7 +40,7 @@ function PassengerCard({ booking }) {
 
   return (
     <div style={{
-      background: '#222', borderRadius: 12, padding: 12,
+      background: '#f8f9fa', borderRadius: 12, padding: 12,
       marginTop: 10, border: '1px solid #e5e7eb',
     }}>
       {/* Rider info */}
@@ -143,7 +143,7 @@ function DriverRideCard({ ride, onCancel, onEdit }) {
             borderRadius: 20, padding: '2px 8px', fontSize: 10, fontWeight: 600,
           }}>{isToOffice ? '🏢 Office' : '🏠 Home'}</span>
           <span style={{
-            background: '#222', borderRadius: 20, padding: '2px 8px',
+            background: '#f8f9fa', borderRadius: 20, padding: '2px 8px',
             fontSize: 10, fontWeight: 600, color: statusColor[ride.status],
           }}>● {ride.status}</span>
         </div>
@@ -303,7 +303,7 @@ export default function MyRides() {
   })
 
   return (
-    <div style={{ paddingBottom: 90, background: '#0f0f0f', minHeight: '100vh' }}>
+    <div style={{ paddingBottom: 90, background: '#f5f6fa', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ background: '#111', padding: '20px 16px 0' }}>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>📋 My Rides</div>
@@ -354,7 +354,7 @@ export default function MyRides() {
               </div>
               {/* Driver contact */}
               {b.rides?.profiles && (
-                <div style={{ marginTop: 8, background: '#222', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ marginTop: 8, background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
                   <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>🚗 Car Owner</div>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{b.rides.profiles.full_name}</div>
                   <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} />

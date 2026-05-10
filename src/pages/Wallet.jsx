@@ -28,7 +28,7 @@ function TransactionItem({ txn }) {
     <div style={{
       display: 'flex', justifyContent: 'space-between',
       alignItems: 'center', padding: '12px 0',
-      borderBottom: '1px solid #222',
+      borderBottom: '1px solid #f5f5f5',
     }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <div style={{
@@ -194,10 +194,10 @@ export default function Wallet() {
   const isLowBalance = balanceRupees < 10
 
   return (
-    <div style={{ background: '#0f0f0f', minHeight: '100vh', paddingBottom: 90 }}>
+    <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
 
       {/* Header */}
-      <div style={{ background: '#0f0f0f', padding: '20px 16px 24px' }}>
+      <div style={{ background: '#111', padding: '20px 16px 24px' }}>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 20 }}>
           💰 My Wallet
         </div>
@@ -208,7 +208,7 @@ export default function Wallet() {
           borderRadius: 20, padding: '24px 20px',
           border: '1px solid #333',
         }}>
-          <div style={{ color: '#666', fontSize: 13, marginBottom: 8 }}>Available Balance</div>
+          <div style={{ color: '#888', fontSize: 13, marginBottom: 8 }}>Available Balance</div>
           <div style={{ color: '#facc15', fontWeight: 800, fontSize: 42, letterSpacing: '-1px' }}>
             ₹{balanceRupees.toFixed(0)}
           </div>
@@ -221,7 +221,7 @@ export default function Wallet() {
           )}
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
             <button onClick={() => setShowRecharge(true)} style={{
-              flex: 1, padding: '12px', background: '#facc15', color: '#fff',
+              flex: 1, padding: '12px', background: '#facc15', color: '#111',
               border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer',
             }}>
               + Add Money
@@ -238,7 +238,7 @@ export default function Wallet() {
         )}
 
         {/* How it works */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>How Wallet Works</div>
           {[
             ['🎁', 'Free ₹10', 'Given to every new user on signup'],
@@ -251,14 +251,14 @@ export default function Wallet() {
               <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
               <div>
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{title}</span>
-                <span style={{ color: '#666', fontSize: 12 }}> — {desc}</span>
+                <span style={{ color: '#888', fontSize: 12 }}> — {desc}</span>
               </div>
             </div>
           ))}
         </div>
 
         {/* Transaction history */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, border: '1px solid #2a2a2a' }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Transaction History</div>
           <div style={{ color: '#aaa', fontSize: 11, marginBottom: 14 }}>Last 30 transactions</div>
 
@@ -281,12 +281,12 @@ export default function Wallet() {
           zIndex: 100, display: 'flex', alignItems: 'flex-end',
         }}>
           <div style={{
-            background: '#1a1a1a', borderRadius: '20px 20px 0 0',
+            background: '#fff', borderRadius: '20px 20px 0 0',
             width: '100%', padding: '24px 20px 40px',
           }}>
             <div style={{ width: 40, height: 4, background: '#e5e7eb', borderRadius: 4, margin: '0 auto 20px' }} />
             <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 6 }}>Add Money</div>
-            <div style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>
+            <div style={{ color: '#888', fontSize: 13, marginBottom: 20 }}>
               Current balance: <strong>₹{balanceRupees.toFixed(0)}</strong>
             </div>
 
@@ -307,7 +307,7 @@ export default function Wallet() {
             {/* Custom amount */}
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Or Enter Amount</div>
             <div style={{ position: 'relative', marginBottom: 20 }}>
-              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16, fontWeight: 700, color: '#fff' }}>₹</span>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16, fontWeight: 700, color: '#333' }}>₹</span>
               <input
                 type="number"
                 placeholder="Minimum ₹20"
@@ -318,13 +318,13 @@ export default function Wallet() {
             </div>
 
             {/* Summary */}
-            <div style={{ background: '#222', borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#666' }}>Adding to wallet</span>
+                <span style={{ color: '#888' }}>Adding to wallet</span>
                 <span style={{ fontWeight: 700 }}>₹{customAmount || selectedAmount || 0}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 6 }}>
-                <span style={{ color: '#666' }}>New balance</span>
+                <span style={{ color: '#888' }}>New balance</span>
                 <span style={{ fontWeight: 700, color: '#16a34a' }}>
                   ₹{(balanceRupees + Number(customAmount || selectedAmount || 0)).toFixed(0)}
                 </span>
