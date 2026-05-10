@@ -339,6 +339,11 @@ export default function MyRides() {
             </div>
           ) : (
             <>
+              {/* Anti-fraud policy notice */}
+              <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '10px 14px', marginBottom: 10, fontSize: 12, color: '#92400e' }}>
+                ⚠️ Cancellation policy: Frequent cancellations will restrict your account. Platform fees are non-refundable for repeated cancellations.
+              </div>
+
               {/* Active bookings */}
               {activeBookings.map(b => (
             <div key={b.id} style={{
