@@ -107,6 +107,10 @@ export default function Wallet() {
       const loaded = await loadRazorpay()
       if (!loaded) { alert('Failed to load payment gateway. Check your internet.'); setRecharging(false); return }
 
+      // Get user's JWT token (not anon key)
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY
+
       // Create order via Edge Function
       const orderRes = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-order`,
@@ -114,9 +118,9 @@ export default function Wallet() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${authToken}`,
           },
-          body: JSON.stringify({ action: 'create_order', amount, user_id: user.id })
+          body: JSON.stringify({ action: 'create_order', amount })
         }
       )
       const order = await orderRes.json()
@@ -140,12 +144,11 @@ export default function Wallet() {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'Authorization': `Bearer ${authToken}`,
               },
               body: JSON.stringify({
                 action: 'verify_payment',
                 amount,
-                user_id: user.id,
                 payment_id: response.razorpay_payment_id,
                 order_id: response.razorpay_order_id,
                 signature: response.razorpay_signature,
