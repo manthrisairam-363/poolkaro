@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
       // Credit wallet
       const amountPaise = amount * 100
       await supabase.rpc('credit_wallet', {
-        p_user_id: user_id,
+        p_user_id: userId,
         p_amount: amountPaise,
         p_type: 'razorpay',
         p_description: `Wallet recharge ₹${amount} via Razorpay`,

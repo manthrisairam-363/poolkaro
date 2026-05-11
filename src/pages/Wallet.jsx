@@ -78,20 +78,8 @@ export default function Wallet() {
       supabase.from('wallets').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('wallet_transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
     ])
-
-    // Create wallet if doesn't exist
-    if (!walletRes.data) {
-      const { data: newWallet } = await supabase.from('wallets').insert({
-        user_id: user.id, balance: 1000
-      }).select().single()
-      await supabase.from('wallet_transactions').insert({
-        user_id: user.id, amount: 1000, type: 'signup_bonus', description: 'Welcome bonus - ₹10 free credits!'
-      })
-      setWallet(newWallet)
-    } else {
-      setWallet(walletRes.data)
-    }
-
+    if (walletRes.error) { setLoading(false); return }
+    setWallet(walletRes.data || { balance: 0 })
     setTransactions(txnRes.data || [])
     setLoading(false)
   }

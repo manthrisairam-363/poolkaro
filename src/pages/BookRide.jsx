@@ -48,32 +48,18 @@ export default function BookRide() {
   async function confirmBooking() {
     setError('')
     if (ride.driver_id === user.id) { setError("You can't book your own ride!"); return }
-    if (walletBalance < 200 * seatsToBook) { setError(`Insufficient wallet balance. Need ₹${2 * seatsToBook} for ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''}.`); return }
-    if (ride.seats_available < seatsToBook) { setError(`Only ${ride.seats_available} seat${ride.seats_available !== 1 ? 's' : ''} available`); return }
-
     setBooking(true)
-    const { data: bk, error: err } = await supabase.from('bookings').insert({
-      ride_id: ride.id,
-      rider_id: user.id,
-      seats_booked: seatsToBook,
-      ride_fare: ride.fare * seatsToBook,
-      platform_fee: 2 * seatsToBook,
-      driver_deduction: 2 * seatsToBook,
-      total_paid: (ride.fare + 2) * seatsToBook,
-      driver_receives: (ride.fare - 2) * seatsToBook,
-      payment_status: 'paid',
-      status: 'confirmed',
-    }).select().single()
-
-    if (err) { setError(err.message); setBooking(false); return }
-
-    await supabase.from('rides').update({
-      seats_available: ride.seats_available - seatsToBook,
-      status: ride.seats_available - seatsToBook <= 0 ? 'full' : 'active',
-    }).eq('id', ride.id)
-
-    setBookingData(bk)
+    const { data, error: err } = await supabase.rpc('book_ride_atomic', {
+      p_ride_id: ride.id,
+      p_rider_id: user.id,
+      p_seats: seatsToBook,
+    })
     setBooking(false)
+    if (err || !data?.success) {
+      setError(data?.message || err?.message || 'Booking failed. Please try again.')
+      return
+    }
+    setBookingData(data.booking)
     setStep('pay')
   }
 
@@ -385,7 +371,7 @@ export default function BookRide() {
         </button>
 
         <div style={{ textAlign: 'center', fontSize: 11, color: '#bbb', marginTop: 12 }}>
-          🔒 Platform fee secured by Razorpay
+          🔒 ₹2 platform fee deducted from your PoolKaro wallet
         </div>
       </div>
     </div>

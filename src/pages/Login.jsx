@@ -7,21 +7,12 @@ export default function Login() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const [phone, setPhone] = useState('')
-  const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
 
   // Email (testing only)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [showEmail, setShowEmail] = useState(false)
-
-  async function sendOTP() {
-    setError('Phone OTP coming soon. Please use Google login.')
-  }
-
-  async function verifyOTP() {}
 
   async function googleLogin() {
     setError('')
