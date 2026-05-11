@@ -51,6 +51,10 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       setError('Please fill all required fields')
       return
     }
+    const fareNum = Number(form.fare)
+    if (fareNum < 10) { setError('Minimum fare is ₹10'); return }
+    if (fareNum > 500) { setError('Maximum fare is ₹500 per seat'); return }
+    if (form.ride_date < today) { setError('Cannot post rides for past dates'); return }
     if (!profile?.vehicle_model) {
       setError('Please add your vehicle details in Profile first')
       return
