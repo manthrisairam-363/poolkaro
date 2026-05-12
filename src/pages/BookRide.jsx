@@ -25,7 +25,7 @@ export default function BookRide() {
   async function fetchRide() {
     const { data } = await supabase
       .from('rides')
-      .select('*, profiles(id, full_name, phone, vehicle_model, vehicle_number, upi_id, avg_rating, total_ratings, email, is_verified)')
+      .select('*, profiles(id, full_name, phone, vehicle_model, vehicle_number, upi_id, avg_rating, total_ratings, email, work_email, work_email_verified, is_verified)')
       .eq('id', id).maybeSingle()
     if (!data) { navigate('/'); return }
     setRide(data)
@@ -219,7 +219,8 @@ export default function BookRide() {
   // ── CONFIRM SCREEN ──
   const isToOffice = ride.ride_type === 'to_office'
   const initials = owner?.full_name?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() || '?'
-  const company = getCompanyFromEmail(owner?.email)
+  const emailForBadge = (owner?.work_email_verified && owner?.work_email) ? owner.work_email : owner?.email
+  const company = getCompanyFromEmail(emailForBadge)
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>

@@ -12,6 +12,12 @@ export default function Profile() {
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [workEmail, setWorkEmail] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+  const [verifySuccess, setVerifySuccess] = useState('')
   const [success, setSuccess] = useState('')
 
   const [form, setForm] = useState({
@@ -45,6 +51,46 @@ export default function Profile() {
       setSuccess('Profile updated! ✅')
       setTimeout(() => setSuccess(''), 3000)
     }
+  }
+
+  async function sendWorkEmailOTP() {
+    setVerifyError(''); setVerifying(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-work-email`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ action: 'send_otp', work_email: workEmail }),
+      }
+    )
+    const data = await res.json()
+    setVerifying(false)
+    if (data.error) { setVerifyError(data.error); return }
+    setOtpSent(true)
+    setVerifySuccess(`OTP sent to ${workEmail}`)
+  }
+
+  async function verifyWorkOTP() {
+    setVerifyError(''); setVerifying(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-work-email`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ action: 'verify_otp', otp: otpCode }),
+      }
+    )
+    const data = await res.json()
+    setVerifying(false)
+    if (data.error) { setVerifyError(data.error); return }
+    setVerifySuccess(data.message)
+    setOtpSent(false)
+    setOtpCode('')
+    fetchProfile(user.id)
   }
 
   async function handleSignOut() {
@@ -231,6 +277,86 @@ export default function Profile() {
               <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
             </div>
           ))}
+        </div>
+
+        {/* Work Email Verification */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>🏢 Verify Work Email</div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                {profile?.work_email_verified
+                  ? `✓ ${profile.work_email} verified`
+                  : 'Add company email to build trust'}
+              </div>
+            </div>
+            {profile?.work_email_verified
+              ? <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700 }}>✓ Verified</span>
+              : <span style={{ background: '#fef9c3', color: '#854d0e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>Unverified</span>
+            }
+          </div>
+
+          {!profile?.work_email_verified && (
+            <>
+              {verifySuccess && (
+                <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 10, fontWeight: 600 }}>
+                  {verifySuccess}
+                </div>
+              )}
+              {verifyError && (
+                <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 10 }}>
+                  ⚠️ {verifyError}
+                </div>
+              )}
+
+              {!otpSent ? (
+                <>
+                  <input
+                    placeholder="sairam@capgemini.com"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e5e7eb', fontSize: 13, marginBottom: 10, boxSizing: 'border-box', background: '#fafafa' }}
+                    value={workEmail}
+                    onChange={e => setWorkEmail(e.target.value)}
+                    type="email"
+                  />
+                  <button onClick={sendWorkEmailOTP} disabled={verifying || !workEmail} style={{
+                    width: '100%', padding: 12, background: '#111', color: '#fff',
+                    border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                    {verifying ? 'Sending OTP...' : '📧 Send OTP to Work Email'}
+                  </button>
+                  <div style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 8 }}>
+                    Only company emails accepted. Gmail/Yahoo not allowed.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 10, fontWeight: 600 }}>
+                    ✅ OTP sent to {workEmail}. Check your inbox!
+                  </div>
+                  <input
+                    placeholder="Enter 6-digit OTP"
+                    style={{ width: '100%', padding: '12px', borderRadius: 10, border: '2px solid #111', fontSize: 20, textAlign: 'center', letterSpacing: 8, marginBottom: 10, boxSizing: 'border-box' }}
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    type="number"
+                    maxLength={6}
+                  />
+                  <button onClick={verifyWorkOTP} disabled={verifying || otpCode.length !== 6} style={{
+                    width: '100%', padding: 12, background: '#16a34a', color: '#fff',
+                    border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8,
+                  }}>
+                    {verifying ? 'Verifying...' : '✅ Verify OTP'}
+                  </button>
+                  <button onClick={() => { setOtpSent(false); setOtpCode(''); setVerifyError('') }} style={{
+                    width: '100%', padding: 10, background: '#f5f5f5', color: '#888',
+                    border: 'none', borderRadius: 10, fontSize: 12, cursor: 'pointer',
+                  }}>
+                    ← Change Email
+                  </button>
+                </>
+              )}
+            </>
+          )}
         </div>
 
         {/* Links */}

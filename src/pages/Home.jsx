@@ -141,7 +141,7 @@ export default function Home() {
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('rides')
-      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email)')
+      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified)')
       .in('status', ['active', 'full'])
       .gte('ride_date', today)
       .order('ride_date', { ascending: true })
