@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
@@ -6,6 +6,17 @@ export default function NotificationBell() {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [open, setOpen] = useState(false)
+  const bellRef = React.useRef(null)
+
+  React.useEffect(() => {
+    function handleOutsideClick(e) {
+      if (bellRef.current && !bellRef.current.contains(e.target)) {
+        setOpen(false)
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [open])
   const unread = notifications.filter(n => !n.is_read).length
 
   useEffect(() => {
@@ -56,7 +67,7 @@ export default function NotificationBell() {
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={bellRef} style={{ position: 'relative' }}>
       {/* Bell button */}
       <button
         onClick={() => { setOpen(!open); if (!open && unread > 0) markAllRead() }}

@@ -59,12 +59,12 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       setError('Please add your vehicle details in Profile first')
       return
     }
-    // Check wallet balance
+    // Check wallet balance (single ride needs ₹2 minimum for first booking)
     const { data: walletData } = await supabase
       .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
     const balance = walletData?.balance || 0
     if (balance < 200) {
-      setError('Insufficient wallet balance. Add minimum ₹2 to post a ride.')
+      setError('Insufficient wallet balance. Add minimum ₹2 to your wallet first — it will be deducted when someone books your ride.')
       return
     }
     // Warn for recurring rides with low balance

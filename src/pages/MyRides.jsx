@@ -83,7 +83,7 @@ function PassengerCard({ booking }) {
 }
 
 // Driver's posted ride card with passenger list
-function DriverRideCard({ ride, onCancel, onEdit }) {
+function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
   const [expanded, setExpanded] = useState(false)
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
@@ -193,6 +193,14 @@ function DriverRideCard({ ride, onCancel, onEdit }) {
             border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}>
             ✏️ Edit
+          </button>
+        )}
+        {ride.is_recurring && ride.status === 'active' && (
+          <button onClick={() => onCancelAll(ride.id)} style={{
+            padding: '8px 10px', background: '#fff7ed', color: '#c2410c',
+            border: '1px solid #fed7aa', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+          }}>
+            🔁 Cancel Series
           </button>
         )}
         {(ride.status === 'active' || ride.status === 'full') && (
@@ -328,7 +336,7 @@ export default function MyRides() {
               <div style={{ color: '#aaa', marginTop: 8 }}>No rides posted yet</div>
               <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Tap + below to post your first ride</div>
             </div>
-          ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} />)
+          ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} />)
 
         ) : (
           activeBookings.length === 0 && cancelledBookings.length === 0 ? (

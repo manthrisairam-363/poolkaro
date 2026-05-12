@@ -4,8 +4,8 @@
 import webpush from 'npm:web-push@3.6.7'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const VAPID_PUBLIC_KEY = 'BDR1ZxndWyTzbi-UO1Bw6PGq4dws7sQB-IsmXDKxJn-_OuQsM-yieaaOLu3wPsPbMnSL91lkdHrejo5zAMG-w9Y'
-const VAPID_PRIVATE_KEY = 'XEHpfUFILjEOf6Xo6psHXEk6O_POmYmGSfI3odkdezY'
+const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') || 'BDR1ZxndWyTzbi-UO1Bw6PGq4dws7sQB-IsmXDKxJn-_OuQsM-yieaaOLu3wPsPbMnSL91lkdHrejo5zAMG-w9Y'
+const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || ''
 
 webpush.setVapidDetails(
   'mailto:poolkaro.app@gmail.com',

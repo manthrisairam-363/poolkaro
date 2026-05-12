@@ -66,8 +66,9 @@ export default function LiveRide() {
   }
 
   function setupRealtimeLocation(otherId, rideId) {
-    // Remove any existing channel
-    supabase.removeAllChannels()
+    // Fix 11: Remove only THIS specific channel, not all channels
+    const existingChannel = supabase.getChannels().find(c => c.topic.startsWith(`live-${rideId}`))
+    if (existingChannel) supabase.removeChannel(existingChannel)
 
     const channel = supabase
       .channel(`live-${rideId}-${otherId}`)
@@ -106,6 +107,16 @@ export default function LiveRide() {
       return
     }
     setTracking(true)
+
+    // Fix 10: Auto-stop after 3 hours to save battery
+    const autoStop = setTimeout(() => {
+      navigator.geolocation.clearWatch(watchRef.current)
+      watchRef.current = null
+      setTracking(false)
+      alert('Location sharing auto-stopped after 3 hours to save battery.')
+    }, 3 * 60 * 60 * 1000)
+    watchRef.autoStop = autoStop
+
     watchRef.current = navigator.geolocation.watchPosition(
       async (pos) => {
         const loc = {
@@ -137,6 +148,7 @@ export default function LiveRide() {
       navigator.geolocation.clearWatch(watchRef.current)
       watchRef.current = null
     }
+    if (watchRef.autoStop) clearTimeout(watchRef.autoStop)
     setTracking(false)
   }
 
@@ -283,16 +295,14 @@ export default function LiveRide() {
           </button>
         )}
 
-        {/* Rate — co-rider */}
-        {!isOwner && (
-          <button onClick={() => setShowRating(true)} style={{
-            width: '100%', padding: 14, background: '#7c3aed', color: '#fff',
-            border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
-            cursor: 'pointer',
-          }}>
-            ⭐ Rate This Ride
-          </button>
-        )}
+        {/* Rate — both owner AND rider can rate each other */}
+        <button onClick={() => setShowRating(true)} style={{
+          width: '100%', padding: 14, background: '#7c3aed', color: '#fff',
+          border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
+          cursor: 'pointer',
+        }}>
+          ⭐ Rate {isOwner ? 'Co-rider' : 'Car Owner'}
+        </button>
       </div>
 
       {showRating && otherProfile && (

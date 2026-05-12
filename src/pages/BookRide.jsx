@@ -37,7 +37,10 @@ export default function BookRide() {
       .eq('rider_id', user.id)
       .eq('status', 'confirmed')
       .maybeSingle()
-    if (existing) setAlreadyBooked(true) // show info but don't block
+    if (existing) {
+      // Already have a confirmed booking - redirect to my rides
+      setAlreadyBooked(true)
+    }
 
     const { data: wallet } = await supabase
       .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
@@ -151,18 +154,31 @@ export default function BookRide() {
             </div>
 
             {/* UPI ID */}
-            <div style={{ background: '#222', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Car Owner UPI ID</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>{owner?.upi_id || 'Not set'}</span>
-                <button onClick={copyUPI} style={{
-                  background: '#333', border: 'none', color: '#facc15',
-                  padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                }}>📋 Copy</button>
+            {!owner?.upi_id ? (
+              <div style={{ background: '#2a1500', border: '1px solid #78350f', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 13, color: '#f97316', fontWeight: 700, marginBottom: 4 }}>
+                  ⚠️ Car owner hasn't set UPI ID
+                </div>
+                <div style={{ fontSize: 12, color: '#888' }}>
+                  Contact them via WhatsApp to arrange payment directly.
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ background: '#222', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Car Owner UPI ID</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>{owner?.upi_id}</span>
+                  <button onClick={copyUPI} style={{
+                    background: '#333', border: 'none', color: '#facc15',
+                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}>📋 Copy</button>
+                </div>
+              </div>
+            )}
 
-            {/* Payment app buttons */}
+            {/* Payment app buttons - only show if UPI is set */}
+            {owner?.upi_id && (
+            <>
             <div style={{ fontSize: 12, color: '#888', marginBottom: 10, textAlign: 'center' }}>
               Open payment app directly:
             </div>
@@ -185,6 +201,8 @@ export default function BookRide() {
               ))}
             </div>
 
+            </>
+            )}
             {/* WhatsApp car owner */}
             <a href={`https://wa.me/91${owner?.phone?.replace(/\D/g,'')}?text=${waMsg}`}
               target="_blank" rel="noreferrer"
