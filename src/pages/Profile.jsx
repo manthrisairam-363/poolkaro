@@ -43,6 +43,8 @@ export default function Profile() {
       upi_id: form.upi_id,
       role: form.role,
       city: form.city,
+      emergency_contact_name: form.emergency_contact_name || null,
+      emergency_contact_phone: form.emergency_contact_phone || null,
     }).eq('id', user.id)
     setLoading(false)
     if (!error) {
@@ -204,6 +206,12 @@ export default function Profile() {
               <label style={label}>UPI ID</label>
               <input style={inp} placeholder="9876543210@upi" value={form.upi_id} onChange={e => set('upi_id', e.target.value)} />
 
+              <label style={label}>Emergency Contact Name</label>
+              <input style={inp} placeholder="e.g. Mom, Wife, Friend" value={form.emergency_contact_name} onChange={e => set('emergency_contact_name', e.target.value)} />
+
+              <label style={label}>Emergency Contact Phone</label>
+              <input style={inp} placeholder="10-digit mobile number" type="tel" value={form.emergency_contact_phone} onChange={e => set('emergency_contact_phone', e.target.value.replace(/\D/g,'').slice(0,10))} />
+
               <label style={label}>Your City</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
                 {Object.entries(CITIES).map(([key, city]) => (
@@ -235,32 +243,87 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Stats card */}
+        {/* Rich Stats Card */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>My Stats</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 20 }}>🚗</div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginTop: 4 }}>{profile?.total_rides_given || 0}</div>
-              <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>Rides Given</div>
-            </div>
-            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 20 }}>🙋</div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginTop: 4 }}>{profile?.total_rides_taken || 0}</div>
-              <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>Rides Taken</div>
-            </div>
-            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 20 }}>⭐</div>
-              {profile?.total_ratings > 0 ? (
-                <>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4 }}>{Number(profile.avg_rating).toFixed(1)}</div>
-                  <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>{profile.total_ratings} rating{profile.total_ratings > 1 ? 's' : ''}</div>
-                </>
-              ) : (
-                <div style={{ fontWeight: 700, fontSize: 14, marginTop: 4, color: '#aaa' }}>New</div>
-              )}
-            </div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>My Impact 🌱</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            {[
+              { icon: '🚗', val: profile?.total_rides_given || 0, label: 'Rides Given' },
+              { icon: '🙋', val: profile?.total_rides_taken || 0, label: 'Rides Taken' },
+              { icon: '💰', val: `₹${((profile?.total_rides_taken || 0) * 150 * 0.6).toFixed(0)}`, label: 'Est. Saved' },
+              { icon: '🌿', val: `${((profile?.total_rides_taken || 0) * 2.1).toFixed(1)}kg`, label: 'CO₂ Avoided' },
+            ].map(item => (
+              <div key={item.label} style={{ background: '#f8f9fa', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
+                <div style={{ fontSize: 22 }}>{item.icon}</div>
+                <div style={{ fontWeight: 800, fontSize: 18, marginTop: 4 }}>{item.val}</div>
+                <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{item.label}</div>
+              </div>
+            ))}
           </div>
+          {profile?.avg_rating > 0 && (
+            <div style={{ background: '#fffbeb', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: '#888' }}>⭐ Community Rating</span>
+              <span style={{ fontWeight: 800, fontSize: 16, color: '#f59e0b' }}>{Number(profile.avg_rating).toFixed(1)} / 5.0</span>
+            </div>
+          )}
+        </div>
+
+        {/* Referral Card */}
+        <div style={{ background: '#f0fdf4', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12, border: '1px solid #bbf7d0' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>🎁 Invite & Earn</div>
+          <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 10 }}>
+            Share your code — both you and your friend get ₹10 wallet credit!
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ flex: 1, background: '#fff', borderRadius: 10, padding: '10px 14px', border: '1px solid #bbf7d0' }}>
+              <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>Your Referral Code</div>
+              <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: 3, color: '#111' }}>{profile?.referral_code || '------'}</div>
+            </div>
+            <button onClick={() => {
+              const msg = `Join me on PoolKaro — Hyderabad's IT Carpool app! Use my code ${profile?.referral_code} to get ₹10 free wallet credit. Install: https://poolkaro.vercel.app/install`
+              if (navigator.share) {
+                navigator.share({ title: 'PoolKaro Invite', text: msg })
+              } else {
+                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`)
+              }
+            }} style={{
+              background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10,
+              padding: '12px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>
+              📤 Share
+            </button>
+          </div>
+          {profile?.referral_count > 0 && (
+            <div style={{ marginTop: 8, fontSize: 12, color: '#16a34a', fontWeight: 600 }}>
+              🎉 {profile.referral_count} friend{profile.referral_count > 1 ? 's' : ''} joined using your code!
+            </div>
+          )}
+        </div>
+
+        {/* SOS Emergency Contact */}
+        <div style={{ background: '#fef2f2', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12, border: '1px solid #fecaca' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>🆘 Emergency Contact</div>
+          <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
+            During a ride, one tap sends your live location to this contact via WhatsApp.
+          </div>
+          {profile?.emergency_contact_phone ? (
+            <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{profile.emergency_contact_name || 'Emergency Contact'}</div>
+                <div style={{ fontSize: 12, color: '#888' }}>{profile.emergency_contact_phone}</div>
+              </div>
+              <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid #f5f5f5', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#888', cursor: 'pointer' }}>
+                Edit
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setEditing(true)} style={{
+              width: '100%', padding: 12, background: '#dc2626', color: '#fff',
+              border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              + Add Emergency Contact
+            </button>
+          )}
         </div>
 
         {/* Work Email Verification — prominent placement */}

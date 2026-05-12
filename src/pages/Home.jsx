@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { formatTime, formatDate } from '../lib/utils'
 import { getCompanyFromEmail } from '../lib/companyDomains'
+import DriverProfileModal from '../components/DriverProfileModal'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -296,6 +297,7 @@ export default function Home() {
         )}
       </div>
       <BottomNav />
+      {selectedDriver && <DriverProfileModal driverId={selectedDriver} onClose={() => setSelectedDriver(null)} />}
     </div>
   )
 }

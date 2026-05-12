@@ -164,6 +164,24 @@ export default function LiveRide() {
     window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank')
   }
 
+  function triggerSOS() {
+    if (!myLocation) {
+      alert('Enable location sharing first, then use SOS.')
+      return
+    }
+    const emergencyPhone = profile?.emergency_contact_phone
+    const emergencyName = profile?.emergency_contact_name || 'Emergency Contact'
+    if (!emergencyPhone) {
+      alert('No emergency contact set! Please add one in your Profile.')
+      return
+    }
+    const mapsLink = `https://www.google.com/maps?q=${myLocation.latitude},${myLocation.longitude}`
+    const msg = encodeURIComponent(
+      `🆘 SOS from ${profile?.full_name}!\n\nI am in a PoolKaro ride and need help.\n\nMy live location: ${mapsLink}\n\nPlease contact me immediately.`
+    )
+    window.open(`https://wa.me/91${emergencyPhone.replace(/\D/g,'')}?text=${msg}`, '_blank')
+  }
+
   // ── Loading ──
   if (status !== 'ready') return (
     <div style={{ minHeight: '100vh', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -299,9 +317,19 @@ export default function LiveRide() {
         <button onClick={() => setShowRating(true)} style={{
           width: '100%', padding: 14, background: '#7c3aed', color: '#fff',
           border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
-          cursor: 'pointer',
+          cursor: 'pointer', marginBottom: 10,
         }}>
           ⭐ Rate {isOwner ? 'Co-rider' : 'Car Owner'}
+        </button>
+
+        {/* SOS Button */}
+        <button onClick={triggerSOS} style={{
+          width: '100%', padding: 14, background: '#dc2626', color: '#fff',
+          border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 4px 15px rgba(220,38,38,0.4)',
+        }}>
+          🆘 SOS — Send Location to Emergency Contact
         </button>
       </div>
 
