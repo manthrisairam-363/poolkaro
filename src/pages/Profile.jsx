@@ -263,36 +263,25 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* App info */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>About PoolKaro</div>
-          {[
-            ['🚗', 'Version', '1.0.0 Beta'],
-            ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'],
-            ['💰', 'Platform Fee', '₹2 per booking'],
-            ['⚡', 'Payments', 'Instant UPI'],
-          ].map(([icon, k, v]) => (
-            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
-              <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Work Email Verification */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        {/* Work Email Verification — prominent placement */}
+        <div style={{
+          background: profile?.work_email_verified ? '#f0fdf4' : '#fff',
+          borderRadius: 16, padding: 16, marginBottom: 12,
+          border: `2px solid ${profile?.work_email_verified ? '#22c55e' : '#facc15'}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: profile?.work_email_verified ? 0 : 12 }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 14 }}>🏢 Verify Work Email</div>
               <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
                 {profile?.work_email_verified
-                  ? `✓ ${profile.work_email} verified`
-                  : 'Add company email to build trust'}
+                  ? `✓ ${profile.work_email}`
+                  : 'Verify to show company badge on your rides'}
               </div>
             </div>
             {profile?.work_email_verified
-              ? <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700 }}>✓ Verified</span>
-              : <span style={{ background: '#fef9c3', color: '#854d0e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>Unverified</span>
+              ? <span style={{ background: '#22c55e', color: '#fff', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700 }}>✓ Verified</span>
+              : <span style={{ background: '#fef9c3', color: '#854d0e', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 600 }}>Tap to verify</span>
             }
           </div>
 
@@ -308,47 +297,48 @@ export default function Profile() {
                   ⚠️ {verifyError}
                 </div>
               )}
-
               {!otpSent ? (
                 <>
                   <input
-                    placeholder="sairam@capgemini.com"
+                    placeholder="e.g. sairam@capgemini.com"
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e5e7eb', fontSize: 13, marginBottom: 10, boxSizing: 'border-box', background: '#fafafa' }}
                     value={workEmail}
                     onChange={e => setWorkEmail(e.target.value)}
                     type="email"
+                    autoCapitalize="none"
                   />
                   <button onClick={sendWorkEmailOTP} disabled={verifying || !workEmail} style={{
                     width: '100%', padding: 12, background: '#111', color: '#fff',
                     border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    opacity: !workEmail ? 0.5 : 1,
                   }}>
-                    {verifying ? 'Sending OTP...' : '📧 Send OTP to Work Email'}
+                    {verifying ? 'Sending...' : '📧 Send OTP to Work Email'}
                   </button>
-                  <div style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 8 }}>
-                    Only company emails accepted. Gmail/Yahoo not allowed.
+                  <div style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 6 }}>
+                    Only company emails. Gmail/Yahoo not allowed.
                   </div>
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 10, fontWeight: 600 }}>
-                    ✅ OTP sent to {workEmail}. Check your inbox!
+                  <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 8, fontWeight: 600 }}>
+                    ✅ OTP sent to {workEmail} — check your inbox!
                   </div>
                   <input
-                    placeholder="Enter 6-digit OTP"
-                    style={{ width: '100%', padding: '12px', borderRadius: 10, border: '2px solid #111', fontSize: 20, textAlign: 'center', letterSpacing: 8, marginBottom: 10, boxSizing: 'border-box' }}
+                    placeholder="000000"
+                    style={{ width: '100%', padding: '14px', borderRadius: 10, border: '2px solid #111', fontSize: 24, textAlign: 'center', letterSpacing: 10, marginBottom: 10, boxSizing: 'border-box' }}
                     value={otpCode}
                     onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     type="number"
-                    maxLength={6}
                   />
                   <button onClick={verifyWorkOTP} disabled={verifying || otpCode.length !== 6} style={{
                     width: '100%', padding: 12, background: '#16a34a', color: '#fff',
                     border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8,
+                    opacity: otpCode.length !== 6 ? 0.5 : 1,
                   }}>
-                    {verifying ? 'Verifying...' : '✅ Verify OTP'}
+                    {verifying ? 'Verifying...' : '✅ Verify & Get Badge'}
                   </button>
                   <button onClick={() => { setOtpSent(false); setOtpCode(''); setVerifyError('') }} style={{
-                    width: '100%', padding: 10, background: '#f5f5f5', color: '#888',
+                    width: '100%', padding: 9, background: '#f5f5f5', color: '#888',
                     border: 'none', borderRadius: 10, fontSize: 12, cursor: 'pointer',
                   }}>
                     ← Change Email
@@ -357,6 +347,22 @@ export default function Profile() {
               )}
             </>
           )}
+        </div>
+
+        {/* App info */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>About PoolKaro</div>
+          {[
+            ['🚗', 'Version', '1.0.0 Beta'],
+            ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'],
+            ['💰', 'Platform Fee', '₹2 per booking'],
+            ['⚡', 'Payments', 'Instant UPI'],
+          ].map(([icon, k, v]) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
+              <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
+            </div>
+          ))}
         </div>
 
         {/* Links */}
