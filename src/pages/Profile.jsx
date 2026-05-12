@@ -28,6 +28,8 @@ export default function Profile() {
     upi_id: profile?.upi_id || '',
     role: profile?.role || 'both',
     city: profile?.city || 'hyderabad',
+    emergency_contact_name: profile?.emergency_contact_name || '',  // ADDED this after white blank screen
+    emergency_contact_phone: profile?.emergency_contact_phone || '', // ADDED this after white blank screen
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
