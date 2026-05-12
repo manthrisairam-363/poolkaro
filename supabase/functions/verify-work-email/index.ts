@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'PoolKaro <noreply@poolkaro.vercel.app>',
+          from: 'PoolKaro <onboarding@resend.dev>',
           to: email,
           subject: `${otpCode} — Your PoolKaro Work Email Verification`,
           html: `
