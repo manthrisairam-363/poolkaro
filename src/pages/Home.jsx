@@ -118,6 +118,7 @@ export default function Home() {
   const [filterTo, setFilterTo] = useState('')
   const [filterDate, setFilterDate] = useState('all') // all | today | tomorrow
   const [filterTime, setFilterTime] = useState('all') // all | morning | evening
+  const [selectedDriver, setSelectedDriver] = useState(null)  // ADD THIS after white blank screen
 
   const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
