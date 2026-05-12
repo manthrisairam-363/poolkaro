@@ -75,23 +75,23 @@ Deno.serve(async (req) => {
       })
 
       // Send email via Resend
-      const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-      if (!RESEND_API_KEY) {
+      const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY')
+      if (!BREVO_API_KEY) {
         return new Response(JSON.stringify({ error: 'Email service not configured' }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
       const company = email.split('@')[1].split('.')[0]
-      const emailRes = await fetch('https://api.resend.com/emails', {
+      const emailRes = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'api-key': BREVO_API_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'PoolKaro <onboarding@resend.dev>',
-          to: email,
+          sender: { name: 'PoolKaro', email: 'noreply@poolkaro.app' },
+          to: [{ email: email }],
           subject: `${otpCode} — Your PoolKaro Work Email Verification`,
           html: `
             <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 24px;">
