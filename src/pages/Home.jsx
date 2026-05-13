@@ -148,7 +148,21 @@ export default function Home() {
       .gte('ride_date', today)
       .order('ride_date', { ascending: true })
       .order('ride_time', { ascending: true })
-    if (!error) setRides(data || [])
+
+    if (!error) {
+      // Hide today's rides that departed more than 30 mins ago
+      const now = new Date()
+      const cutoff = new Date(now.getTime() - 30 * 60 * 1000)
+      const fresh = (data || []).filter(ride => {
+        if (ride.ride_date !== today) return true
+        if (!ride.ride_time) return true
+        const [h, m] = ride.ride_time.split(':')
+        const rideTime = new Date()
+        rideTime.setHours(parseInt(h), parseInt(m), 0, 0)
+        return rideTime >= cutoff
+      })
+      setRides(fresh)
+    }
     setLoading(false)
   }
 
