@@ -283,6 +283,24 @@ export default function MyRides() {
     await fetchData()
   }
 
+  async function cancelAllRecurring(rideId) {
+    if (!confirm('Cancel ALL future rides in this recurring series?\n\nOnly rides with no bookings will be cancelled.')) return
+    const { data: ride } = await supabase.from('rides').select('ride_date, from_location, to_location, ride_time').eq('id', rideId).maybeSingle()
+    if (!ride) return
+    const { data: recurringRides } = await supabase
+      .from('rides').select('id')
+      .eq('driver_id', user.id).eq('is_recurring', true)
+      .eq('from_location', ride.from_location).eq('to_location', ride.to_location)
+      .eq('ride_time', ride.ride_time).gte('ride_date', ride.ride_date).eq('status', 'active')
+    if (recurringRides?.length > 0) {
+      for (const r of recurringRides) {
+        const { count } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('ride_id', r.id).eq('status', 'confirmed')
+        if (count === 0) await supabase.from('rides').update({ status: 'cancelled' }).eq('id', r.id)
+      }
+    }
+    await fetchData()
+  }
+
   async function cancelBooking(bookingId, rideId, seatsBooked) {
     if (!confirm('Cancel your booking?\n\nThis cannot be undone.')) return
     const { error } = await supabase.rpc('cancel_booking_and_restore', {
