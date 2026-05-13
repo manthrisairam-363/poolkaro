@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { formatTime, formatDate } from '../lib/utils'
+import { formatTime } from '../lib/utils'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -19,26 +19,33 @@ export default function LiveRide() {
   const [tracking, setTracking] = useState(false)
   const [showRating, setShowRating] = useState(searchParams.get('rate') === 'true')
   const [rideEnded, setRideEnded] = useState(false)
-  const [status, setStatus] = useState('Loading...')
+  const [status, setStatus] = useState('loading')
+  const [gpsError, setGpsError] = useState('')
+
   const watchRef = useRef(null)
+  const autoStopRef = useRef(null)
   const rideIdRef = useRef(null)
   const otherUserIdRef = useRef(null)
+  const channelRef = useRef(null)
 
   useEffect(() => {
     fetchData()
-    return () => stopTracking()
+    return () => {
+      stopTracking()
+      if (channelRef.current) supabase.removeChannel(channelRef.current)
+    }
   }, [bookingId])
 
   async function fetchData() {
-    setStatus('Loading ride...')
+    setStatus('loading')
     const { data: bk, error } = await supabase
       .from('bookings')
       .select('*, rides(*)')
       .eq('id', bookingId)
-      .maybeSingle()   // won't throw if not found
+      .maybeSingle()
 
     if (error || !bk) {
-      setStatus('Ride not found')
+      setStatus('error')
       setTimeout(() => navigate('/my-rides'), 2000)
       return
     }
@@ -51,43 +58,38 @@ export default function LiveRide() {
     const otherId = isOwner ? bk.rider_id : bk.rides.driver_id
     otherUserIdRef.current = otherId
 
-    // Fetch other person's profile
     const { data: op } = await supabase
       .from('profiles').select('*').eq('id', otherId).maybeSingle()
     setOtherProfile(op)
 
     setStatus('ready')
 
-    // Fetch their current location immediately
-    await fetchOtherLocation(otherId, bk.rides.id)
+    // Load their location immediately
+    fetchOtherLocation(otherId, bk.rides.id)
 
-    // Subscribe to realtime location updates
-    setupRealtimeLocation(otherId, bk.rides.id)
+    // Subscribe to realtime updates
+    setupRealtime(otherId, bk.rides.id)
   }
 
-  function setupRealtimeLocation(otherId, rideId) {
-    // Fix 11: Remove only THIS specific channel, not all channels
-    const existingChannel = supabase.getChannels().find(c => c.topic.startsWith(`live-${rideId}`))
-    if (existingChannel) supabase.removeChannel(existingChannel)
+  function setupRealtime(otherId, rideId) {
+    // Remove existing channel
+    if (channelRef.current) supabase.removeChannel(channelRef.current)
 
-    const channel = supabase
-      .channel(`live-${rideId}-${otherId}`)
+    const ch = supabase
+      .channel(`live-loc-${rideId}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'live_locations',
         filter: `ride_id=eq.${rideId}`,
       }, (payload) => {
-        // Only update if it's the other person's location
-        if (payload.new && payload.new.user_id === otherId) {
+        if (payload.new?.user_id === otherId) {
           setOtherLocation(payload.new)
         }
       })
-      .subscribe((status) => {
-        console.log('Realtime status:', status)
-      })
+      .subscribe((s) => console.log('Live location realtime:', s))
 
-    return channel
+    channelRef.current = ch
   }
 
   async function fetchOtherLocation(otherId, rideId) {
@@ -96,26 +98,24 @@ export default function LiveRide() {
       .select('*')
       .eq('user_id', otherId)
       .eq('ride_id', rideId)
+      .maybeSingle()
 
-    if (error) { console.error('Location fetch error:', error); return }
-    if (data && data.length > 0) setOtherLocation(data[0])
+    if (!error && data) setOtherLocation(data)
   }
 
   function startTracking() {
     if (!navigator.geolocation) {
-      alert('GPS not available on this device')
+      setGpsError('GPS is not available on this device.')
       return
     }
+    setGpsError('')
     setTracking(true)
 
-    // Fix 10: Auto-stop after 3 hours to save battery
-    const autoStop = setTimeout(() => {
-      navigator.geolocation.clearWatch(watchRef.current)
-      watchRef.current = null
-      setTracking(false)
-      alert('Location sharing auto-stopped after 3 hours to save battery.')
+    // Auto-stop after 3 hours
+    autoStopRef.current = setTimeout(() => {
+      stopTracking()
+      alert('Location sharing stopped after 3 hours to save battery.')
     }, 3 * 60 * 60 * 1000)
-    watchRef.autoStop = autoStop
 
     watchRef.current = navigator.geolocation.watchPosition(
       async (pos) => {
@@ -124,31 +124,36 @@ export default function LiveRide() {
           longitude: pos.coords.longitude,
         }
         setMyLocation(loc)
+        setGpsError('')
 
-        const { error } = await supabase.from('live_locations').upsert({
+        await supabase.from('live_locations').upsert({
           user_id: user.id,
           ride_id: rideIdRef.current,
           latitude: loc.latitude,
           longitude: loc.longitude,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id,ride_id' })
-
-        if (error) console.error('Location save error:', error)
       },
       (err) => {
         console.error('GPS error:', err)
         setTracking(false)
+        if (err.code === 1) setGpsError('Location permission denied. Please allow GPS access in your browser settings.')
+        else if (err.code === 2) setGpsError('GPS signal not available. Move to an open area.')
+        else setGpsError('GPS timed out. Please try again.')
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     )
   }
 
   function stopTracking() {
-    if (watchRef.current) {
+    if (watchRef.current !== null) {
       navigator.geolocation.clearWatch(watchRef.current)
       watchRef.current = null
     }
-    if (watchRef.autoStop) clearTimeout(watchRef.autoStop)
+    if (autoStopRef.current) {
+      clearTimeout(autoStopRef.current)
+      autoStopRef.current = null
+    }
     setTracking(false)
   }
 
@@ -170,165 +175,168 @@ export default function LiveRide() {
       return
     }
     const emergencyPhone = profile?.emergency_contact_phone
-    const emergencyName = profile?.emergency_contact_name || 'Emergency Contact'
     if (!emergencyPhone) {
-      alert('No emergency contact set! Please add one in your Profile.')
+      alert('No emergency contact set! Please add one in your Profile settings.')
       return
     }
     const mapsLink = `https://www.google.com/maps?q=${myLocation.latitude},${myLocation.longitude}`
     const msg = encodeURIComponent(
-      `🆘 SOS from ${profile?.full_name}!\n\nI am in a PoolKaro ride and need help.\n\nMy live location: ${mapsLink}\n\nPlease contact me immediately.`
+      `🆘 SOS from ${profile?.full_name}!\n\nI am in a CarpoolKaro ride and need help.\n\nMy live location:\n${mapsLink}\n\nPlease contact me immediately!`
     )
     window.open(`https://wa.me/91${emergencyPhone.replace(/\D/g,'')}?text=${msg}`, '_blank')
   }
 
-  // ── Loading ──
-  if (status !== 'ready') return (
-    <div style={{ minHeight: '100vh', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', color: '#888' }}>
-        <div style={{ fontSize: 40 }}>🚗</div>
-        <div style={{ marginTop: 8 }}>{status}</div>
+  // Loading / error states
+  if (status === 'loading') return (
+    <div style={{ minHeight:'100vh', background:'#111', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ textAlign:'center', color:'#888' }}>
+        <div style={{ fontSize:40 }}>🚗</div>
+        <div style={{ marginTop:8 }}>Loading ride...</div>
+      </div>
+    </div>
+  )
+
+  if (status === 'error') return (
+    <div style={{ minHeight:'100vh', background:'#111', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ textAlign:'center', color:'#888' }}>
+        <div style={{ fontSize:40 }}>❌</div>
+        <div style={{ marginTop:8 }}>Ride not found. Redirecting...</div>
       </div>
     </div>
   )
 
   const isOwner = ride?.driver_id === user?.id
   const otherName = otherProfile?.full_name || (isOwner ? 'Co-rider' : 'Car Owner')
-  const otherInitials = otherName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-  const waMsg = encodeURIComponent(`Hi ${otherName}! Sharing live location for our PoolKaro ride 🚗`)
-  const phone = otherProfile?.phone?.replace(/\D/g, '')
+  const otherInitials = otherName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
+  const phone = otherProfile?.phone?.replace(/\D/g,'')
+  const waMsg = encodeURIComponent(`Hi ${otherName}! I'm sharing my live location on CarpoolKaro 🚗`)
+
+  const btnBase = {
+    flex:1, display:'flex', alignItems:'center', justifyContent:'center',
+    gap:6, padding:'10px 8px', borderRadius:10,
+    fontSize:13, fontWeight:600, textDecoration:'none',
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#111', color: '#fff' }}>
+    <div style={{ minHeight:'100vh', background:'#111', color:'#fff' }}>
       {/* Header */}
-      <div style={{ padding: '20px 16px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ padding:'20px 16px 16px', display:'flex', alignItems:'center', gap:12, borderBottom:'1px solid #1a1a1a' }}>
         <button onClick={() => navigate('/my-rides')}
-          style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 18 }}>📍 Live Ride</div>
-          <div style={{ color: '#888', fontSize: 12 }}>
-            {ride?.from_location} → {ride?.to_location}
+          style={{ background:'none', border:'none', color:'#fff', fontSize:22, cursor:'pointer' }}>←</button>
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:800, fontSize:18 }}>📍 Live Ride</div>
+          <div style={{ color:'#555', fontSize:12 }}>
+            {ride?.from_location} → {ride?.to_location} · {formatTime(ride?.ride_time)}
           </div>
         </div>
         {tracking && (
-          <div style={{ marginLeft: 'auto', background: '#16a34a', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 600 }}>
+          <div style={{ background:'#16a34a', borderRadius:20, padding:'4px 12px', fontSize:11, fontWeight:700, animation:'pulse 2s infinite' }}>
             ● LIVE
           </div>
         )}
       </div>
 
-      <div style={{ padding: '0 16px 100px' }}>
+      <div style={{ padding:'12px 16px 100px' }}>
 
-        {/* Other person card */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: '#888', marginBottom: 10, fontWeight: 600 }}>
+        {/* Other person */}
+        <div style={{ background:'#1a1a1a', borderRadius:16, padding:16, marginBottom:10 }}>
+          <div style={{ fontSize:10, color:'#555', marginBottom:10, letterSpacing:1, fontWeight:700 }}>
             {isOwner ? '🙋 CO-RIDER' : '🚗 CAR OWNER'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: '50%', background: '#7c3aed',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 700, fontSize: 16, flexShrink: 0,
-            }}>{otherInitials}</div>
+          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+            <div style={{ width:48, height:48, borderRadius:'50%', background:'#7c3aed', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:16, flexShrink:0 }}>
+              {otherInitials}
+            </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{otherName}</div>
-              <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
-                {otherProfile?.vehicle_model && `🚘 ${otherProfile.vehicle_model}`}
-              </div>
+              <div style={{ fontWeight:700, fontSize:16 }}>{otherName}</div>
+              {otherProfile?.vehicle_model && (
+                <div style={{ color:'#555', fontSize:12, marginTop:2 }}>🚘 {otherProfile.vehicle_model}</div>
+              )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <a href={`tel:+91${phone}`} style={contactBtn('#f0fdf4', '#16a34a')}>📞 Call</a>
-            <a href={`https://wa.me/91${phone}?text=${waMsg}`}
-              target="_blank" rel="noreferrer" style={contactBtn('#f0fff4', '#25D366')}>
+          <div style={{ display:'flex', gap:8 }}>
+            <a href={`tel:+91${phone}`} style={{ ...btnBase, background:'#0a2e1a', color:'#22c55e', border:'1px solid #166534' }}>
+              📞 Call
+            </a>
+            <a href={`https://wa.me/91${phone}?text=${waMsg}`} target="_blank" rel="noreferrer"
+              style={{ ...btnBase, background:'#052e1a', color:'#22c55e', border:'1px solid #166534' }}>
               💬 WhatsApp
             </a>
           </div>
         </div>
 
-        {/* My location sharing */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: '#888', marginBottom: 10, fontWeight: 600 }}>📍 YOUR LOCATION</div>
-          {myLocation ? (
-            <div style={{ background: '#052e16', borderRadius: 10, padding: '10px 14px', marginBottom: 10 }}>
-              <div style={{ color: '#22c55e', fontSize: 13, fontWeight: 600 }}>● Sharing live location</div>
-              <div style={{ color: '#666', fontSize: 11, marginTop: 2 }}>
+        {/* My location */}
+        <div style={{ background:'#1a1a1a', borderRadius:16, padding:16, marginBottom:10 }}>
+          <div style={{ fontSize:10, color:'#555', marginBottom:10, letterSpacing:1, fontWeight:700 }}>📍 YOUR LOCATION</div>
+
+          {gpsError && (
+            <div style={{ background:'#2a0a0a', border:'1px solid #7f1d1d', borderRadius:10, padding:'10px 12px', marginBottom:10, fontSize:12, color:'#f87171' }}>
+              ⚠️ {gpsError}
+            </div>
+          )}
+
+          {myLocation && (
+            <div style={{ background:'#0a2e1a', borderRadius:10, padding:'10px 14px', marginBottom:10, border:'1px solid #166534' }}>
+              <div style={{ color:'#22c55e', fontSize:13, fontWeight:600 }}>● Sharing live location</div>
+              <div style={{ color:'#555', fontSize:11, marginTop:2, fontFamily:'monospace' }}>
                 {myLocation.latitude.toFixed(5)}, {myLocation.longitude.toFixed(5)}
               </div>
             </div>
-          ) : (
-            <div style={{ color: '#666', fontSize: 13, marginBottom: 10 }}>
-              Tap below so {otherName} can find you
-            </div>
           )}
+
           <button onClick={tracking ? stopTracking : startTracking} style={{
-            width: '100%', padding: 12, borderRadius: 10, border: 'none', cursor: 'pointer',
-            background: tracking ? '#fef2f2' : '#facc15',
-            color: tracking ? '#dc2626' : '#111',
-            fontWeight: 700, fontSize: 14,
+            width:'100%', padding:13, borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:14,
+            background: tracking ? '#2a0a0a' : '#facc15',
+            color: tracking ? '#f87171' : '#000',
+            border: tracking ? '1px solid #7f1d1d' : 'none',
           }}>
             {tracking ? '⏹ Stop Sharing' : '▶ Start Sharing Location'}
           </button>
         </div>
 
-        {/* Other person's location */}
-        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: '#888', marginBottom: 10, fontWeight: 600 }}>
-            📍 {otherName?.toUpperCase()}'S LOCATION
+        {/* Their location */}
+        <div style={{ background:'#1a1a1a', borderRadius:16, padding:16, marginBottom:10 }}>
+          <div style={{ fontSize:10, color:'#555', marginBottom:10, letterSpacing:1, fontWeight:700 }}>
+            📍 {otherName.toUpperCase()}'S LOCATION
           </div>
+
           {otherLocation ? (
             <>
-              <div style={{ background: '#052e16', borderRadius: 10, padding: '10px 14px', marginBottom: 10 }}>
-                <div style={{ color: '#22c55e', fontSize: 13, fontWeight: 600 }}>● Location available</div>
-                <div style={{ color: '#666', fontSize: 11, marginTop: 2 }}>
-                  Last updated: {new Date(otherLocation.updated_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              <div style={{ background:'#0a2e1a', borderRadius:10, padding:'10px 14px', marginBottom:10, border:'1px solid #166534' }}>
+                <div style={{ color:'#22c55e', fontSize:13, fontWeight:600 }}>● Location available</div>
+                <div style={{ color:'#555', fontSize:11, marginTop:2 }}>
+                  Updated {new Date(otherLocation.updated_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
                 </div>
               </div>
               <button onClick={() => openInMaps(otherLocation.latitude, otherLocation.longitude)}
-                style={{ width: '100%', padding: 12, background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                style={{ width:'100%', padding:12, background:'#1d4ed8', color:'#fff', border:'none', borderRadius:10, fontWeight:700, fontSize:14, cursor:'pointer', marginBottom:8 }}>
                 🗺️ Open in Google Maps
               </button>
             </>
           ) : (
-            <div style={{ color: '#666', fontSize: 13, padding: '8px 0' }}>
+            <div style={{ color:'#555', fontSize:13, padding:'8px 0' }}>
               Waiting for {otherName} to share location...
             </div>
           )}
-          {/* Manual refresh */}
-          <button
-            onClick={() => fetchOtherLocation(otherUserIdRef.current, rideIdRef.current)}
-            style={{ width: '100%', padding: 8, background: 'transparent', color: '#555', border: '1px solid #333', borderRadius: 8, fontSize: 12, cursor: 'pointer', marginTop: 8 }}>
-            🔄 Refresh Location
+
+          <button onClick={() => fetchOtherLocation(otherUserIdRef.current, rideIdRef.current)}
+            style={{ width:'100%', padding:9, background:'transparent', color:'#555', border:'1px solid #333', borderRadius:8, fontSize:12, cursor:'pointer', marginTop:4 }}>
+            🔄 Refresh
           </button>
         </div>
 
-        {/* End ride — car owner only */}
+        {/* Actions */}
         {isOwner && !rideEnded && (
-          <button onClick={endRide} style={{
-            width: '100%', padding: 14, background: '#16a34a', color: '#fff',
-            border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
-            cursor: 'pointer', marginBottom: 10,
-          }}>
+          <button onClick={endRide} style={{ width:'100%', padding:14, background:'#16a34a', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', marginBottom:10 }}>
             🏁 End Ride
           </button>
         )}
 
-        {/* Rate — both owner AND rider can rate each other */}
-        <button onClick={() => setShowRating(true)} style={{
-          width: '100%', padding: 14, background: '#7c3aed', color: '#fff',
-          border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
-          cursor: 'pointer', marginBottom: 10,
-        }}>
+        <button onClick={() => setShowRating(true)} style={{ width:'100%', padding:14, background:'#7c3aed', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', marginBottom:10 }}>
           ⭐ Rate {isOwner ? 'Co-rider' : 'Car Owner'}
         </button>
 
-        {/* SOS Button */}
-        <button onClick={triggerSOS} style={{
-          width: '100%', padding: 14, background: '#dc2626', color: '#fff',
-          border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
-          cursor: 'pointer',
-          boxShadow: '0 4px 15px rgba(220,38,38,0.4)',
-        }}>
+        <button onClick={triggerSOS} style={{ width:'100%', padding:14, background:'#dc2626', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 15px rgba(220,38,38,0.3)' }}>
           🆘 SOS — Send Location to Emergency Contact
         </button>
       </div>
@@ -343,9 +351,3 @@ export default function LiveRide() {
     </div>
   )
 }
-
-const contactBtn = (bg, color) => ({
-  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 6, padding: 9, background: bg, color, borderRadius: 10,
-  fontSize: 13, fontWeight: 600, textDecoration: 'none',
-})
