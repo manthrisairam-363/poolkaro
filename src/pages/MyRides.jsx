@@ -251,9 +251,9 @@ export default function MyRides() {
     if (!ridesRes.error) setRides(ridesRes.data || [])
     if (!bookingsRes.error) {
       const allBookings = bookingsRes.data || []
-      // Group confirmed bookings by ride_id
+      // Group confirmed + completed bookings by ride_id
       const grouped = {}
-      allBookings.filter(b => b.status === 'confirmed').forEach(b => {
+      allBookings.filter(b => b.status === 'confirmed' || b.status === 'completed').forEach(b => {
         if (grouped[b.ride_id]) {
           grouped[b.ride_id].seats_booked += b.seats_booked
           grouped[b.ride_id].total_paid += b.total_paid
@@ -299,7 +299,7 @@ export default function MyRides() {
     await fetchData()
   }
 
-  const activeBookings = bookings.filter(b => b.status === 'confirmed')
+  const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed')
   const cancelledBookings = bookings.filter(b => b.status === 'cancelled')
 
   const tabStyle = (active) => ({

@@ -1,12 +1,13 @@
 {
-  "name": "PoolKaro",
-  "short_name": "PoolKaro",
-  "description": "Hyderabad IT Carpool App",
-  "start_url": "/",
+  "name": "CarpoolKaro",
+  "short_name": "CarpoolKaro",
+  "description": "Hyderabad IT Carpool \u2014 Share rides, save money",
+  "start_url": "https://app.carpoolkaro.com/",
+  "scope": "https://app.carpoolkaro.com/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#111111",
-  "theme_color": "#111111",
+  "theme_color": "#facc15",
   "icons": [
     {
       "src": "/icon-192.png",

@@ -13,7 +13,6 @@ function urlBase64ToUint8Array(base64String) {
 
 export async function registerPushNotifications(userId) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.log('Push notifications not supported')
     return false
   }
 
@@ -25,7 +24,6 @@ export async function registerPushNotifications(userId) {
     // Request permission
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') {
-      console.log('Push permission denied')
       return false
     }
 
@@ -44,8 +42,6 @@ export async function registerPushNotifications(userId) {
       auth: subJSON.keys?.auth,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
-
-    console.log('Push notifications registered!')
     return true
   } catch (err) {
     console.error('Push registration failed:', err)
@@ -56,7 +52,6 @@ export async function registerPushNotifications(userId) {
 export async function sendPushToUser(userId, title, body, url = '/') {
   // This calls a Supabase Edge Function to send the push
   // For now we log — will be activated when edge function is deployed
-  console.log('Push notification queued:', { userId, title, body })
 
   // Store notification in DB (already done by trigger)
   // Edge function reads push_subscriptions and sends via web-push

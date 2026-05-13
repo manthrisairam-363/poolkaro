@@ -77,6 +77,7 @@ export default function Onboarding() {
       vehicle_number: form.vehicle_number?.toUpperCase() || null,
       upi_id: form.upi_id || null,
       onboarding_complete: true,
+      referred_by: form.referral_code || null,
     })
     setLoading(false)
     if (error) { setError(error.message); return }

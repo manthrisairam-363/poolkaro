@@ -33,7 +33,7 @@ function Loader() {
         </svg>
       </div>
       <div style={{ fontWeight: 800, fontSize: 28, letterSpacing: '-1px' }}>
-        <span style={{ color: '#facc15' }}>Pool</span><span style={{ color: '#fff' }}>Karo</span>
+        <span style={{ color: '#facc15' }}>Carpool</span><span style={{ color: '#fff' }}>Karo</span>
       </div>
       <div style={{ color: '#555', fontSize: 13 }}>Hyderabad IT Carpool</div>
     </div>

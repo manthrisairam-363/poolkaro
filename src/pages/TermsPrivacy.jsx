@@ -5,7 +5,7 @@ const sections = {
   terms: [
     {
       title: '1. About PoolKaro',
-      content: 'PoolKaro is a carpooling platform connecting IT professionals in Hyderabad. We help users share rides and split commute costs. PoolKaro is not a taxi or cab service — we are a platform that connects car owners and co-riders.',
+      content: 'CarpoolKaro is a carpooling platform connecting IT professionals in Hyderabad. We help users share rides and split commute costs. PoolKaro is not a taxi or cab service — we are a platform that connects car owners and co-riders.',
     },
     {
       title: '2. Eligibility',
@@ -71,7 +71,7 @@ const sections = {
     },
     {
       title: '7. Contact Us',
-      content: 'For any privacy concerns or data requests, contact us at: poolkaro.app@gmail.com\n\nAddress: Hyderabad, Telangana, India.',
+      content: 'For any privacy concerns or data requests, contact us at: support@carpoolkaro.com\n\nAddress: Hyderabad, Telangana, India.',
     },
   ],
 }
@@ -120,7 +120,7 @@ export default function TermsPrivacy() {
         ))}
 
         <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: 12 }}>
-          🚗 PoolKaro · Hyderabad, India
+          🚗 CarpoolKaro · Hyderabad, India
         </div>
       </div>
     </div>
