@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import RequestRide from './pages/RequestRide'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
@@ -51,6 +51,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/post" element={<PostRide />} />
+      <Route path="/request" element={<RequestRide />} />
       <Route path="/my-rides" element={<MyRides />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/book/:id" element={<BookRide />} />
