@@ -124,6 +124,8 @@ export default function Home() {
   const { profile, user } = useAuth()
   const navigate = useNavigate()
   const [rides, setRides] = useState([])
+  const [requests, setRequests] = useState([])
+  const [myRequest, setMyRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -138,19 +140,33 @@ export default function Home() {
 
   useEffect(() => {
     fetchRides()
+    fetchRequests()
 
-    // Realtime: auto-refresh when any ride changes
     const channel = supabase
       .channel('rides-changes')
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'rides'
-      }, () => {
-        fetchRides() // auto-refresh home when seats change
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => fetchRides())
       .subscribe()
 
     return () => supabase.removeChannel(channel)
   }, [])
+
+  async function fetchRequests() {
+    const istOffset = 5.5 * 60 * 60 * 1000
+    const today = new Date(Date.now() + istOffset).toISOString().split('T')[0]
+
+    const { data } = await supabase
+      .from('ride_requests')
+      .select('*, profiles(full_name, is_verified, work_email, work_email_verified, email)')
+      .eq('status', 'active')
+      .gte('ride_date', today)
+      .order('created_at', { ascending: false })
+
+    setRequests(data || [])
+
+    // Check if current user has an active request
+    const mine = (data || []).find(r => r.rider_id === user?.id)
+    setMyRequest(mine || null)
+  }
 
   async function fetchRides() {
     setLoading(true)
@@ -298,23 +314,103 @@ export default function Home() {
         )}
       </div>
 
-      <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8 }}>
-        {[['all','All Rides'],['to_office','🏢 To Office'],['to_home','🏠 To Home']].map(([v,l]) => (
+      <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8, overflowX: 'auto' }}>
+        {[['all','All Rides'],['to_office','🏢 To Office'],['to_home','🏠 To Home'],['requests','🙋 Requests']].map(([v,l]) => (
           <button key={v} onClick={() => setFilter(v)} style={{
-            padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+            padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
             background: filter === v ? '#111' : '#fff',
             color: filter === v ? '#fff' : '#555',
             fontWeight: filter === v ? 700 : 400, fontSize: 12,
             boxShadow: filter === v ? 'none' : '0 1px 4px rgba(0,0,0,0.08)',
-          }}>{l}</button>
+          }}>
+            {l}{v === 'requests' && requests.length > 0 ? ` (${requests.length})` : ''}
+          </button>
         ))}
       </div>
 
       <div style={{ padding: '8px 16px' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🚗</div>
-            Loading rides...
+
+        {/* My active request banner */}
+        {myRequest && filter !== 'requests' && (
+          <div style={{ background: '#f0f4ff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>🙋 YOUR ACTIVE REQUEST</div>
+              <div style={{ fontSize: 12, color: '#333' }}>{myRequest.from_location} → {myRequest.to_location}</div>
+            </div>
+            <button onClick={async () => {
+              await supabase.from('ride_requests').update({ status: 'cancelled' }).eq('id', myRequest.id)
+              fetchRequests()
+            }} style={{ background: 'none', border: '1px solid #bfdbfe', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#888', cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Requests tab */}
+        {filter === 'requests' ? (
+          <div>
+            <button onClick={() => navigate('/request')} style={{ width: '100%', padding: 13, background: '#111', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
+              + Post My Ride Request
+            </button>
+            {requests.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 60 }}>
+                <div style={{ fontSize: 48 }}>🙋</div>
+                <div style={{ color: '#555', fontWeight: 600, marginTop: 12 }}>No ride requests yet</div>
+                <div style={{ color: '#aaa', fontSize: 13, marginTop: 6 }}>Be the first to post where you need to go</div>
+              </div>
+            ) : requests.map(req => {
+              const initials = req.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
+              const emailForBadge = req.profiles?.work_email_verified ? req.profiles?.work_email : req.profiles?.email
+              const co = getCompanyFromEmail(emailForBadge)
+              return (
+                <div key={req.id} style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: req.rider_id === user?.id ? '2px solid #facc15' : '1px solid #f0f0f0' }}>
+                  {req.rider_id === user?.id && <div style={{ background: '#facc15', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#111', display: 'inline-block', marginBottom: 8 }}>YOUR REQUEST</div>}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#7c3aed', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{initials}</div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{req.profiles?.full_name}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>Needs {req.seats_needed} seat{req.seats_needed > 1 ? 's' : ''}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: req.note ? 10 : 0 }}>
+                    <div style={{ background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ fontSize: 10, color: '#888' }}>FROM</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>{req.from_location}</div>
+                    </div>
+                    <div style={{ background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ fontSize: 10, color: '#888' }}>TO</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>{req.to_location}</div>
+                    </div>
+                  </div>
+                  {req.note && <div style={{ fontSize: 12, color: '#666', marginTop: 8, fontStyle: 'italic' }}>"{req.note}"</div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                    <div style={{ fontSize: 11, color: '#888' }}>📅 {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} {req.ride_time ? `· ${req.ride_time}` : ''}</div>
+                    {req.rider_id !== user?.id && (
+                      <a href={`https://wa.me/?text=${encodeURIComponent(`Hi! I saw your CarpoolKaro request for ${req.from_location} → ${req.to_location}. I can offer you a ride!`)}`}
+                        target="_blank" rel="noreferrer"
+                        style={{ background: '#25D366', color: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                        💬 Offer Ride
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : loading ? (
+          <div>
+            {[1,2,3].map(i => (
+              <div key={i} style={{
+                borderRadius: 16, padding: 16, marginBottom: 10, height: 160,
+                background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.5s infinite',
+              }}>
+                <div style={{ width: '60%', height: 14, background: '#e0e0e0', borderRadius: 7, marginBottom: 10 }} />
+                <div style={{ width: '80%', height: 12, background: '#e8e8e8', borderRadius: 6, marginBottom: 8 }} />
+                <div style={{ width: '40%', height: 12, background: '#e8e8e8', borderRadius: 6 }} />
+              </div>
+            ))}
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60 }}>
