@@ -135,8 +135,17 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
   return (
     <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
       <div style={{ background: '#111', padding: '20px 16px 16px' }}>
-        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20 }}>+ Post a Ride</div>
-        <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>Share your route, earn from empty seats</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+          <button style={{
+            flex: 1, padding: 10, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+            background: '#facc15', border: '1.5px solid #facc15', color: '#111',
+          }}>🚗 Post a Ride</button>
+          <button onClick={() => navigate('/request')} style={{
+            flex: 1, padding: 10, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            background: 'transparent', border: '1.5px solid #333', color: '#888',
+          }}>🙋 Need a Ride</button>
+        </div>
+        <div style={{ color: '#666', fontSize: 11, marginTop: 6 }}>Share your route, earn from empty seats</div>
       </div>
 
       <div style={{ padding: 16 }}>
