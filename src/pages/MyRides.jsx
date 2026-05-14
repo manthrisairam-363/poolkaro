@@ -317,19 +317,56 @@ export default function MyRides() {
   }
 
   async function cancelBooking(bookingId, rideId, seatsBooked) {
-    if (!confirm('Cancel your booking?\n\nThis cannot be undone.')) return
-    const { error } = await supabase.rpc('cancel_booking_and_restore', {
-      p_booking_id: bookingId,
-      p_user_id: user.id,
-    })
-    if (error) {
-      // fallback
-      await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
-      await supabase.from('rides').update({
-        seats_available: supabase.rpc('increment', { inc: seatsBooked }),
-      }).eq('id', rideId)
+    if (!confirm('Cancel your booking?\n\nYour ₹2 platform fee will be refunded to your wallet.')) return
+
+    try {
+      // Step 1: Get booking details first
+      const { data: booking } = await supabase
+        .from('bookings').select('*').eq('id', bookingId).maybeSingle()
+      if (!booking) { alert('Booking not found'); return }
+
+      // Step 2: Cancel the booking
+      await supabase.from('bookings')
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('id', bookingId)
+
+      // Step 3: Restore seats in ride
+      const { data: ride } = await supabase
+        .from('rides').select('seats_available, seats_total, driver_id, status')
+        .eq('id', rideId).maybeSingle()
+
+      if (ride) {
+        const newSeats = Math.min(ride.seats_total, (ride.seats_available || 0) + (seatsBooked || 1))
+        await supabase.from('rides').update({
+          seats_available: newSeats,
+          status: newSeats > 0 ? 'active' : 'full'
+        }).eq('id', rideId)
+
+        // Step 4: Refund ₹2 to rider wallet
+        await supabase.rpc('credit_wallet', {
+          p_user_id: user.id,
+          p_amount: 200,
+          p_type: 'refund',
+          p_description: `Cancellation refund for booking ${bookingId}`,
+          p_booking_id: bookingId,
+        })
+
+        // Step 5: Refund ₹2 to driver wallet
+        await supabase.rpc('credit_wallet', {
+          p_user_id: ride.driver_id,
+          p_amount: 200,
+          p_type: 'refund',
+          p_description: `Rider cancelled booking ${bookingId}`,
+          p_booking_id: bookingId,
+        })
+      }
+
+      alert('✅ Booking cancelled. ₹2 refunded to your wallet.')
+      await fetchData()
+    } catch (err) {
+      console.error('Cancel error:', err)
+      alert('Something went wrong. Please try again.')
     }
-    await fetchData()
   }
 
   const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed')
