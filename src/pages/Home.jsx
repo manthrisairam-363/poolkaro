@@ -92,7 +92,7 @@ function RideCard({ ride, onBook, myUserId }) {
             ₹{ride.fare}
           </span>
           <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
-            🪑 {ride.seats_available} seat{ride.seats_available !== 1 ? 's' : ''} left
+            💺 {ride.seats_available} seat{ride.seats_available !== 1 ? 's' : ''} left
           </span>
           {ride.is_recurring && (
             <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 600 }}>
@@ -114,7 +114,7 @@ function RideCard({ ride, onBook, myUserId }) {
         </div>
       </div>
       <div style={{ fontSize: 10, color: '#bbb', marginTop: 6, textAlign: 'right' }}>
-        Includes ₹2 CarpoolKaro platform fee
+        + ₹2 platform fee from wallet
       </div>
     </div>
   )

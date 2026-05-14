@@ -21,11 +21,11 @@ const sections = {
     },
     {
       title: '5. Payments & Wallet',
-      content: 'PoolKaro charges a platform fee of ₹2 per booking from both car owner and co-rider. This fee is deducted from your PoolKaro wallet. Ride fares are paid directly between co-rider and car owner via UPI. PoolKaro does not handle ride fare payments. Wallet balances are non-refundable except in case of cancellation.',
+      content: 'CarpoolKaro charges a platform fee of ₹2 per booking from both car owner and co-rider. This fee is deducted from your CarpoolKaro wallet. Ride fares are paid directly between co-rider and car owner via UPI. CarpoolKaro does not handle ride fare payments. Wallet balances are non-refundable except in case of cancellation.',
     },
     {
       title: '6. Cancellations & Refunds',
-      content: 'If a car owner cancels a ride, the ₹2 platform fee is refunded to both the car owner and co-rider wallets. If a co-rider cancels a booking, the ₹2 platform fee is refunded to both wallets. Ride fare refunds are managed directly between the car owner and co-rider. PoolKaro is not responsible for fare refunds.',
+      content: 'If a car owner cancels a ride, the ₹2 platform fee is refunded to both the car owner and co-rider wallets. If a co-rider cancels a booking, the ₹2 platform fee is refunded to both wallets. Ride fare refunds are managed directly between the car owner and co-rider. CarpoolKaro is not responsible for fare refunds.',
     },
     {
       title: '7. Safety',
@@ -37,7 +37,7 @@ const sections = {
     },
     {
       title: '9. Limitation of Liability',
-      content: 'PoolKaro is a technology platform only. We are not responsible for the conduct of users, quality of rides, accidents, or losses incurred during rides. Our maximum liability is limited to the platform fee collected.',
+      content: 'CarpoolKaro is a technology platform only. We are not responsible for the conduct of users, quality of rides, accidents, or losses incurred during rides. Our maximum liability is limited to the platform fee collected.',
     },
     {
       title: '10. Changes to Terms',
