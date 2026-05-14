@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -10,7 +10,7 @@ const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, d
 
 export default function RequestRide() {
   const navigate = useNavigate()
-  const { user, profile } = useAuth()
+  const { user } = useAuth()
   const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const [form, setForm] = useState({
@@ -18,11 +18,35 @@ export default function RequestRide() {
     ride_date: today, ride_time: '',
     seats_needed: '1', note: '',
   })
+  const [existingId, setExistingId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [posted, setPosted] = useState(false)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // Load existing active request to pre-fill for editing
+  useEffect(() => {
+    async function loadExisting() {
+      const istOffset = 5.5 * 60 * 60 * 1000
+      const todayIST = new Date(Date.now() + istOffset).toISOString().split('T')[0]
+      const { data } = await supabase.from('ride_requests')
+        .select('*').eq('rider_id', user.id).eq('status', 'active')
+        .gte('ride_date', todayIST).maybeSingle()
+      if (data) {
+        setExistingId(data.id)
+        setForm({
+          from_location: data.from_location,
+          to_location: data.to_location,
+          ride_date: data.ride_date,
+          ride_time: data.ride_time || '',
+          seats_needed: String(data.seats_needed || 1),
+          note: data.note || '',
+        })
+      }
+    }
+    loadExisting()
+  }, [])
 
   async function postRequest() {
     setError('')
@@ -36,14 +60,7 @@ export default function RequestRide() {
     }
     setLoading(true)
 
-    // Cancel any existing active requests first
-    await supabase.from('ride_requests')
-      .update({ status: 'cancelled' })
-      .eq('rider_id', user.id)
-      .eq('status', 'active')
-
-    const { error: err } = await supabase.from('ride_requests').insert({
-      rider_id: user.id,
+    const payload = {
       from_location: form.from_location,
       to_location: form.to_location,
       ride_date: form.ride_date,
@@ -51,10 +68,24 @@ export default function RequestRide() {
       seats_needed: Number(form.seats_needed),
       note: form.note || null,
       status: 'active',
-    })
+    }
 
-    setLoading(false)
-    if (err) { setError(err.message); return }
+    if (existingId) {
+      // Update existing request
+      const { error: err } = await supabase.from('ride_requests')
+        .update(payload).eq('id', existingId)
+      setLoading(false)
+      if (err) { setError(err.message); return }
+    } else {
+      // Cancel old ones + insert new
+      await supabase.from('ride_requests')
+        .update({ status: 'cancelled' })
+        .eq('rider_id', user.id).eq('status', 'active')
+      const { error: err } = await supabase.from('ride_requests')
+        .insert({ ...payload, rider_id: user.id })
+      setLoading(false)
+      if (err) { setError(err.message); return }
+    }
     setPosted(true)
   }
 
@@ -101,7 +132,7 @@ export default function RequestRide() {
             background: '#facc15', border: '1.5px solid #facc15', color: '#111',
           }}>🙋 Need a Ride</button>
         </div>
-        <div style={{ color: '#666', fontSize: 11, marginTop: 6 }}>Tell car owners where you need to go</div>
+        <div style={{ color: '#666', fontSize: 11, marginTop: 6 }}>{existingId ? 'Update your ride request' : 'Tell car owners where you need to go'}</div>
       </div>
 
       <div style={{ padding: 16 }}>
@@ -154,7 +185,7 @@ export default function RequestRide() {
           width: '100%', padding: 14, background: '#111', color: '#fff',
           border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer',
         }}>
-          {loading ? 'Posting...' : '🙋 Post My Ride Request'}
+          {loading ? 'Saving...' : existingId ? '✏️ Update My Request' : '🙋 Post My Ride Request'}
         </button>
 
         <div style={{ marginTop: 12, background: '#f0f4ff', borderRadius: 10, padding: '12px 14px', fontSize: 12, color: '#2563eb' }}>
