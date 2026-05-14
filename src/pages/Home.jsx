@@ -38,7 +38,21 @@ function RideCard({ ride, onBook, myUserId }) {
             <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               {ride.profiles?.full_name || 'Car Owner'}
               {ride.profiles?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
-              {(() => { const co = getCompanyFromEmail(ride.profiles?.email); return co ? <span style={{ background: co.bg, color: co.color, fontSize: 9, padding: '2px 6px', borderRadius: 8, fontWeight: 700 }}>{co.name}</span> : null })()}
+              {(() => {
+                const emailForCompany = (ride.profiles?.work_email_verified && ride.profiles?.work_email)
+                  ? ride.profiles.work_email
+                  : ride.profiles?.email
+                const co = getCompanyFromEmail(emailForCompany)
+                return co ? (
+                  <span style={{
+                    background: '#facc15', color: '#111',
+                    fontSize: 9, padding: '2px 7px', borderRadius: 8,
+                    fontWeight: 800, letterSpacing: 0.3,
+                  }}>
+                    🏢 {co.name}
+                  </span>
+                ) : null
+              })()}
             </span>
             <span style={{
               background: isToOffice ? '#dbeafe' : '#fce7f3',

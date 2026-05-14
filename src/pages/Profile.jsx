@@ -137,7 +137,22 @@ export default function Profile() {
               }}>
                 {profile?.role === 'driver' ? '🚗 Car Owner' : profile?.role === 'rider' ? '🙋 Co-rider' : '🔄 Car Owner & Co-rider'}
               </span>
-              {(() => { const co = getCompanyFromEmail(user?.email); return co ? <span style={{ background: co.bg, color: co.color, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>🏢 {co.name}</span> : isCompanyEmail(user?.email) ? <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>🏢 IT Professional</span> : null })()}
+              {(() => {
+                const emailForCompany = (profile?.work_email_verified && profile?.work_email)
+                  ? profile.work_email : user?.email
+                const co = getCompanyFromEmail(emailForCompany)
+                if (co) return (
+                  <span style={{ background: '#facc15', color: '#111', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 800 }}>
+                    🏢 {co.name}
+                  </span>
+                )
+                if (profile?.work_email_verified) return (
+                  <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700 }}>
+                    ✓ Work Verified
+                  </span>
+                )
+                return null
+              })()}
             </div>
           </div>
         </div>
