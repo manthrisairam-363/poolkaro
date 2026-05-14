@@ -254,6 +254,14 @@ export default function MyRides() {
 
   useEffect(() => { fetchData() }, [])
 
+  async function sendNotification(userId, title, body) {
+    try {
+      await supabase.from('notifications').insert({
+        user_id: userId, title, body, read: false
+      })
+    } catch(e) { console.error('Notif error:', e) }
+  }
+
   async function fetchData() {
     setLoading(true)
     const [ridesRes, bookingsRes] = await Promise.all([
@@ -330,6 +338,14 @@ export default function MyRides() {
         }
       }
 
+      // Notify all cancelled riders
+      for (const b of (bookings || [])) {
+        await sendNotification(
+          b.rider_id,
+          '❌ Ride Cancelled',
+          `Your ride has been cancelled by the car owner. ₹2 refunded to your wallet.`
+        )
+      }
       await fetchData()
     } catch (err) {
       console.error('Cancel ride error:', err)
@@ -412,6 +428,16 @@ export default function MyRides() {
         }
       }
 
+      // Notify driver
+      const { data: rideData } = await supabase
+        .from('rides').select('driver_id, from_location, to_location').eq('id', rideId).maybeSingle()
+      if (rideData) {
+        await sendNotification(
+          rideData.driver_id,
+          '❌ Booking Cancelled',
+          `A co-rider cancelled their booking for ${rideData.from_location} → ${rideData.to_location}. ₹2 refunded to your wallet.`
+        )
+      }
       alert('✅ Booking cancelled. ₹2 refunded to your wallet.')
       await fetchData()
     } catch (err) {

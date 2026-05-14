@@ -63,6 +63,17 @@ export default function BookRide() {
       return
     }
     setBookingData(data.booking)
+
+    // Notify driver of new booking
+    try {
+      await supabase.from('notifications').insert({
+        user_id: ride.driver_id,
+        title: '🎉 New Booking!',
+        body: `${profile?.full_name} booked ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''} on your ${ride.from_location} → ${ride.to_location} ride.`,
+        read: false,
+      })
+    } catch(e) { console.error('Notif error', e) }
+
     setStep('pay')
   }
 
