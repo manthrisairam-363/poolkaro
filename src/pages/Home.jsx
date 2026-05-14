@@ -330,6 +330,40 @@ export default function Home() {
 
       <div style={{ padding: '8px 16px' }}>
 
+        {/* Show ride requests on All Rides tab for car owners */}
+        {filter !== 'requests' && requests.filter(r => r.rider_id !== user?.id).length > 0 && (
+          <div style={{ background: '#f0f4ff', borderRadius: 12, padding: 12, marginBottom: 12, border: '1px solid #bfdbfe' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 8 }}>
+              🙋 {requests.filter(r => r.rider_id !== user?.id).length} RIDER{requests.filter(r => r.rider_id !== user?.id).length > 1 ? 'S' : ''} LOOKING FOR A RIDE
+            </div>
+            {requests.filter(r => r.rider_id !== user?.id).slice(0, 3).map(req => (
+              <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #dbeafe' }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{req.profiles?.full_name}</div>
+                  <div style={{ fontSize: 11, color: '#555' }}>{req.from_location} → {req.to_location}</div>
+                  <div style={{ fontSize: 10, color: '#888' }}>{new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}</div>
+                </div>
+                <button onClick={async () => {
+                  await supabase.from('notifications').insert({
+                    user_id: req.rider_id,
+                    title: '🚗 Someone can offer you a ride!',
+                    body: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides tab now!`,
+                    read: false,
+                  })
+                  alert('✅ Rider notified!')
+                }} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 8 }}>
+                  🔔 Notify
+                </button>
+              </div>
+            ))}
+            {requests.filter(r => r.rider_id !== user?.id).length > 3 && (
+              <button onClick={() => setFilter('requests')} style={{ marginTop: 8, background: 'none', border: 'none', color: '#2563eb', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                View all {requests.filter(r => r.rider_id !== user?.id).length} requests →
+              </button>
+            )}
+          </div>
+        )}
+
         {/* My active request banner */}
         {myRequest && filter !== 'requests' && (
           <div style={{ background: '#f0f4ff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -384,13 +418,22 @@ export default function Home() {
                   </div>
                   {req.note && <div style={{ fontSize: 12, color: '#666', marginTop: 8, fontStyle: 'italic' }}>"{req.note}"</div>}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-                    <div style={{ fontSize: 11, color: '#888' }}>📅 {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} {req.ride_time ? `· ${req.ride_time}` : ''}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>
+                      📅 {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      {req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}
+                    </div>
                     {req.rider_id !== user?.id && (
-                      <a href={`https://wa.me/?text=${encodeURIComponent(`Hi! I saw your CarpoolKaro request for ${req.from_location} → ${req.to_location}. I can offer you a ride!`)}`}
-                        target="_blank" rel="noreferrer"
-                        style={{ background: '#25D366', color: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
-                        💬 Offer Ride
-                      </a>
+                      <button onClick={async () => {
+                        await supabase.from('notifications').insert({
+                          user_id: req.rider_id,
+                          title: '🚗 Someone can offer you a ride!',
+                          body: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides tab now!`,
+                          read: false,
+                        })
+                        alert('✅ Rider has been notified! They will check the rides now.')
+                      }} style={{ background: '#111', color: '#facc15', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                        🔔 Notify Rider
+                      </button>
                     )}
                   </div>
                 </div>
