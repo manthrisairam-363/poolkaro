@@ -131,7 +131,7 @@ export default function Wallet() {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: 'INR',
-        name: 'PoolKaro',
+        name: 'CarpoolKaro',
         description: `Wallet Recharge ₹${amount}`,
         order_id: order.id,
         prefill: { contact: profile?.phone || '' },

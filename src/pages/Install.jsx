@@ -29,14 +29,14 @@ export default function Install() {
     { icon: '1️⃣', text: 'Open this page in Safari', note: 'Must use Safari, not Chrome' },
     { icon: '2️⃣', text: 'Tap the Share button', note: '⬆️ at the bottom of Safari' },
     { icon: '3️⃣', text: 'Scroll down and tap "Add to Home Screen"', note: 'Scroll in the share menu' },
-    { icon: '4️⃣', text: 'Tap "Add" in top right', note: 'PoolKaro icon appears on home screen!' },
+    { icon: '4️⃣', text: 'Tap "Add" in top right', note: 'CarpoolKaro icon appears on home screen!' },
   ]
 
   const androidSteps = [
     { icon: '1️⃣', text: 'Open this page in Chrome', note: 'Must use Chrome browser' },
     { icon: '2️⃣', text: 'Tap the ⋮ menu (top right)', note: 'Three dots in Chrome' },
     { icon: '3️⃣', text: 'Tap "Add to Home screen"', note: 'Or "Install App" if shown' },
-    { icon: '4️⃣', text: 'Tap "Add" or "Install"', note: 'PoolKaro icon appears on home screen!' },
+    { icon: '4️⃣', text: 'Tap "Add" or "Install"', note: 'CarpoolKaro icon appears on home screen!' },
   ]
 
   const steps = device === 'ios' ? iosSteps : androidSteps
@@ -64,7 +64,7 @@ export default function Install() {
           📱 Add to Home Screen
         </div>
         <div style={{ color: '#888', fontSize: 13, marginBottom: 20 }}>
-          Install PoolKaro as an app — no App Store needed!
+          Install CarpoolKaro as an app — no App Store needed!
         </div>
 
         {/* Device detected */}
@@ -144,7 +144,7 @@ export default function Install() {
         borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: 'pointer',
         marginBottom: 12,
       }}>
-        🚗 Open PoolKaro
+        🚗 Open CarpoolKaro
       </button>
 
       <div style={{ color: '#444', fontSize: 11, textAlign: 'center' }}>

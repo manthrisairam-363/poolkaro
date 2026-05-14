@@ -66,7 +66,7 @@ function PassengerCard({ booking }) {
         {[
           ['💰 Platform fee', '₹2 (wallet)'],
           ['📥 You receive', `₹${booking.driver_receives}`],
-          ['🪑 Seats', booking.seats_booked],
+          ['💺 Seats', booking.seats_booked],
           ['📅 Booked', new Date(booking.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })],
         ].map(([k, v]) => (
           <div key={k} style={{ background: '#fff', borderRadius: 8, padding: '6px 10px' }}>
@@ -155,7 +155,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
           ₹{ride.fare}/seat
         </span>
         <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
-          🪑 {ride.seats_available} left of {ride.seats_total}
+          💺 {ride.seats_available} left of {ride.seats_total}
         </span>
         {bookedCount > 0 && (
           <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>

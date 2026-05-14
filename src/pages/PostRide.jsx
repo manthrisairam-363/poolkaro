@@ -39,10 +39,10 @@ export default function PostRide() {
 📍 To: ${form.to_location}
 ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
 💰 Fare: ₹${form.fare} per seat
-🪑 Seats Available: ${form.seats_available}
+💺 Seats Available: ${form.seats_available}
 
 📞 Contact: ${profile?.phone}
-🔗 Book on PoolKaro: https://poolkaro.vercel.app`
+🔗 Book on CarpoolKaro: https://poolkaro.vercel.app`
   }
 
   async function postRide() {
@@ -200,7 +200,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
             <div style={{ fontSize: 13 }}>
               {form.seats_available} seats × ₹{form.fare - 2} = <strong>₹{form.seats_available * (form.fare - 2)}</strong>
             </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>PoolKaro deducts ₹2 per confirmed booking</div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>CarpoolKaro deducts ₹2 per confirmed booking</div>
           </div>
         )}
 

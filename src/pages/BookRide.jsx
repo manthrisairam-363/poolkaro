@@ -71,7 +71,7 @@ export default function BookRide() {
     const upi = owner?.upi_id
     const name = encodeURIComponent(owner?.full_name || 'Car Owner')
     const amount = ride?.fare
-    const note = encodeURIComponent(`PoolKaro ride fare - ${ride?.from_location} to ${ride?.to_location}`)
+    const note = encodeURIComponent(`CarpoolKaro ride fare - ${ride?.from_location} to ${ride?.to_location}`)
 
     const links = {
       gpay: `tez://upi/pay?pa=${upi}&pn=${name}&am=${amount}&cu=INR&tn=${note}`,
@@ -100,7 +100,7 @@ export default function BookRide() {
   // ── PAY FARE SCREEN ──
   if (step === 'pay') {
     const waMsg = encodeURIComponent(
-      `Hi ${owner?.full_name}! 👋\n\nI just booked a seat on your PoolKaro ride.\n\n` +
+      `Hi ${owner?.full_name}! 👋\n\nI just booked a seat on your CarpoolKaro ride.\n\n` +
       `📍 ${ride.from_location} → ${ride.to_location}\n` +
       `🕐 ${formatTime(ride.ride_time)}\n` +
       `My name: ${profile?.full_name}\n📱 ${profile?.phone}\n\n` +
@@ -218,7 +218,7 @@ export default function BookRide() {
           {/* Disclaimer */}
           <div style={{ background: '#1a1a1a', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
             <div style={{ fontSize: 11, color: '#666', lineHeight: 1.7 }}>
-              ℹ️ PoolKaro only collects ₹2 platform fee. The ride fare ₹{ride.fare} goes directly to the car owner. PoolKaro is not responsible for fare transactions between users.
+              ℹ️ CarpoolKaro only collects ₹2 platform fee. The ride fare ₹{ride.fare} goes directly to the car owner. CarpoolKaro is not responsible for fare transactions between users.
             </div>
           </div>
 
@@ -289,7 +289,7 @@ export default function BookRide() {
             ['🏁 To', ride.to_location],
             ['🕐 Time', formatTime(ride.ride_time)],
             ['📅 Date', new Date(ride.ride_date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })],
-            ['🪑 Seats', `${ride.seats_available} of ${ride.seats_total} available`],
+            ['💺 Seats', `${ride.seats_available} of ${ride.seats_total} available`],
           ].map(([k,v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
               <span style={{ fontSize: 13, color: '#888' }}>{k}</span>
@@ -335,7 +335,7 @@ export default function BookRide() {
           {/* Platform fee */}
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>PoolKaro Platform Fee</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>CarpoolKaro Platform Fee</div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹2 × {seatsToBook} seat{seatsToBook > 1 ? 's' : ''} — from wallet</div>
             </div>
             <span style={{ fontSize: 15, fontWeight: 700, color: '#16a34a' }}>₹{2 * seatsToBook}</span>
@@ -390,7 +390,7 @@ export default function BookRide() {
         </button>
 
         <div style={{ textAlign: 'center', fontSize: 11, color: '#bbb', marginTop: 12 }}>
-          🔒 ₹2 platform fee deducted from your PoolKaro wallet
+          🔒 ₹2 platform fee deducted from your CarpoolKaro wallet
         </div>
       </div>
     </div>

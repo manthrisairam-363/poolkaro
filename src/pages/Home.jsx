@@ -114,7 +114,7 @@ function RideCard({ ride, onBook, myUserId }) {
         </div>
       </div>
       <div style={{ fontSize: 10, color: '#bbb', marginTop: 6, textAlign: 'right' }}>
-        Includes ₹2 PoolKaro platform fee
+        Includes ₹2 CarpoolKaro platform fee
       </div>
     </div>
   )
@@ -211,7 +211,7 @@ export default function Home() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
             <div style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px' }}>
-              <span style={{ color: '#facc15' }}>Pool</span><span style={{ color: '#fff' }}>Karo</span>
+              <span style={{ color: '#facc15' }}>Carpool</span><span style={{ color: '#fff' }}>Karo</span>
             </div>
             <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
               {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'Hyderabad IT Carpool'}

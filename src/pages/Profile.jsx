@@ -297,9 +297,9 @@ export default function Profile() {
               <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: 3, color: '#111' }}>{profile?.referral_code || '------'}</div>
             </div>
             <button onClick={() => {
-              const msg = `Join me on PoolKaro — Hyderabad's IT Carpool app! Use my code ${profile?.referral_code} to get ₹10 free wallet credit. Install: https://poolkaro.vercel.app/install`
+              const msg = `Join me on CarpoolKaro — Hyderabad's IT Carpool app! Use my code ${profile?.referral_code} to get ₹10 free wallet credit. Install: https://poolkaro.vercel.app/install`
               if (navigator.share) {
-                navigator.share({ title: 'PoolKaro Invite', text: msg })
+                navigator.share({ title: 'CarpoolKaro Invite', text: msg })
               } else {
                 window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`)
               }
@@ -431,7 +431,7 @@ export default function Profile() {
 
         {/* App info */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>About PoolKaro</div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>About CarpoolKaro</div>
           {[
             ['🚗', 'Version', '1.0.0 Beta'],
             ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'],
@@ -472,7 +472,7 @@ export default function Profile() {
         </button>
 
         <div style={{ textAlign: 'center', fontSize: 11, color: '#ccc', marginTop: 8 }}>
-          PoolKaro · Made with ❤️ in Hyderabad
+          CarpoolKaro · Made with ❤️ in Hyderabad
         </div>
       </div>
 

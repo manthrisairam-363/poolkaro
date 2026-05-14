@@ -90,7 +90,7 @@ export default function AdminDashboard() {
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer' }}>←</button>
           <div>
             <div style={{ fontWeight: 800, fontSize: 20 }}>⚙️ Admin Dashboard</div>
-            <div style={{ color: '#666', fontSize: 11 }}>PoolKaro Control Panel</div>
+            <div style={{ color: '#666', fontSize: 11 }}>CarpoolKaro Control Panel</div>
           </div>
           <button onClick={fetchAll} style={{ marginLeft: 'auto', background: '#222', border: 'none', color: '#facc15', padding: '8px 12px', borderRadius: 8, cursor: 'pointer' }}>
             ↺ Refresh
@@ -225,7 +225,7 @@ export default function AdminDashboard() {
                           Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}
                         </div>
                         <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>
-                          PoolKaro earned: ₹4 · {new Date(b.created_at).toLocaleDateString('en-IN')}
+                          CarpoolKaro earned: ₹4 · {new Date(b.created_at).toLocaleDateString('en-IN')}
                         </div>
                       </div>
                       <span style={{
