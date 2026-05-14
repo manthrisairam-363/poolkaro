@@ -138,6 +138,18 @@ export default function Home() {
 
   const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
+  // Matching: extract first meaningful keyword from location
+  function keyWord(loc) {
+    return (loc || '').toLowerCase().split(/[\s,]+/).find(w => w.length > 2) || ''
+  }
+
+  function matchScore(fromA, toA, fromB, toB) {
+    const fk = keyWord(fromA), tk = keyWord(toA)
+    const fromMatch = fk && (fromB || '').toLowerCase().includes(fk)
+    const toMatch = tk && (toB || '').toLowerCase().includes(tk)
+    return (fromMatch ? 2 : 0) + (toMatch ? 2 : 0)
+  }
+
   useEffect(() => {
     fetchRides()
     fetchRequests()
@@ -208,8 +220,12 @@ export default function Home() {
   const filtered = rides.filter(r => {
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
-    if (filterFrom && !r.from_location?.toLowerCase().includes(filterFrom.toLowerCase())) return false
-    if (filterTo && !r.to_location?.toLowerCase().includes(filterTo.toLowerCase())) return false
+    // Auto-filter from rider's active request (if no manual filter set)
+    const ef = !hasActiveFilters && myRequest
+    const fromFilter = filterFrom || (ef ? keyWord(myRequest.from_location) : '')
+    const toFilter = filterTo || (ef ? keyWord(myRequest.to_location) : '')
+    if (fromFilter && !r.from_location?.toLowerCase().includes(fromFilter.toLowerCase())) return false
+    if (toFilter && !r.to_location?.toLowerCase().includes(toFilter.toLowerCase())) return false
     if (filterDate === 'today' && r.ride_date !== today) return false
     if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
     if (filterTime === 'morning') {
@@ -225,6 +241,14 @@ export default function Home() {
       return r.from_location?.toLowerCase().includes(q) || r.to_location?.toLowerCase().includes(q) || r.route_description?.toLowerCase().includes(q)
     }
     return true
+  }).sort((a, b) => {
+    // Sort by match score with rider's request (best matches first)
+    if (myRequest) {
+      const sa = matchScore(myRequest.from_location, myRequest.to_location, a.from_location, a.to_location)
+      const sb = matchScore(myRequest.from_location, myRequest.to_location, b.from_location, b.to_location)
+      if (sb !== sa) return sb - sa
+    }
+    return 0
   })
 
   return (
@@ -336,26 +360,38 @@ export default function Home() {
             <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 8 }}>
               🙋 {requests.filter(r => r.rider_id !== user?.id).length} RIDER{requests.filter(r => r.rider_id !== user?.id).length > 1 ? 'S' : ''} LOOKING FOR A RIDE
             </div>
-            {requests.filter(r => r.rider_id !== user?.id).slice(0, 3).map(req => (
-              <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #dbeafe' }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>{req.profiles?.full_name}</div>
-                  <div style={{ fontSize: 11, color: '#555' }}>{req.from_location} → {req.to_location}</div>
-                  <div style={{ fontSize: 10, color: '#888' }}>{new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}</div>
+            {[...requests.filter(r => r.rider_id !== user?.id)].sort((a, b) => {
+              const myRide = rides.find(r => r.driver_id === user?.id)
+              if (!myRide) return 0
+              return matchScore(myRide.from_location, myRide.to_location, b.from_location, b.to_location)
+                   - matchScore(myRide.from_location, myRide.to_location, a.from_location, a.to_location)
+            }).slice(0, 3).map(req => {
+              const myRide = rides.find(r => r.driver_id === user?.id)
+              const score = myRide ? matchScore(myRide.from_location, myRide.to_location, req.from_location, req.to_location) : 0
+              return (
+                <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #dbeafe' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{req.profiles?.full_name}</span>
+                      {score >= 2 && <span style={{ background: '#f0fdf4', color: '#16a34a', fontSize: 9, padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>Route match</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#555' }}>{req.from_location} → {req.to_location}</div>
+                    <div style={{ fontSize: 10, color: '#888' }}>{new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}</div>
+                  </div>
+                  <button onClick={async () => {
+                    await supabase.from('notifications').insert({
+                      user_id: req.rider_id,
+                      title: '🚗 Someone can offer you a ride!',
+                      body: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides now!`,
+                      read: false,
+                    })
+                    alert('✅ Rider notified!')
+                  }} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 8 }}>
+                    🔔 Notify
+                  </button>
                 </div>
-                <button onClick={async () => {
-                  await supabase.from('notifications').insert({
-                    user_id: req.rider_id,
-                    title: '🚗 Someone can offer you a ride!',
-                    body: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides tab now!`,
-                    read: false,
-                  })
-                  alert('✅ Rider notified!')
-                }} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 8 }}>
-                  🔔 Notify
-                </button>
-              </div>
-            ))}
+              )
+            })}
             {requests.filter(r => r.rider_id !== user?.id).length > 3 && (
               <button onClick={() => setFilter('requests')} style={{ marginTop: 8, background: 'none', border: 'none', color: '#2563eb', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
                 View all {requests.filter(r => r.rider_id !== user?.id).length} requests →
@@ -364,19 +400,25 @@ export default function Home() {
           </div>
         )}
 
-        {/* My active request banner */}
+        {/* My active request banner — shows auto-filter is active */}
         {myRequest && filter !== 'requests' && (
-          <div style={{ background: '#f0f4ff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>🙋 YOUR ACTIVE REQUEST</div>
+          <div style={{ background: '#f0f4ff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #bfdbfe' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 4 }}>🎯 SHOWING RIDES MATCHING YOUR REQUEST</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 12, color: '#333' }}>{myRequest.from_location} → {myRequest.to_location}</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => navigate('/request')} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  ✏️ Edit
+                </button>
+                <button onClick={async () => {
+                  await supabase.from('ride_requests').update({ status: 'cancelled' }).eq('id', myRequest.id)
+                  fetchRequests()
+                }} style={{ background: 'none', border: '1px solid #bfdbfe', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#888', cursor: 'pointer' }}>
+                  ✕
+                </button>
+              </div>
             </div>
-            <button onClick={async () => {
-              await supabase.from('ride_requests').update({ status: 'cancelled' }).eq('id', myRequest.id)
-              fetchRequests()
-            }} style={{ background: 'none', border: '1px solid #bfdbfe', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#888', cursor: 'pointer' }}>
-              Cancel
-            </button>
+            <div style={{ fontSize: 10, color: '#888', marginTop: 4 }}>Tap ✕ to see all rides</div>
           </div>
         )}
 
@@ -392,13 +434,35 @@ export default function Home() {
                 <div style={{ color: '#555', fontWeight: 600, marginTop: 12 }}>No ride requests yet</div>
                 <div style={{ color: '#aaa', fontSize: 13, marginTop: 6 }}>Be the first to post where you need to go</div>
               </div>
-            ) : requests.map(req => {
+            ) : [...requests].sort((a, b) => {
+              // Sort: own request first, then by match with owner's rides
+              if (a.rider_id === user?.id) return -1
+              if (b.rider_id === user?.id) return 1
+              const myRide = rides.find(r => r.driver_id === user?.id)
+              if (myRide) {
+                const sa = matchScore(myRide.from_location, myRide.to_location, a.from_location, a.to_location)
+                const sb = matchScore(myRide.from_location, myRide.to_location, b.from_location, b.to_location)
+                if (sb !== sa) return sb - sa
+              }
+              return 0
+            }).map(req => {
+              const myRide = rides.find(r => r.driver_id === user?.id)
+              const score = myRide ? matchScore(myRide.from_location, myRide.to_location, req.from_location, req.to_location) : 0
+              const isMatch = score >= 2
               const initials = req.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
               const emailForBadge = req.profiles?.work_email_verified ? req.profiles?.work_email : req.profiles?.email
               const co = getCompanyFromEmail(emailForBadge)
               return (
-                <div key={req.id} style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: req.rider_id === user?.id ? '2px solid #facc15' : '1px solid #f0f0f0' }}>
-                  {req.rider_id === user?.id && <div style={{ background: '#facc15', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#111', display: 'inline-block', marginBottom: 8 }}>YOUR REQUEST</div>}
+                <div key={req.id} style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: req.rider_id === user?.id ? '2px solid #facc15' : isMatch ? '2px solid #22c55e' : '1px solid #f0f0f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    {req.rider_id === user?.id
+                      ? <div style={{ background: '#facc15', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#111' }}>YOUR REQUEST</div>
+                      : isMatch
+                        ? <div style={{ background: '#f0fdf4', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#16a34a' }}>✓ MATCHES YOUR ROUTE</div>
+                        : <div />
+                    }
+                    {co && <span style={{ background: '#facc15', color: '#111', fontSize: 9, padding: '2px 7px', borderRadius: 8, fontWeight: 800 }}>🏢 {co.name}</span>}
+                  </div>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
                     <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#7c3aed', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{initials}</div>
                     <div>
