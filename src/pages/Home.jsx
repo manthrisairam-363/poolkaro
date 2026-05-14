@@ -154,7 +154,13 @@ export default function Home() {
 
   async function fetchRides() {
     setLoading(true)
-    const today = new Date().toISOString().split('T')[0]
+
+    // Use IST date (UTC+5:30) not UTC date — critical for India
+    const now = new Date()
+    const istOffset = 5.5 * 60 * 60 * 1000
+    const istNow = new Date(now.getTime() + istOffset)
+    const today = istNow.toISOString().split('T')[0]
+
     const { data, error } = await supabase
       .from('rides')
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified)')
@@ -164,9 +170,8 @@ export default function Home() {
       .order('ride_time', { ascending: true })
 
     if (!error) {
-      // Hide today's rides that departed more than 30 mins ago
-      const now = new Date()
-      const cutoff = new Date(now.getTime() - 30 * 60 * 1000)
+      // Hide today's rides that departed more than 1 hour ago
+      const cutoff = new Date(now.getTime() - 60 * 60 * 1000)
       const fresh = (data || []).filter(ride => {
         if (ride.ride_date !== today) return true
         if (!ride.ride_time) return true
@@ -180,8 +185,9 @@ export default function Home() {
     setLoading(false)
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const istOffset = 5.5 * 60 * 60 * 1000
+  const today = new Date(Date.now() + istOffset).toISOString().split('T')[0]
+  const tomorrow = new Date(Date.now() + istOffset + 86400000).toISOString().split('T')[0]
 
   const filtered = rides.filter(r => {
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false

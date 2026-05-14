@@ -12,7 +12,7 @@ const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, d
 export default function PostRide() {
   const navigate = useNavigate()
   const { user, profile } = useAuth()
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const [form, setForm] = useState({
     ride_type: 'to_office', ride_date: today, ride_time: '',
