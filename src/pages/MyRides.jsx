@@ -285,17 +285,56 @@ export default function MyRides() {
   }
 
   async function cancelRide(rideId) {
-    if (!confirm('Cancel this ride?\n\nAll co-riders who booked will be notified.')) return
-    const { error } = await supabase.rpc('cancel_ride_and_bookings', {
-      p_ride_id: rideId,
-      p_driver_id: user.id,
-    })
-    if (error) {
-      // fallback
+    if (!confirm('Cancel this ride?\n\nAll co-riders will be refunded ₹2 to their wallets.')) return
+
+    try {
+      // Get all confirmed bookings for this ride
+      const { data: bookings } = await supabase
+        .from('bookings').select('id, rider_id, seats_booked')
+        .eq('ride_id', rideId).eq('status', 'confirmed')
+
+      // Cancel all bookings
+      await supabase.from('bookings')
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('ride_id', rideId)
+
+      // Cancel the ride
       await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
-      await supabase.from('bookings').update({ status: 'cancelled' }).eq('ride_id', rideId)
+
+      // Refund all riders ₹2 each
+      for (const b of (bookings || [])) {
+        const { data: riderWallet } = await supabase
+          .from('wallets').select('balance').eq('user_id', b.rider_id).maybeSingle()
+        if (riderWallet) {
+          await supabase.from('wallets')
+            .update({ balance: riderWallet.balance + 200 }).eq('user_id', b.rider_id)
+          await supabase.from('wallet_transactions').insert({
+            user_id: b.rider_id, amount: 200,
+            type: 'refund_cancel', description: 'Driver cancelled ride - ₹2 refunded',
+          })
+        }
+      }
+
+      // Refund driver ₹2 per booking
+      if ((bookings || []).length > 0) {
+        const { data: driverWallet } = await supabase
+          .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+        if (driverWallet) {
+          const refundAmount = 200 * bookings.length
+          await supabase.from('wallets')
+            .update({ balance: driverWallet.balance + refundAmount }).eq('user_id', user.id)
+          await supabase.from('wallet_transactions').insert({
+            user_id: user.id, amount: refundAmount,
+            type: 'refund_cancel', description: `Ride cancelled - ₹${refundAmount/100} refunded`,
+          })
+        }
+      }
+
+      await fetchData()
+    } catch (err) {
+      console.error('Cancel ride error:', err)
+      alert('Something went wrong. Please try again.')
     }
-    await fetchData()
   }
 
   async function cancelAllRecurring(rideId) {
@@ -342,23 +381,35 @@ export default function MyRides() {
           status: newSeats > 0 ? 'active' : 'full'
         }).eq('id', rideId)
 
-        // Step 4: Refund ₹2 to rider wallet
-        await supabase.rpc('credit_wallet', {
-          p_user_id: user.id,
-          p_amount: 200,
-          p_type: 'refund',
-          p_description: `Cancellation refund for booking ${bookingId}`,
-          p_booking_id: bookingId,
-        })
+        // Step 4: Refund ₹2 to rider wallet directly
+        const { data: riderWallet } = await supabase
+          .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+        if (riderWallet) {
+          await supabase.from('wallets')
+            .update({ balance: riderWallet.balance + 200 })
+            .eq('user_id', user.id)
+          await supabase.from('wallet_transactions').insert({
+            user_id: user.id,
+            amount: 200,
+            type: 'refund_cancel',
+            description: 'Cancellation refund - ₹2 returned',
+          })
+        }
 
-        // Step 5: Refund ₹2 to driver wallet
-        await supabase.rpc('credit_wallet', {
-          p_user_id: ride.driver_id,
-          p_amount: 200,
-          p_type: 'refund',
-          p_description: `Rider cancelled booking ${bookingId}`,
-          p_booking_id: bookingId,
-        })
+        // Step 5: Refund ₹2 to driver wallet directly
+        const { data: driverWallet } = await supabase
+          .from('wallets').select('balance').eq('user_id', ride.driver_id).maybeSingle()
+        if (driverWallet) {
+          await supabase.from('wallets')
+            .update({ balance: driverWallet.balance + 200 })
+            .eq('user_id', ride.driver_id)
+          await supabase.from('wallet_transactions').insert({
+            user_id: ride.driver_id,
+            amount: 200,
+            type: 'refund_cancel',
+            description: 'Rider cancelled - ₹2 returned',
+          })
+        }
       }
 
       alert('✅ Booking cancelled. ₹2 refunded to your wallet.')
