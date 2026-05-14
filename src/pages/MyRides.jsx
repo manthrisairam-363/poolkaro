@@ -87,9 +87,25 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
   const [expanded, setExpanded] = useState(false)
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
-  const bookedCount = Math.max(0, ride.seats_total - ride.seats_available)
+  const [actualBookedCount, setActualBookedCount] = useState(null)
   const isToOffice = ride.ride_type === 'to_office'
   const statusColor = { active: '#16a34a', full: '#2563eb', cancelled: '#dc2626', completed: '#888' }
+
+  // Load actual confirmed booking count on mount
+  useEffect(() => {
+    async function loadCount() {
+      const { count } = await supabase
+        .from('bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('ride_id', ride.id)
+        .eq('status', 'confirmed')
+      setActualBookedCount(count || 0)
+    }
+    loadCount()
+  }, [ride.id])
+
+  // Use actual DB count, not seat math
+  const bookedCount = actualBookedCount ?? Math.max(0, ride.seats_total - ride.seats_available)
 
   async function loadPassengers() {
     if (expanded) { setExpanded(false); return }
@@ -101,7 +117,6 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
       .select('*, profiles(full_name, phone, upi_id)')
       .eq('ride_id', ride.id)
       .eq('status', 'confirmed')
-      .eq('payment_status', 'paid')
     // Group by rider_id — combine multiple bookings from same person
     const grouped = {}
     ;(data || []).forEach(b => {
@@ -171,7 +186,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
             💰 You earn: ₹{(ride.fare - 2) * bookedCount} from {bookedCount} passenger{bookedCount > 1 ? 's' : ''}
           </div>
           <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-            (₹{ride.fare - 2} per seat after ₹2 PoolKaro fee)
+            (₹{ride.fare - 2} per seat after ₹2 CarpoolKaro fee)
           </div>
         </div>
       )}
