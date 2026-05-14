@@ -1,3 +1,4 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
 import RequestRide from './pages/RequestRide'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Login from './pages/Login'
