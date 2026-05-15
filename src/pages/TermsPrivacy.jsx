@@ -4,16 +4,16 @@ import { useNavigate } from 'react-router-dom'
 const sections = {
   terms: [
     {
-      title: '1. About PoolKaro',
-      content: 'CarpoolKaro is a carpooling platform connecting IT professionals in Hyderabad. We help users share rides and split commute costs. PoolKaro is not a taxi or cab service — we are a platform that connects car owners and co-riders.',
+      title: '1. About CarpoolKaro',
+      content: 'CarpoolKaro is a carpooling platform connecting IT professionals in Hyderabad. We help users share rides and split commute costs. CarpoolKaro is not a taxi or cab service — we are a platform that connects car owners and co-riders.',
     },
     {
       title: '2. Eligibility',
-      content: 'You must be 18 years or older to use PoolKaro. By signing up, you confirm that the information you provide is accurate and complete. PoolKaro reserves the right to suspend accounts with false information.',
+      content: 'You must be 18 years or older to use CarpoolKaro. By signing up, you confirm that the information you provide is accurate and complete. CarpoolKaro reserves the right to suspend accounts with false information.',
     },
     {
       title: '3. Car Owner Responsibilities',
-      content: 'Car owners must hold a valid driving licence and vehicle insurance. The vehicle must be roadworthy and legally registered. Car owners are responsible for safe driving and must follow all traffic rules. PoolKaro is not liable for any accidents or incidents during rides.',
+      content: 'Car owners must hold a valid driving licence and vehicle insurance. The vehicle must be roadworthy and legally registered. Car owners are responsible for safe driving and must follow all traffic rules. CarpoolKaro is not liable for any accidents or incidents during rides.',
     },
     {
       title: '4. Co-rider Responsibilities',
@@ -29,11 +29,11 @@ const sections = {
     },
     {
       title: '7. Safety',
-      content: 'PoolKaro encourages users to verify each other before rides. Always share your live location with a trusted contact during rides. Do not share your personal financial details with other users. Report any safety concerns immediately through the app.',
+      content: 'CarpoolKaro encourages users to verify each other before rides. Always share your live location with a trusted contact during rides. Do not share your personal financial details with other users. Report any safety concerns immediately through the app.',
     },
     {
       title: '8. Prohibited Activities',
-      content: 'Users must not use PoolKaro for commercial taxi services. Discrimination based on gender, religion, or caste is strictly prohibited. Harassment of any kind will result in immediate account termination. Do not post false ride listings.',
+      content: 'Users must not use CarpoolKaro for commercial taxi services. Discrimination based on gender, religion, or caste is strictly prohibited. Harassment of any kind will result in immediate account termination. Do not post false ride listings.',
     },
     {
       title: '9. Limitation of Liability',
@@ -41,7 +41,7 @@ const sections = {
     },
     {
       title: '10. Changes to Terms',
-      content: 'PoolKaro may update these terms at any time. Users will be notified of significant changes. Continued use of the app after changes means you accept the new terms.',
+      content: 'CarpoolKaro may update these terms at any time. Users will be notified of significant changes. Continued use of the app after changes means you accept the new terms.',
     },
   ],
   privacy: [
