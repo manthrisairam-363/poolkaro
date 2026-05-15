@@ -149,7 +149,7 @@ export default function Onboarding() {
       <div style={s.header}>
         <div style={s.step}>Step {step + 1} of {form.role === 'rider' ? 3 : 4}</div>
         <div style={s.title}>
-          {currentStep === 'role' && 'How will you use PoolKaro?'}
+          {currentStep === 'role' && 'How will you use CarpoolKaro?'}
           {currentStep === 'personal' && 'Tell us about yourself'}
           {currentStep === 'vehicle' && 'Your vehicle details'}
           {currentStep === 'upi' && 'Set up instant payments'}
@@ -216,7 +216,7 @@ export default function Onboarding() {
             <div style={s.infoBox}>
               <div style={s.infoText}>
                 💡 <strong>Why we need your UPI ID?</strong>{'\n\n'}
-                PoolKaro processes all payments instantly.{'\n'}
+                CarpoolKaro processes all payments instantly.{'\n'}
                 {form.role !== 'rider'
                   ? '• When a rider books your seat, ₹ goes to your UPI ID in minutes\n• No waiting, no bank transfers'
                   : '• When you book a seat, the fare goes directly to the Car Owner'}
@@ -236,7 +236,7 @@ export default function Onboarding() {
           <button style={s.btnPrimary} onClick={next}>Continue →</button>
         ) : (
           <button style={s.btnPrimary} onClick={finish} disabled={loading}>
-            {loading ? 'Setting up...' : '🎉 Enter PoolKaro'}
+            {loading ? 'Setting up...' : '🎉 Enter CarpoolKaro'}
           </button>
         )}
 
