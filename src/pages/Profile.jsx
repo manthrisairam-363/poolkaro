@@ -297,7 +297,7 @@ export default function Profile() {
               <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: 3, color: '#111' }}>{profile?.referral_code || '------'}</div>
             </div>
             <button onClick={() => {
-              const msg = `Join me on CarpoolKaro — Hyderabad's IT Carpool app! Use my code ${profile?.referral_code} to get ₹10 free wallet credit. Install: https://poolkaro.vercel.app/install`
+              const msg = `Join me on CarpoolKaro — Hyderabad's IT Carpool app! Use my code ${profile?.referral_code} to get ₹10 free wallet credit. Install: https://app.carpoolkaro.com`
               if (navigator.share) {
                 navigator.share({ title: 'CarpoolKaro Invite', text: msg })
               } else {
