@@ -10,77 +10,69 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [users, setUsers] = useState([])
   const [rides, setRides] = useState([])
+  const [bookings, setBookings] = useState([])
   const [wallets, setWallets] = useState({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('overview')
-  const [accessChecked, setAccessChecked] = useState(false)
 
-  // Check admin access from DATABASE (not just email)
   const isAdmin = profile?.is_admin === true
 
   useEffect(() => {
-    // Wait for profile to load before checking
-    if (profile === null) return // still loading
-    if (!profile?.is_admin) {
-      navigate('/')
-      return
-    }
+    if (profile === undefined) return // still loading
+    if (!profile?.is_admin) { navigate('/'); return }
     fetchAll()
   }, [profile])
 
   async function fetchAll() {
     setLoading(true)
-    const [usersRes, ridesRes, bookingsRes, walletsRes] = await Promise.all([
-      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('rides').select('*, profiles(full_name, phone)').order('created_at', { ascending: false }).limit(50),
-      supabase.from('bookings').select('*, profiles!rider_id(full_name)').order('created_at', { ascending: false }).limit(50),
-      supabase.from('wallets').select('user_id, balance'),
-    ])
+    try {
+      const [usersRes, ridesRes, bookingsRes] = await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('rides').select('*, profiles(full_name, phone)').order('created_at', { ascending: false }).limit(100),
+        supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(100),
+      ])
 
-    const usersData = usersRes.data || []
-    const ridesData = ridesRes.data || []
-    const bookingsData = bookingsRes.data || []
-    const walletsData = walletsRes.data || []
+      const usersData = usersRes.data || []
+      const ridesData = ridesRes.data || []
+      const bookingsData = bookingsRes.data || []
 
-    // Fix 1: Use status='confirmed' not payment_status='paid'
-    const confirmedBookings = bookingsData.filter(b => b.status === 'confirmed')
-    const cancelledBookings = bookingsData.filter(b => b.status === 'cancelled')
+      const confirmedBookings = bookingsData.filter(b => b.status === 'confirmed')
+      const cancelledBookings = bookingsData.filter(b => b.status === 'cancelled')
+      const totalRevenue = confirmedBookings.length * 4
 
-    // Fix 2: Revenue = confirmed bookings × ₹4 (₹2 from rider + ₹2 from driver)
-    const totalRevenue = confirmedBookings.length * 4
+      const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+      const todayIST = istNow.toISOString().split('T')[0]
 
-    // Fix 3: Wallet pool in rupees (balance stored in paise)
-    const totalWalletBalance = walletsData.reduce((sum, w) => sum + (w.balance || 0), 0)
+      // Wallets — fetch separately, handle RLS gracefully
+      const { data: walletsData } = await supabase.from('wallets').select('user_id, balance')
+      const walletMap = {}
+      ;(walletsData || []).forEach(w => { walletMap[w.user_id] = Math.round(w.balance / 100) })
+      setWallets(walletMap)
 
-    // Fix 4: Today's date in IST
-    const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
-    const todayIST = istNow.toISOString().split('T')[0]
+      const totalWalletBalance = (walletsData || []).reduce((s, w) => s + (w.balance || 0), 0)
 
-    // Fix 5: Today's revenue = today's confirmed bookings × ₹4
-    const todayConfirmed = confirmedBookings.filter(b => b.created_at?.startsWith(todayIST))
-    const todayRevenue = todayConfirmed.length * 4
-
-    setStats({
-      totalUsers: usersData.length,
-      totalRides: ridesData.length,
-      activeRides: ridesData.filter(r => r.status === 'active' || r.status === 'full').length,
-      totalBookings: confirmedBookings.length,
-      cancelledBookings: cancelledBookings.length,
-      totalRevenue,
-      totalWalletBalance: Math.round(totalWalletBalance / 100), // paise → rupees
-      todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
-      todayRevenue,
-      verifiedUsers: usersData.filter(u => u.is_verified).length,
-      workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
-    })
-    setUsers(usersData)
-    setRides(ridesData)
-    setBookings(bookingsData)
-    // Build wallet map: userId → balance in rupees
-    const walletMap = {}
-    walletsData.forEach(w => { walletMap[w.user_id] = Math.round(w.balance / 100) })
-    setWallets(walletMap)
-    setLoading(false)
+      setStats({
+        totalUsers: usersData.length,
+        totalRides: ridesData.length,
+        activeRides: ridesData.filter(r => ['active','full'].includes(r.status)).length,
+        totalBookings: confirmedBookings.length,
+        cancelledBookings: cancelledBookings.length,
+        totalRevenue,
+        totalWalletBalance: Math.round(totalWalletBalance / 100),
+        todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
+        todayRevenue: confirmedBookings.filter(b => b.created_at?.startsWith(todayIST)).length * 4,
+        verifiedUsers: usersData.filter(u => u.is_verified).length,
+        workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
+        totalReferrals: usersData.filter(u => u.referred_by).length,
+      })
+      setUsers(usersData)
+      setRides(ridesData)
+      setBookings(bookingsData)
+    } catch (err) {
+      console.error('Admin fetch error:', err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function toggleVerified(userId, current) {
@@ -142,7 +134,8 @@ export default function AdminDashboard() {
                     ['🎫', 'Confirmed Bookings', stats.totalBookings, '#d97706'],
                     ['❌', 'Cancelled Bookings', stats.cancelledBookings, '#dc2626'],
                     ['💰', 'Revenue (₹)', stats.totalRevenue, '#16a34a'],
-                    ['🏦', 'Wallet Pool (₹)', stats.totalWalletBalance, '#2563eb'],
+                    ['🏦', 'Wallet Pool (₹)', stats.totalWalletBalance, '#f59e0b'],
+                    ['🎁', 'Referrals', stats.totalReferrals, '#7c3aed'],
                   ].map(([icon, label, value, color]) => (
                     <div key={label} style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222' }}>
                       <div style={{ fontSize: 24 }}>{icon}</div>
@@ -180,6 +173,12 @@ export default function AdminDashboard() {
                         </div>
                         <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{u.phone} · {u.email?.slice(0, 25)}</div>
                         {u.work_email && <div style={{ color: '#16a34a', fontSize: 11, marginTop: 2 }}>🏢 {u.work_email}</div>}
+                        {u.referral_code && (
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                            🎁 Code: <span style={{ color: '#facc15', fontWeight: 700 }}>{u.referral_code}</span>
+                            {u.referred_by && <span style={{ color: '#888' }}> · Referred by: {users.find(x => x.referral_code === u.referred_by)?.full_name || u.referred_by}</span>}
+                          </div>
+                        )}
                         <div style={{ color: '#555', fontSize: 11, marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                           <span>🚗 {u.total_rides_given || 0} given</span>
                           <span>🙋 {u.total_rides_taken || 0} taken</span>
