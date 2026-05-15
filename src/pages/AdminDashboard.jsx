@@ -42,18 +42,36 @@ export default function AdminDashboard() {
     const bookingsData = bookingsRes.data || []
     const walletsData = walletsRes.data || []
 
+    // Fix 1: Use status='confirmed' not payment_status='paid'
+    const confirmedBookings = bookingsData.filter(b => b.status === 'confirmed')
+    const cancelledBookings = bookingsData.filter(b => b.status === 'cancelled')
+
+    // Fix 2: Revenue = confirmed bookings × ₹4 (₹2 from rider + ₹2 from driver)
+    const totalRevenue = confirmedBookings.length * 4
+
+    // Fix 3: Wallet pool in rupees (balance stored in paise)
     const totalWalletBalance = walletsData.reduce((sum, w) => sum + (w.balance || 0), 0)
-    const confirmedBookings = bookingsData.filter(b => b.payment_status === 'paid')
-    const totalRevenue = confirmedBookings.length * 4 // ₹4 per booking
+
+    // Fix 4: Today's date in IST
+    const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+    const todayIST = istNow.toISOString().split('T')[0]
+
+    // Fix 5: Today's revenue = today's confirmed bookings × ₹4
+    const todayConfirmed = confirmedBookings.filter(b => b.created_at?.startsWith(todayIST))
+    const todayRevenue = todayConfirmed.length * 4
 
     setStats({
       totalUsers: usersData.length,
       totalRides: ridesData.length,
-      activeRides: ridesData.filter(r => r.status === 'active').length,
+      activeRides: ridesData.filter(r => r.status === 'active' || r.status === 'full').length,
       totalBookings: confirmedBookings.length,
+      cancelledBookings: cancelledBookings.length,
       totalRevenue,
-      totalWalletBalance: totalWalletBalance / 100,
-      todayRides: ridesData.filter(r => r.ride_date === new Date().toISOString().split('T')[0]).length,
+      totalWalletBalance: Math.round(totalWalletBalance / 100), // paise → rupees
+      todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
+      todayRevenue,
+      verifiedUsers: usersData.filter(u => u.is_verified).length,
+      workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
     })
     setUsers(usersData)
     setRides(ridesData)
@@ -114,11 +132,13 @@ export default function AdminDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                   {[
                     ['👥', 'Total Users', stats.totalUsers, '#2563eb'],
-                    ['🚗', 'Total Rides', stats.totalRides, '#7c3aed'],
-                    ['✅', 'Active Rides', stats.activeRides, '#16a34a'],
-                    ['🎫', 'Bookings', stats.totalBookings, '#d97706'],
+                    ['✅', 'Verified Users', stats.verifiedUsers, '#16a34a'],
+                    ['🏢', 'Work Verified', stats.workVerifiedUsers, '#7c3aed'],
+                    ['🚗', 'Active Rides', stats.activeRides, '#7c3aed'],
+                    ['🎫', 'Confirmed Bookings', stats.totalBookings, '#d97706'],
+                    ['❌', 'Cancelled Bookings', stats.cancelledBookings, '#dc2626'],
                     ['💰', 'Revenue (₹)', stats.totalRevenue, '#16a34a'],
-                    ['🏦', 'Wallet Pool (₹)', Math.round(stats.totalWalletBalance), '#2563eb'],
+                    ['🏦', 'Wallet Pool (₹)', stats.totalWalletBalance, '#2563eb'],
                   ].map(([icon, label, value, color]) => (
                     <div key={label} style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222' }}>
                       <div style={{ fontSize: 24 }}>{icon}</div>
@@ -136,7 +156,7 @@ export default function AdminDashboard() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>Est. today's revenue</span>
-                    <span style={{ fontWeight: 700, color: '#16a34a' }}>₹{stats.todayRides * 4}</span>
+                    <span style={{ fontWeight: 700, color: '#16a34a' }}>₹{stats.todayRevenue}</span>
                   </div>
                 </div>
               </>
