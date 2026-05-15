@@ -82,7 +82,7 @@ export default function Install() {
                 <div style={{ fontSize: 13, color: '#dc2626', fontWeight: 700, marginBottom: 4 }}>⚠️ Switch to Safari first!</div>
                 <div style={{ fontSize: 12, color: '#888' }}>iPhone only allows home screen install from Safari. Copy and open this link in Safari:</div>
                 <div style={{ fontSize: 12, color: '#2563eb', marginTop: 6, fontWeight: 600, wordBreak: 'break-all' }}>
-                  poolkaro.vercel.app/install
+                  app.carpoolkaro.com/install
                 </div>
               </div>
             )}
@@ -114,7 +114,7 @@ export default function Install() {
             <div style={{ color: '#fff', fontWeight: 700, marginBottom: 8 }}>Open on your phone!</div>
             <div style={{ color: '#888', fontSize: 13, marginBottom: 16 }}>Scan this QR code or share the link to install on mobile</div>
             <div style={{ background: '#222', borderRadius: 10, padding: '12px', fontSize: 13, color: '#facc15', fontWeight: 600, wordBreak: 'break-all' }}>
-              poolkaro.vercel.app/install
+              app.carpoolkaro.com/install
             </div>
           </div>
         )}
@@ -148,7 +148,7 @@ export default function Install() {
       </button>
 
       <div style={{ color: '#444', fontSize: 11, textAlign: 'center' }}>
-        poolkaro.vercel.app · No App Store · No Subscription
+        app.carpoolkaro.com · No App Store · No Subscription
       </div>
     </div>
   )
