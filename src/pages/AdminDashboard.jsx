@@ -10,7 +10,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [users, setUsers] = useState([])
   const [rides, setRides] = useState([])
-  const [bookings, setBookings] = useState([])
+  const [wallets, setWallets] = useState({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('overview')
   const [accessChecked, setAccessChecked] = useState(false)
@@ -34,7 +34,7 @@ export default function AdminDashboard() {
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('rides').select('*, profiles(full_name, phone)').order('created_at', { ascending: false }).limit(50),
       supabase.from('bookings').select('*, profiles!rider_id(full_name)').order('created_at', { ascending: false }).limit(50),
-      supabase.from('wallets').select('balance'),
+      supabase.from('wallets').select('user_id, balance'),
     ])
 
     const usersData = usersRes.data || []
@@ -76,6 +76,10 @@ export default function AdminDashboard() {
     setUsers(usersData)
     setRides(ridesData)
     setBookings(bookingsData)
+    // Build wallet map: userId → balance in rupees
+    const walletMap = {}
+    walletsData.forEach(w => { walletMap[w.user_id] = Math.round(w.balance / 100) })
+    setWallets(walletMap)
     setLoading(false)
   }
 
@@ -162,24 +166,36 @@ export default function AdminDashboard() {
               </>
             )}
 
-            {/* USERS */}
             {tab === 'users' && (
               <div>
                 <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{users.length} total users</div>
                 {users.map(u => (
                   <div key={u.id} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 700, fontSize: 14 }}>{u.full_name || 'No name'}</span>
                           {u.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>✓ VERIFIED</span>}
+                          {u.work_email_verified && <span style={{ background: '#16a34a', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>🏢 WORK</span>}
                         </div>
-                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{u.phone} · {u.email?.slice(0, 20)}</div>
-                        <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>
-                          {u.role} · {u.vehicle_model || 'No vehicle'} · ⭐{u.avg_rating || 0}
+                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{u.phone} · {u.email?.slice(0, 25)}</div>
+                        {u.work_email && <div style={{ color: '#16a34a', fontSize: 11, marginTop: 2 }}>🏢 {u.work_email}</div>}
+                        <div style={{ color: '#555', fontSize: 11, marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                          <span>🚗 {u.total_rides_given || 0} given</span>
+                          <span>🙋 {u.total_rides_taken || 0} taken</span>
+                          <span>⭐ {Number(u.avg_rating || 0).toFixed(1)}</span>
                         </div>
-                        <div style={{ color: '#444', fontSize: 10, marginTop: 2 }}>
-                          Joined: {new Date(u.created_at).toLocaleDateString('en-IN')}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+                          <span style={{
+                            background: wallets[u.id] > 5 ? '#14532d' : wallets[u.id] > 0 ? '#422006' : '#3b0764',
+                            color: wallets[u.id] > 5 ? '#4ade80' : wallets[u.id] > 0 ? '#fb923c' : '#c084fc',
+                            fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                          }}>
+                            💰 ₹{wallets[u.id] ?? '—'}
+                          </span>
+                          <span style={{ color: '#444', fontSize: 10 }}>
+                            Joined {new Date(u.created_at).toLocaleDateString('en-IN')}
+                          </span>
                         </div>
                       </div>
                       <button
@@ -187,7 +203,7 @@ export default function AdminDashboard() {
                         style={{
                           padding: '6px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
                           background: u.is_verified ? '#1d4ed8' : '#333',
-                          color: u.is_verified ? '#fff' : '#888',
+                          color: u.is_verified ? '#fff' : '#888', flexShrink: 0, marginLeft: 8,
                         }}>
                         {u.is_verified ? '✓ Verified' : 'Verify'}
                       </button>
