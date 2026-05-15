@@ -42,7 +42,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
 💺 Seats Available: ${form.seats_available}
 
 📞 Contact: ${profile?.phone}
-🔗 Book on CarpoolKaro: https://poolkaro.vercel.app`
+🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
   }
 
   async function postRide() {
