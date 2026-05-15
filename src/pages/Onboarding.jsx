@@ -53,13 +53,14 @@ export default function Onboarding() {
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
-    role: '',         // 'rider' | 'driver' | 'both'
+    role: '',
     full_name: '',
     phone: user?.phone?.replace('+91', '') || '',
     email: user?.email || '',
     vehicle_model: '',
     vehicle_number: '',
     upi_id: '',
+    referral_code: '',
   })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -67,6 +68,17 @@ export default function Onboarding() {
   async function finish() {
     setError('')
     setLoading(true)
+
+    const referralCode = form.referral_code?.trim().toUpperCase()
+
+    // Find referrer if code entered
+    let referrerId = null
+    if (referralCode) {
+      const { data: referrer } = await supabase
+        .from('profiles').select('id').eq('referral_code', referralCode).maybeSingle()
+      if (referrer) referrerId = referrer.id
+    }
+
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       full_name: form.full_name,
@@ -77,11 +89,43 @@ export default function Onboarding() {
       vehicle_number: form.vehicle_number?.toUpperCase() || null,
       upi_id: form.upi_id || null,
       onboarding_complete: true,
-      referred_by: form.referral_code || null,
+      referred_by: referrerId ? referralCode : null,
     })
+    if (error) { setError(error.message); setLoading(false); return }
+
+    // Credit new user ₹10 signup bonus (always)
+    const { data: myWallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+    if (myWallet) {
+      await supabase.from('wallets').update({ balance: myWallet.balance + 1000 }).eq('user_id', user.id)
+      await supabase.from('wallet_transactions').insert({
+        user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
+      })
+    }
+
+    // Credit referrer ₹10 if valid code
+    if (referrerId) {
+      const { data: referrerWallet } = await supabase.from('wallets').select('balance').eq('user_id', referrerId).maybeSingle()
+      if (referrerWallet) {
+        await supabase.from('wallets').update({ balance: referrerWallet.balance + 1000 }).eq('user_id', referrerId)
+        await supabase.from('wallet_transactions').insert({
+          user_id: referrerId, amount: 1000, type: 'referral_bonus',
+          description: `₹10 referral bonus — ${form.full_name} joined using your code`
+        })
+        await supabase.from('profiles').update({
+          referral_count: supabase.rpc('increment_referral_count', { uid: referrerId })
+        }).eq('id', referrerId)
+        // Notify referrer
+        await supabase.from('notifications').insert({
+          user_id: referrerId,
+          title: '🎁 Referral Bonus!',
+          body: `${form.full_name} joined using your code. ₹10 added to your wallet!`,
+          read: false,
+        })
+      }
+    }
+
     setLoading(false)
-    if (error) { setError(error.message); return }
-    fetchProfile(user.id) // refresh profile → App will redirect to Home
+    fetchProfile(user.id)
   }
 
   function next() {
@@ -147,6 +191,12 @@ export default function Onboarding() {
             <input style={s.input} placeholder="10-digit mobile number" value={form.phone} onChange={e => set('phone', e.target.value)} readOnly={!!user?.phone} />
             <label style={s.label}>Email (optional)</label>
             <input style={s.input} type="email" placeholder="your@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
+            <label style={s.label}>Referral Code (optional)</label>
+            <input style={{ ...s.input, textTransform: 'uppercase', letterSpacing: 3 }}
+              placeholder="Friend's code — get ₹10 bonus!"
+              value={form.referral_code}
+              onChange={e => set('referral_code', e.target.value.toUpperCase().slice(0, 6))}
+            />
           </>
         )}
 
