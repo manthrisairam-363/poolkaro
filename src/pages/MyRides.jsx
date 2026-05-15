@@ -9,7 +9,7 @@ import BottomNav from '../components/BottomNav'
 function ContactButtons({ phone, name }) {
   if (!phone) return null
   const clean = phone.replace(/\D/g, '')
-  const waMsg = encodeURIComponent(`Hi ${name}! This is regarding our PoolKaro ride today. 🚗`)
+  const waMsg = encodeURIComponent(`Hi ${name}! This is regarding our CarpoolKaro ride today. 🚗`)
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
       <a href={`tel:+91${clean}`} style={{
