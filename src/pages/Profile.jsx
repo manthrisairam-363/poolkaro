@@ -85,7 +85,7 @@ export default function Profile() {
   }
 
   async function removePhoto() {
-    if (!confirm('Remove profile photo?')) return
+    if (!confirm('Remove your profile photo?')) return
     setUploading(true)
     try {
       const { data: files } = await supabase.storage.from('avatars').list('', { search: user.id })
@@ -126,43 +126,55 @@ export default function Profile() {
     setVerifySuccess(data.message); setOtpSent(false); setOtpCode(''); fetchProfile(user.id)
   }
 
+  // Styles
   const card = { background: '#fff', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10, overflow: 'hidden' }
   const inp = { width: '100%', padding: '11px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 14, background: '#fafafa', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box' }
   const lbl = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4, display: 'block' }
 
-  function Row({ id, icon, title, badge }) {
+  function Row({ id, icon, title, badge, last }) {
     const open = openSection === id
     return (
-      <button onClick={() => toggleSection(id)} style={{ width: '100%', padding: 16, background: 'none', border: 'none', borderBottom: open ? '1px solid #f0f0f0' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{icon} {title}{badge && <span style={{ marginLeft: 4 }}>{badge}</span>}</span>
-        <span style={{ color: '#ccc', fontSize: 18 }}>{open ? '∨' : '›'}</span>
+      <button onClick={() => toggleSection(id)} style={{
+        width: '100%', padding: '17px 16px', background: 'none', border: 'none',
+        borderBottom: (open || last) ? 'none' : '1px solid #f5f5f5',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>{icon}</span>
+          {title}
+          {badge && <span style={{ marginLeft: 2 }}>{badge}</span>}
+        </span>
+        <span style={{ color: '#bbb', fontSize: 20, fontWeight: 400 }}>{open ? '∨' : '›'}</span>
       </button>
     )
   }
 
   const Tag = ({ text, green, yellow, red }) => (
-    <span style={{ background: green ? '#f0fdf4' : yellow ? '#fffbeb' : red ? '#fef2f2' : '#f5f5f5', color: green ? '#16a34a' : yellow ? '#92400e' : red ? '#dc2626' : '#888', fontSize: 10, padding: '2px 6px', borderRadius: 8, fontWeight: 700 }}>{text}</span>
+    <span style={{ background: green ? '#f0fdf4' : yellow ? '#fffbeb' : red ? '#fef2f2' : '#f5f5f5', color: green ? '#16a34a' : yellow ? '#92400e' : red ? '#dc2626' : '#888', fontSize: 10, padding: '2px 7px', borderRadius: 8, fontWeight: 700 }}>{text}</span>
   )
 
   return (
     <div style={{ paddingBottom: 90, background: '#f5f6fa', minHeight: '100vh' }}>
 
+      {/* ── Header ── */}
       <div style={{ background: '#111', padding: '20px 16px 24px' }}>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>My Profile</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+
+          {/* Avatar — camera icon only, no ✕ */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {profile?.avatar_url
               ? <img src={profile.avatar_url} alt="avatar" style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15', display: 'block' }} />
               : <div style={{ width: 70, height: 70, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 26 }}>{initials}</div>
             }
-            <button onClick={() => fileRef.current?.click()} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', borderRadius: '0 0 35px 35px', padding: '4px 0', fontSize: 10, color: '#fff', fontWeight: 600 }}>
+            <button onClick={() => fileRef.current?.click()} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', borderRadius: '0 0 35px 35px', padding: '5px 0', fontSize: 11, color: '#fff', fontWeight: 600 }}>
               {uploading ? '⏳' : '📷'}
             </button>
-            {profile?.avatar_url && (
-              <button onClick={removePhoto} style={{ position: 'absolute', top: -2, right: -2, width: 20, height: 20, borderRadius: '50%', background: '#dc2626', border: '2px solid #111', cursor: 'pointer', fontSize: 9, color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-            )}
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={uploadPhoto} />
           </div>
+
+          {/* Name & badges */}
           <div style={{ flex: 1 }}>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {profile?.full_name || 'Your Name'}
@@ -178,6 +190,8 @@ export default function Profile() {
             </div>
           </div>
         </div>
+
+        {/* Completeness — only when < 100% */}
         {completeness.total < 100 && (
           <div style={{ marginTop: 14, background: '#1a1a1a', borderRadius: 10, padding: '10px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -195,22 +209,36 @@ export default function Profile() {
       <div style={{ padding: '14px 16px' }}>
         {success && <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 12, fontWeight: 600 }}>{success}</div>}
 
+        {/* ── Group 1: Main sections ── */}
         <div style={card}>
+
+          {/* Personal Details */}
           <Row id="personal" icon="👤" title="Personal Details" />
           {openSection === 'personal' && (
-            <div style={{ padding: '14px 16px' }}>
+            <div style={{ padding: '4px 16px 16px', borderBottom: '1px solid #f5f5f5' }}>
               {!editing ? (
                 <>
                   {[['✏️ Name', profile?.full_name], ['📱 Phone', profile?.phone], ['📧 Email', user?.email], ['🚘 Vehicle', profile?.vehicle_model ? `${profile.vehicle_model} · ${profile.vehicle_number}` : null], ['💳 UPI ID', profile?.upi_id]].map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
+                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f9f9f9' }}>
                       <span style={{ fontSize: 13, color: '#888' }}>{k}</span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: v ? '#111' : '#ccc' }}>{v || 'Not set'}</span>
                     </div>
                   ))}
-                  <button onClick={() => setEditing(true)} style={{ width: '100%', padding: 11, background: '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 12 }}>✏️ Edit Details</button>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button onClick={() => fileRef.current?.click()} style={{ flex: 1, padding: 10, background: '#f5f5f5', color: '#555', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      📷 {profile?.avatar_url ? 'Change Photo' : 'Add Photo'}
+                    </button>
+                    {profile?.avatar_url && (
+                      <button onClick={removePhoto} style={{ flex: 1, padding: 10, background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        🗑️ Remove Photo
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={() => setEditing(true)} style={{ width: '100%', padding: 11, background: '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 8 }}>✏️ Edit Details</button>
                 </>
               ) : (
                 <>
+                  <div style={{ height: 8 }} />
                   <span style={lbl}>Full Name</span><input style={inp} value={form.full_name} onChange={e => set('full_name', e.target.value)} />
                   <span style={lbl}>Phone</span><input style={inp} value={form.phone} onChange={e => set('phone', e.target.value)} type="tel" />
                   <span style={lbl}>Role</span>
@@ -230,13 +258,12 @@ export default function Profile() {
               )}
             </div>
           )}
-        </div>
 
-        <div style={card}>
+          {/* My Impact */}
           <Row id="impact" icon="🌱" title="My Impact" />
           {openSection === 'impact' && (
-            <div style={{ padding: '14px 16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ padding: '4px 16px 16px', borderBottom: '1px solid #f5f5f5' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
                 {[['🚗', 'Rides Given', profile?.total_rides_given || 0], ['🙋', 'Rides Taken', profile?.total_rides_taken || 0], ['🌿', 'CO₂ Saved', `${((profile?.total_rides_given || 0) * 2.1).toFixed(1)} kg`], ['💰', 'Money Saved', `₹${(profile?.total_rides_taken || 0) * 120}`], ['⭐', 'Avg Rating', Number(profile?.avg_rating || 0).toFixed(1)], ['🎁', 'Referrals', profile?.referral_count || 0]].map(([icon, label, value]) => (
                   <div key={label} style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontSize: 20 }}>{icon}</div>
@@ -247,61 +274,59 @@ export default function Profile() {
               </div>
             </div>
           )}
-        </div>
 
-        <div style={card}>
-          <Row id="refer" icon="🎁" title="Refer & Earn" />
-          {openSection === 'refer' && (
-            <div style={{ padding: '14px 16px' }}>
-              <div style={{ background: '#fffbeb', borderRadius: 10, padding: 14, marginBottom: 12, textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Your Referral Code</div>
-                <div style={{ fontWeight: 800, fontSize: 26, letterSpacing: 4, color: '#111' }}>{profile?.referral_code || '——'}</div>
+          {/* Invite & Earn */}
+          <Row id="invite" icon="🎉" title="Invite & Earn" />
+          {openSection === 'invite' && (
+            <div style={{ padding: '4px 16px 16px', borderBottom: '1px solid #f5f5f5' }}>
+              <div style={{ background: '#fffbeb', borderRadius: 10, padding: 14, marginBottom: 12, textAlign: 'center', marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Your Invite Code</div>
+                <div style={{ fontWeight: 800, fontSize: 28, letterSpacing: 5, color: '#111' }}>{profile?.referral_code || '——'}</div>
                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Both you and your friend get ₹10</div>
               </div>
               {profile?.referral_count > 0 && <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 13, color: '#16a34a', fontWeight: 600 }}>🎉 {profile.referral_count} friend{profile.referral_count > 1 ? 's' : ''} joined using your code!</div>}
-              <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Join me on CarpoolKaro! Use my code ${profile?.referral_code} to get ₹10 free. Install: https://app.carpoolkaro.com`)}`, '_blank')} style={{ width: '100%', padding: 12, background: '#25D366', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>💬 Share on WhatsApp</button>
+              <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Join me on CarpoolKaro! Use my code ${profile?.referral_code} to get ₹10 free. Install: https://app.carpoolkaro.com`)}`, '_blank')} style={{ width: '100%', padding: 12, background: '#25D366', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>💬 Invite on WhatsApp</button>
             </div>
           )}
-        </div>
 
-        <div style={card}>
+          {/* Emergency Contact */}
           <Row id="emergency" icon="🆘" title="Emergency Contact" badge={profile?.emergency_contact_phone ? <Tag text="Set" green /> : <Tag text="Not set" red />} />
           {openSection === 'emergency' && (
-            <div style={{ padding: '14px 16px' }}>
+            <div style={{ padding: '4px 16px 16px', borderBottom: '1px solid #f5f5f5' }}>
               {profile?.emergency_contact_phone && (
-                <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+                <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 12px', marginBottom: 12, marginTop: 8 }}>
                   <div style={{ fontSize: 12, color: '#888' }}>Current contact</div>
                   <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>{profile.emergency_contact_name}</div>
                   <div style={{ fontSize: 13, color: '#555' }}>{profile.emergency_contact_phone}</div>
                 </div>
               )}
+              {!profile?.emergency_contact_phone && <div style={{ height: 8 }} />}
               <span style={lbl}>Contact Name</span><input style={inp} placeholder="e.g. Mom, Wife, Friend" value={form.emergency_contact_name} onChange={e => set('emergency_contact_name', e.target.value)} />
               <span style={lbl}>Phone Number</span><input style={inp} placeholder="10-digit number" value={form.emergency_contact_phone} onChange={e => set('emergency_contact_phone', e.target.value)} type="tel" />
               <button onClick={saveProfile} disabled={loading} style={{ width: '100%', padding: 11, background: '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{loading ? 'Saving...' : '✅ Save Contact'}</button>
             </div>
           )}
-        </div>
 
-        <div style={card}>
+          {/* Verify Work Email */}
           <Row id="workemail" icon="🏢" title="Verify Work Email" badge={profile?.work_email_verified ? <Tag text="✓ Verified" green /> : <Tag text="Pending" yellow />} />
           {openSection === 'workemail' && (
-            <div style={{ padding: '14px 16px' }}>
+            <div style={{ padding: '4px 16px 16px', borderBottom: '1px solid #f5f5f5' }}>
               {profile?.work_email_verified ? (
-                <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ Verified: {profile.work_email}</div>
+                <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#16a34a', fontWeight: 600, marginTop: 8 }}>✅ Verified: {profile.work_email}</div>
               ) : (
                 <>
-                  {verifySuccess && <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 10, fontWeight: 600 }}>{verifySuccess}</div>}
+                  {verifySuccess && <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 10, marginTop: 8, fontWeight: 600 }}>{verifySuccess}</div>}
                   {verifyError && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 10 }}>⚠️ {verifyError}</div>}
                   {!otpSent ? (
                     <>
-                      <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>Shows your company badge on every ride card</div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 10, marginTop: 8 }}>Shows your company badge on every ride card</div>
                       <input placeholder="sairam@capgemini.com" style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e5e7eb', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} value={workEmail} onChange={e => setWorkEmail(e.target.value)} type="email" autoCapitalize="none" />
                       <button onClick={sendWorkEmailOTP} disabled={verifying || !workEmail} style={{ width: '100%', padding: 12, background: '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: !workEmail ? 0.5 : 1 }}>{verifying ? 'Sending...' : '📧 Send OTP'}</button>
                       <div style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 6 }}>Only company emails accepted.</div>
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 8, fontWeight: 600 }}>✅ OTP sent to {workEmail}</div>
+                      <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 8, marginTop: 8, fontWeight: 600 }}>✅ OTP sent to {workEmail}</div>
                       <input placeholder="000000" style={{ width: '100%', padding: '14px', borderRadius: 10, border: '2px solid #111', fontSize: 24, textAlign: 'center', letterSpacing: 10, marginBottom: 10, boxSizing: 'border-box' }} value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))} type="number" />
                       <button onClick={verifyWorkOTP} disabled={verifying || otpCode.length !== 6} style={{ width: '100%', padding: 12, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8, opacity: otpCode.length !== 6 ? 0.5 : 1 }}>{verifying ? 'Verifying...' : '✅ Verify & Get Badge'}</button>
                       <button onClick={() => { setOtpSent(false); setOtpCode(''); setVerifyError('') }} style={{ width: '100%', padding: 9, background: '#f5f5f5', color: '#888', border: 'none', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}>← Change Email</button>
@@ -311,14 +336,13 @@ export default function Profile() {
               )}
             </div>
           )}
-        </div>
 
-        <div style={card}>
-          <Row id="about" icon="ℹ️" title="About CarpoolKaro" />
+          {/* About */}
+          <Row id="about" icon="ℹ️" title="About CarpoolKaro" last />
           {openSection === 'about' && (
-            <div style={{ padding: '14px 16px' }}>
+            <div style={{ padding: '4px 16px 16px' }}>
               {[['🚗', 'Version', '1.0.0 Beta'], ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f9f9f9' }}>
                   <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
                 </div>
@@ -327,21 +351,25 @@ export default function Profile() {
           )}
         </div>
 
+        {/* ── Group 2: Links (separate card) ── */}
         <div style={card}>
-          <button onClick={() => navigate('/terms')} style={{ width: '100%', padding: 16, background: 'none', border: 'none', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
-            <span>📄 Terms of Use & Privacy Policy</span><span style={{ color: '#ccc', fontSize: 18 }}>›</span>
+          <button onClick={() => navigate('/terms')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>📄</span> Terms of Use & Privacy Policy</span>
+            <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
           </button>
           {profile?.is_admin && (
-            <button onClick={() => navigate('/admin')} style={{ width: '100%', padding: 16, background: 'none', border: 'none', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
-              <span>⚙️ Admin Dashboard</span><span style={{ color: '#ccc', fontSize: 18 }}>›</span>
+            <button onClick={() => navigate('/admin')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>⚙️</span> Admin Dashboard</span>
+              <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
             </button>
           )}
-          <a href="mailto:support@carpoolkaro.com" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 16, textDecoration: 'none' }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>💬 Contact Support</span>
+          <a href="mailto:support@carpoolkaro.com" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '17px 16px', textDecoration: 'none' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#111' }}><span style={{ fontSize: 18 }}>💬</span> Contact Support</span>
             <span style={{ fontSize: 12, color: '#aaa' }}>support@carpoolkaro.com</span>
           </a>
         </div>
 
+        {/* Logout */}
         <button onClick={async () => { await signOut(); navigate('/') }} style={{ width: '100%', padding: 14, background: '#fff', color: '#dc2626', border: '2px solid #fecaca', borderRadius: 12, fontSize: 15, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
           🚪 Logout
         </button>
