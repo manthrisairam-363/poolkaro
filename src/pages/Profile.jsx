@@ -12,6 +12,7 @@ export default function Profile() {
   const fileRef = useRef(null)
 
   const [openSection, setOpenSection] = useState(null)
+  const [viewPhoto, setViewPhoto] = useState(false)
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -162,14 +163,13 @@ export default function Profile() {
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>My Profile</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
 
-          {/* Avatar — camera icon only, no ✕ */}
+          {/* Avatar — tap to view full, upload is in Personal Details */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt="avatar" style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15', display: 'block' }} />
-              : <div style={{ width: 70, height: 70, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 26 }}>{initials}</div>
-            }
-            <button onClick={() => fileRef.current?.click()} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', borderRadius: '0 0 35px 35px', padding: '5px 0', fontSize: 11, color: '#fff', fontWeight: 600 }}>
-              {uploading ? '⏳' : '📷'}
+            <button onClick={() => profile?.avatar_url && setViewPhoto(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: profile?.avatar_url ? 'pointer' : 'default' }}>
+              {profile?.avatar_url
+                ? <img src={profile.avatar_url} alt="avatar" style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15', display: 'block' }} />
+                : <div style={{ width: 70, height: 70, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 26 }}>{initials}</div>
+              }
             </button>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={uploadPhoto} />
           </div>
@@ -351,23 +351,25 @@ export default function Profile() {
           )}
         </div>
 
-        {/* ── Group 2: Links (separate card) ── */}
+        {/* ── Group 2: Links ── */}
         <div style={card}>
           <button onClick={() => navigate('/terms')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>📄</span> Terms of Use & Privacy Policy</span>
             <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
           </button>
-          {profile?.is_admin && (
-            <button onClick={() => navigate('/admin')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>⚙️</span> Admin Dashboard</span>
-              <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
-            </button>
-          )}
           <a href="mailto:support@carpoolkaro.com" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '17px 16px', textDecoration: 'none' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#111' }}><span style={{ fontSize: 18 }}>💬</span> Contact Support</span>
             <span style={{ fontSize: 12, color: '#aaa' }}>support@carpoolkaro.com</span>
           </a>
         </div>
+
+        {/* ── Admin Dashboard (admin only, standalone) ── */}
+        {profile?.is_admin && (
+          <button onClick={() => navigate('/admin')} style={{ width: '100%', padding: '16px', background: '#111', color: '#facc15', border: 'none', borderRadius: 14, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>⚙️</span> Admin Dashboard</span>
+            <span style={{ fontSize: 20 }}>›</span>
+          </button>
+        )}
 
         {/* Logout */}
         <button onClick={async () => { await signOut(); navigate('/') }} style={{ width: '100%', padding: 14, background: '#fff', color: '#dc2626', border: '2px solid #fecaca', borderRadius: 12, fontSize: 15, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
@@ -375,6 +377,13 @@ export default function Profile() {
         </button>
         <div style={{ textAlign: 'center', fontSize: 11, color: '#ccc', marginTop: 8 }}>CarpoolKaro · Made with ❤️ in Hyderabad</div>
       </div>
+      {/* Photo fullscreen viewer */}
+      {viewPhoto && profile?.avatar_url && (
+        <div onClick={() => setViewPhoto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={profile.avatar_url} alt="avatar" style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 16, objectFit: 'contain' }} />
+          <button onClick={() => setViewPhoto(false)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, width: 44, height: 44, borderRadius: '50%', cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
       <BottomNav />
     </div>
   )
