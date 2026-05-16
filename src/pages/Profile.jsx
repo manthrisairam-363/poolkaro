@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -19,6 +19,45 @@ export default function Profile() {
   const [verifyError, setVerifyError] = useState('')
   const [verifySuccess, setVerifySuccess] = useState('')
   const [success, setSuccess] = useState('')
+
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef(null)
+
+  // Profile completeness calculation
+  const completeness = (() => {
+    const checks = [
+      { label: 'Full name', done: !!profile?.full_name, points: 15 },
+      { label: 'Phone', done: !!profile?.phone, points: 15 },
+      { label: 'Profile photo', done: !!profile?.avatar_url, points: 10 },
+      { label: 'Vehicle details', done: !!profile?.vehicle_model, points: 20 },
+      { label: 'UPI ID', done: !!profile?.upi_id, points: 15 },
+      { label: 'Work email', done: !!profile?.work_email_verified, points: 15 },
+      { label: 'Emergency contact', done: !!profile?.emergency_contact_phone, points: 10 },
+    ]
+    const total = checks.reduce((s, c) => s + (c.done ? c.points : 0), 0)
+    return { checks, total }
+  })()
+
+  async function uploadPhoto(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${user.id}/avatar.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('avatars').upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars').getPublicUrl(path)
+      await supabase.from('profiles')
+        .update({ avatar_url: publicUrl }).eq('id', user.id)
+      fetchProfile(user.id)
+    } catch (err) {
+      alert('Upload failed: ' + err.message)
+    }
+    setUploading(false)
+  }
 
   const [form, setForm] = useState({
     full_name: profile?.full_name || '',
@@ -117,12 +156,21 @@ export default function Profile() {
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 20 }}>My Profile</div>
         {/* Avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: '#facc15', color: '#111',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: 24,
-          }}>{initials}</div>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="avatar"
+                style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15' }} />
+            ) : (
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 24 }}>
+                {initials}
+              </div>
+            )}
+            <button onClick={() => fileRef.current?.click()}
+              style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: '#111', border: '2px solid #facc15', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+              {uploading ? '⏳' : '📷'}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadPhoto} />
+          </div>
           <div>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
               {profile?.full_name || 'Your Name'}
@@ -164,6 +212,42 @@ export default function Profile() {
             {success}
           </div>
         )}
+
+        {/* Profile Completeness */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>Profile Completeness</div>
+            <span style={{ fontWeight: 800, fontSize: 18, color: completeness.total === 100 ? '#16a34a' : completeness.total >= 60 ? '#f59e0b' : '#dc2626' }}>
+              {completeness.total}%
+            </span>
+          </div>
+          {/* Progress bar */}
+          <div style={{ background: '#f3f4f6', borderRadius: 99, height: 8, marginBottom: 12 }}>
+            <div style={{
+              height: 8, borderRadius: 99, transition: 'width 0.5s',
+              width: `${completeness.total}%`,
+              background: completeness.total === 100 ? '#16a34a' : completeness.total >= 60 ? '#f59e0b' : '#dc2626',
+            }} />
+          </div>
+          {/* Checklist */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {completeness.checks.map(c => (
+              <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <span style={{ color: c.done ? '#16a34a' : '#dc2626', fontSize: 14 }}>{c.done ? '✅' : '❌'}</span>
+                <span style={{ color: c.done ? '#555' : '#888' }}>{c.label}</span>
+                <span style={{ color: '#bbb', fontSize: 10 }}>+{c.points}%</span>
+              </div>
+            ))}
+          </div>
+          {completeness.total < 100 && (
+            <div style={{ marginTop: 12, padding: '8px 12px', background: '#fffbeb', borderRadius: 8, fontSize: 12, color: '#92400e' }}>
+              💡 {completeness.checks.find(c => !c.done)?.label === 'Profile photo' ? 'Tap the 📷 icon on your avatar to add a photo' :
+                 completeness.checks.find(c => !c.done)?.label === 'Emergency contact' ? 'Add an emergency contact in Edit profile' :
+                 completeness.checks.find(c => !c.done)?.label === 'Work email' ? 'Verify your work email below to build trust' :
+                 `Complete your ${completeness.checks.find(c => !c.done)?.label?.toLowerCase()} to reach ${completeness.total + (completeness.checks.find(c => !c.done)?.points || 0)}%`}
+            </div>
+          )}
+        </div>
 
         {/* Profile card */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12 }}>
