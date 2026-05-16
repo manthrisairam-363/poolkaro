@@ -573,6 +573,14 @@ export default function Profile() {
               {l.label} <span style={{ color: '#ccc' }}>›</span>
             </button>
           ))}
+          <a href="mailto:support@carpoolkaro.com" style={{
+            width: '100%', padding: '14px 16px', background: 'none', border: 'none',
+            borderBottom: '1px solid #f5f5f5', textAlign: 'left', cursor: 'pointer',
+            fontSize: 14, color: '#333', display: 'flex', justifyContent: 'space-between',
+            textDecoration: 'none',
+          }}>
+            💬 Contact Support <span style={{ color: '#aaa', fontSize: 12 }}>support@carpoolkaro.com</span>
+          </a>
         </div>
 
         {/* Logout */}
