@@ -180,6 +180,8 @@ export default function Profile() {
     navigate('/')
   }
 
+  const inp = { width: '100%', padding: '11px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 14, background: '#fafafa', marginBottom: 12, fontFamily: 'inherit', boxSizing: 'border-box' }
+  const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4, display: 'block' }
   const menuCard = { background: '#fff', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10, overflow: 'hidden' }
   const menuRow = (open) => ({
     width: '100%', padding: '16px', background: 'none', border: 'none',
