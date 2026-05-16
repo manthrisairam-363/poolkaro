@@ -128,7 +128,6 @@ export default function AdminDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                   {[
                     ['👥', 'Total Users', stats.totalUsers, '#2563eb'],
-                    ['✅', 'Verified Users', stats.verifiedUsers, '#16a34a'],
                     ['🏢', 'Work Verified', stats.workVerifiedUsers, '#7c3aed'],
                     ['🚗', 'Active Rides', stats.activeRides, '#7c3aed'],
                     ['🎫', 'Confirmed Bookings', stats.totalBookings, '#d97706'],
