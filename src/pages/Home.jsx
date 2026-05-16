@@ -28,11 +28,16 @@ function RideCard({ ride, onBook, myUserId }) {
         </div>
       )}
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <div style={{
-          width: 42, height: 42, borderRadius: '50%', background: color,
-          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, fontSize: 15, flexShrink: 0,
-        }}>{initials}</div>
+        {ride.profiles?.avatar_url ? (
+          <img src={ride.profiles.avatar_url} alt="avatar"
+            style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #f0f0f0' }} />
+        ) : (
+          <div style={{
+            width: 42, height: 42, borderRadius: '50%', background: color,
+            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 700, fontSize: 15, flexShrink: 0,
+          }}>{initials}</div>
+        )}
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -191,7 +196,7 @@ export default function Home() {
 
     const { data, error } = await supabase
       .from('rides')
-      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified)')
+      .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
       .in('status', ['active'])
       .gte('ride_date', today)
       .order('ride_date', { ascending: true })
