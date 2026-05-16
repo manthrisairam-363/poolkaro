@@ -76,12 +76,24 @@ export default function Profile() {
     if (!confirm('Remove profile photo?')) return
     setUploading(true)
     try {
-      const ext = profile?.avatar_url?.split('.').pop()?.split('?')[0]
-      if (ext) await supabase.storage.from('avatars').remove([`avatar_${user.id}.${ext}`])
+      // List all files in bucket matching this user's ID and delete them all
+      const { data: files } = await supabase.storage.from('avatars').list('', {
+        search: user.id
+      })
+      if (files && files.length > 0) {
+        const paths = files.map(f => f.name)
+        await supabase.storage.from('avatars').remove(paths)
+      }
+      // Also try old subfolder format
+      await supabase.storage.from('avatars').remove([`${user.id}/avatar.jpg`, `${user.id}/avatar.png`, `${user.id}/avatar.webp`])
+      // Clear avatar_url in profile
       await supabase.from('profiles').update({ avatar_url: null }).eq('id', user.id)
       fetchProfile(user.id)
     } catch (err) {
       console.error('Remove photo error:', err)
+      // Still clear the URL even if file delete fails
+      await supabase.from('profiles').update({ avatar_url: null }).eq('id', user.id)
+      fetchProfile(user.id)
     }
     setUploading(false)
   }
