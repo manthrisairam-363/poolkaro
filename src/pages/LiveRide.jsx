@@ -110,6 +110,7 @@ export default function LiveRide() {
     }
     setGpsError('')
     setTracking(true)
+    alert('⚠️ Keep the app open while sharing location. Closing the app will stop location sharing.')
 
     // Auto-stop after 3 hours
     autoStopRef.current = setTimeout(() => {
