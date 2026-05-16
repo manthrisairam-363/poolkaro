@@ -43,18 +43,45 @@ export default function Profile() {
     if (!file) return
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `${user.id}/avatar.${ext}`
+      // Use simple filename — avoid subfolder issues with RLS
+      const ext = file.name.split('.').pop().toLowerCase()
+      const filename = `avatar_${user.id}.${ext}`
+
+      // Delete old file first if exists
+      await supabase.storage.from('avatars').remove([filename])
+
+      // Upload new file
       const { error: upErr } = await supabase.storage
-        .from('avatars').upload(path, file, { upsert: true })
+        .from('avatars').upload(filename, file, {
+          upsert: true,
+          contentType: file.type,
+        })
       if (upErr) throw upErr
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars').getPublicUrl(path)
-      await supabase.from('profiles')
-        .update({ avatar_url: publicUrl }).eq('id', user.id)
+
+      // Get public URL with cache bust
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filename)
+      const publicUrl = data.publicUrl + '?t=' + Date.now()
+
+      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id)
       fetchProfile(user.id)
     } catch (err) {
       alert('Upload failed: ' + err.message)
+    }
+    setUploading(false)
+    // Reset input so same file can be re-selected
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  async function removePhoto() {
+    if (!confirm('Remove profile photo?')) return
+    setUploading(true)
+    try {
+      const ext = profile?.avatar_url?.split('.').pop()?.split('?')[0]
+      if (ext) await supabase.storage.from('avatars').remove([`avatar_${user.id}.${ext}`])
+      await supabase.from('profiles').update({ avatar_url: null }).eq('id', user.id)
+      fetchProfile(user.id)
+    } catch (err) {
+      console.error('Remove photo error:', err)
     }
     setUploading(false)
   }
@@ -169,7 +196,7 @@ export default function Profile() {
               style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: '#111', border: '2px solid #facc15', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
               {uploading ? '⏳' : '📷'}
             </button>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadPhoto} />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={uploadPhoto} />
           </div>
           <div>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -177,6 +204,16 @@ export default function Profile() {
               {profile?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>✓ VERIFIED</span>}
             </div>
             <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button onClick={() => fileRef.current?.click()} style={{ background: 'none', border: '1px solid #333', borderRadius: 8, padding: '3px 10px', color: '#aaa', fontSize: 11, cursor: 'pointer' }}>
+                {uploading ? '⏳ Uploading...' : profile?.avatar_url ? '📷 Change Photo' : '📷 Add Photo'}
+              </button>
+              {profile?.avatar_url && (
+                <button onClick={removePhoto} style={{ background: 'none', border: '1px solid #333', borderRadius: 8, padding: '3px 10px', color: '#dc2626', fontSize: 11, cursor: 'pointer' }}>
+                  🗑️ Remove
+                </button>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
               <span style={{
                 background: profile?.role === 'driver' ? '#dbeafe' : profile?.role === 'rider' ? '#fce7f3' : '#f0fdf4',
@@ -189,16 +226,8 @@ export default function Profile() {
                 const emailForCompany = (profile?.work_email_verified && profile?.work_email)
                   ? profile.work_email : user?.email
                 const co = getCompanyFromEmail(emailForCompany)
-                if (co) return (
-                  <span style={{ background: '#facc15', color: '#111', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 800 }}>
-                    🏢 {co.name}
-                  </span>
-                )
-                if (profile?.work_email_verified) return (
-                  <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700 }}>
-                    ✓ Work Verified
-                  </span>
-                )
+                if (co) return <span style={{ background: '#facc15', color: '#111', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 800 }}>🏢 {co.name}</span>
+                if (profile?.work_email_verified) return <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700 }}>✓ Work Verified</span>
                 return null
               })()}
             </div>
