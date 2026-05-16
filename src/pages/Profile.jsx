@@ -198,34 +198,40 @@ export default function Profile() {
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt="avatar"
-                style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15' }} />
+                style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15', display: 'block' }} />
             ) : (
-              <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 24 }}>
+              <div style={{ width: 70, height: 70, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 26 }}>
                 {initials}
               </div>
             )}
-            <button onClick={() => fileRef.current?.click()}
-              style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: '#111', border: '2px solid #facc15', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+            {/* Upload overlay at bottom */}
+            <button onClick={() => fileRef.current?.click()} style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer',
+              borderRadius: '0 0 35px 35px', padding: '4px 0',
+              fontSize: 10, color: '#fff', fontWeight: 600, lineHeight: 1,
+            }}>
               {uploading ? '⏳' : '📷'}
             </button>
+            {/* Remove button top-right */}
+            {profile?.avatar_url && (
+              <button onClick={removePhoto} style={{
+                position: 'absolute', top: -2, right: -2,
+                width: 20, height: 20, borderRadius: '50%',
+                background: '#dc2626', border: '2px solid #111',
+                cursor: 'pointer', fontSize: 9, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, lineHeight: 1,
+              }}>✕</button>
+            )}
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={uploadPhoto} />
           </div>
-          <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {profile?.full_name || 'Your Name'}
               {profile?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>✓ VERIFIED</span>}
             </div>
             <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button onClick={() => fileRef.current?.click()} style={{ background: 'none', border: '1px solid #333', borderRadius: 8, padding: '3px 10px', color: '#aaa', fontSize: 11, cursor: 'pointer' }}>
-                {uploading ? '⏳ Uploading...' : profile?.avatar_url ? '📷 Change Photo' : '📷 Add Photo'}
-              </button>
-              {profile?.avatar_url && (
-                <button onClick={removePhoto} style={{ background: 'none', border: '1px solid #333', borderRadius: 8, padding: '3px 10px', color: '#dc2626', fontSize: 11, cursor: 'pointer' }}>
-                  🗑️ Remove
-                </button>
-              )}
-            </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
               <span style={{
                 background: profile?.role === 'driver' ? '#dbeafe' : profile?.role === 'rider' ? '#fce7f3' : '#f0fdf4',
