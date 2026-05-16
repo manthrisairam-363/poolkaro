@@ -65,7 +65,7 @@ function PassengerCard({ booking }) {
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[
           ['💰 Platform fee', '₹2 (wallet)'],
-          ['📥 You receive', `₹${booking.driver_receives}`],
+          ['📥 Fare (via UPI)', `₹${booking.ride_fare || booking.fare}`],
           ['💺 Seats', booking.seats_booked],
           ['📅 Booked', new Date(booking.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })],
         ].map(([k, v]) => (
@@ -218,6 +218,18 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
             🔁 Cancel Series
           </button>
         )}
+        {(ride.status === 'active' || ride.status === 'full') && bookedCount > 0 && (
+          <button onClick={async () => {
+            const { data } = await supabase.from('bookings').select('id').eq('ride_id', ride.id).eq('status', 'confirmed').limit(1).maybeSingle()
+            if (data?.id) navigate(`/live/${data.id}`)
+            else alert('No confirmed bookings yet')
+          }} style={{
+            padding: '8px 12px', background: '#111', color: '#facc15',
+            border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          }}>
+            📍 Live
+          </button>
+        )}
         {(ride.status === 'active' || ride.status === 'full') && (
           <button onClick={() => onCancel(ride.id)} style={{
             padding: '8px 14px', background: '#fef2f2', color: '#dc2626',
@@ -267,7 +279,7 @@ export default function MyRides() {
     const [ridesRes, bookingsRes] = await Promise.all([
       supabase.from('rides').select('*').eq('driver_id', user.id).order('ride_date', { ascending: false }),
       supabase.from('bookings')
-        .select('*, rides(from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone))') 
+        .select('*, rides(from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))') 
         .eq('rider_id', user.id)
         .order('created_at', { ascending: false }),
     ])
@@ -309,33 +321,13 @@ export default function MyRides() {
       // Cancel the ride
       await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
 
-      // Refund all riders ₹2 each
+      // Refund both parties for each booking via SECURITY DEFINER RPC
       for (const b of (bookings || [])) {
-        const { data: riderWallet } = await supabase
-          .from('wallets').select('balance').eq('user_id', b.rider_id).maybeSingle()
-        if (riderWallet) {
-          await supabase.from('wallets')
-            .update({ balance: riderWallet.balance + 200 }).eq('user_id', b.rider_id)
-          await supabase.from('wallet_transactions').insert({
-            user_id: b.rider_id, amount: 200,
-            type: 'refund_cancel', description: 'Driver cancelled ride - ₹2 refunded',
-          })
-        }
-      }
-
-      // Refund driver ₹2 per booking
-      if ((bookings || []).length > 0) {
-        const { data: driverWallet } = await supabase
-          .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
-        if (driverWallet) {
-          const refundAmount = 200 * bookings.length
-          await supabase.from('wallets')
-            .update({ balance: driverWallet.balance + refundAmount }).eq('user_id', user.id)
-          await supabase.from('wallet_transactions').insert({
-            user_id: user.id, amount: refundAmount,
-            type: 'refund_cancel', description: `Ride cancelled - ₹${refundAmount/100} refunded`,
-          })
-        }
+        await supabase.rpc('refund_cancellation', {
+          p_rider_id: b.rider_id,
+          p_driver_id: user.id,
+          p_amount: 200,
+        })
       }
 
       // Notify all cancelled riders
@@ -397,35 +389,13 @@ export default function MyRides() {
           status: newSeats > 0 ? 'active' : 'full'
         }).eq('id', rideId)
 
-        // Step 4: Refund ₹2 to rider wallet directly
-        const { data: riderWallet } = await supabase
-          .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
-        if (riderWallet) {
-          await supabase.from('wallets')
-            .update({ balance: riderWallet.balance + 200 })
-            .eq('user_id', user.id)
-          await supabase.from('wallet_transactions').insert({
-            user_id: user.id,
-            amount: 200,
-            type: 'refund_cancel',
-            description: 'Cancellation refund - ₹2 returned',
-          })
-        }
-
-        // Step 5: Refund ₹2 to driver wallet directly
-        const { data: driverWallet } = await supabase
-          .from('wallets').select('balance').eq('user_id', ride.driver_id).maybeSingle()
-        if (driverWallet) {
-          await supabase.from('wallets')
-            .update({ balance: driverWallet.balance + 200 })
-            .eq('user_id', ride.driver_id)
-          await supabase.from('wallet_transactions').insert({
-            user_id: ride.driver_id,
-            amount: 200,
-            type: 'refund_cancel',
-            description: 'Rider cancelled - ₹2 returned',
-          })
-        }
+        // Steps 4+5: Refund ₹2 to BOTH wallets via SECURITY DEFINER RPC (bypasses RLS)
+        const { error: refundErr } = await supabase.rpc('refund_cancellation', {
+          p_rider_id: user.id,
+          p_driver_id: ride.driver_id,
+          p_amount: 200,
+        })
+        if (refundErr) console.error('Refund error:', refundErr.message)
       }
 
       // Notify driver
@@ -520,34 +490,41 @@ export default function MyRides() {
                   <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} />
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                  ✅ Seat Confirmed
+                  ✅ {b.seats_booked} seat{b.seats_booked > 1 ? 's' : ''} confirmed
                 </span>
-                <span style={{ background: '#dbeafe', color: '#1d4ed8', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
-                  Pay ₹{b.ride_fare} to owner
-                </span>
-                <span style={{
-                  background: b.payment_status === 'paid' ? '#f0fdf4' : '#fff7ed',
-                  color: b.payment_status === 'paid' ? '#16a34a' : '#c2410c',
-                  borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600,
-                }}>
-                  {b.payment_status === 'paid' ? '✅ Confirmed' : '⏳ Pending'}
+                <span style={{ background: '#f8f9fa', color: '#555', borderRadius: 20, padding: '3px 10px', fontSize: 12 }}>
+                  💰 ₹2 platform fee paid
                 </span>
               </div>
+              {/* Pay driver button */}
+              {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && b.status !== 'completed' && (
+                <button onClick={() => {
+                  const upi = b.rides.profiles.upi_id
+                  const fare = b.ride_fare || b.rides?.fare || 150
+                  const name = b.rides.profiles.full_name || 'Car Owner'
+                  window.open(`upi://pay?pa=${upi}&pn=${encodeURIComponent(name)}&am=${fare}&cu=INR&tn=${encodeURIComponent('CarpoolKaro ride fare')}`, '_blank')
+                }} style={{
+                  width: '100%', marginTop: 8, padding: '11px',
+                  background: '#111', color: '#facc15',
+                  border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                  💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
+                </button>
+              )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                {b.payment_status === 'paid' && b.status !== 'completed' && b.status !== 'cancelled' && (
+                {b.status !== 'completed' && b.status !== 'cancelled' && (
                   <button onClick={() => navigate(`/live/${b.id}`)} style={{
-                    flex: 1, padding: 9, background: '#111', color: '#facc15',
+                    flex: 1, padding: 9, background: '#0f172a', color: '#facc15',
                     border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   }}>📍 Live Ride</button>
                 )}
-                {b.payment_status === 'paid' && b.status !== 'cancelled' && (
-                  <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{
-                    flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed',
-                    border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  }}>⭐ Rate</button>
-                )}
+                <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{
+                  flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed',
+                  border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}>⭐ Rate</button>
                 {b.status !== 'cancelled' && b.status !== 'completed' && (
                   <button onClick={() => cancelBooking(b.id, b.ride_id, b.seats_booked)} style={{
                     flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626',
