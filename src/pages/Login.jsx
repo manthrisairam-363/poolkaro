@@ -145,6 +145,10 @@ export default function Login() {
 
       <div style={{ color: '#333', fontSize: 11, marginTop: 20, textAlign: 'center', lineHeight: 1.8 }}>
         By continuing you agree to our Terms & Privacy Policy
+        <br />
+        <a href="mailto:support@carpoolkaro.com" style={{ color: '#888', textDecoration: 'none' }}>
+          Need help? support@carpoolkaro.com
+        </a>
       </div>
     </div>
   )
