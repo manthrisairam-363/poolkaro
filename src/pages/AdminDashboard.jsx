@@ -390,8 +390,6 @@ return (
     <button onClick={() => setViewAdminPhoto(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, width: 44, height: 44, borderRadius: '50%', cursor: 'pointer' }}>✕</button>
   </div>
 )}
-```
-
 </>
 )
 }
