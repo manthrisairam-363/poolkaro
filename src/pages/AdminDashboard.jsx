@@ -75,8 +75,22 @@ export default function AdminDashboard() {
     }
   }
 
+  const [selectedUser, setSelectedUser] = useState(null)
+
   async function toggleVerified(userId, current) {
     await supabase.from('profiles').update({ is_verified: !current }).eq('id', userId)
+    setSelectedUser(prev => prev?.id === userId ? { ...prev, is_verified: !current } : prev)
+    fetchAll()
+  }
+
+  async function deleteUser(u) {
+    if (!confirm(`⚠️ DELETE ${u.full_name || u.email}?\n\nThis permanently removes their account, all rides, bookings and wallet. Cannot be undone.`)) return
+    // Delete from profiles (cascades to most tables)
+    await supabase.from('bookings').delete().eq('rider_id', u.id)
+    await supabase.from('rides').delete().eq('driver_id', u.id)
+    await supabase.from('wallets').delete().eq('user_id', u.id)
+    await supabase.from('profiles').delete().eq('id', u.id)
+    setSelectedUser(null)
     fetchAll()
   }
 
@@ -160,56 +174,142 @@ export default function AdminDashboard() {
 
             {tab === 'users' && (
               <div>
-                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{users.length} total users</div>
-                {users.map(u => (
-                  <div key={u.id} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{users.length} total users — tap to view details</div>
+                {users.map(u => {
+                  const initials = u.full_name?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() || '?'
+                  return (
+                    <div key={u.id} onClick={() => setSelectedUser(u)}
+                      style={{ background: '#1a1a1a', borderRadius: 12, padding: 12, marginBottom: 8, border: '1px solid #222', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {/* Avatar */}
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt="avatar" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #333' }} />
+                      ) : (
+                        <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#333', color: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0 }}>
+                          {initials}
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 700, fontSize: 14 }}>{u.full_name || 'No name'}</span>
-                          {u.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>✓ VERIFIED</span>}
-                          {u.work_email_verified && <span style={{ background: '#16a34a', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>🏢 WORK</span>}
+                          {u.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
+                          {u.work_email_verified && <span style={{ background: '#16a34a', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>🏢</span>}
                         </div>
-                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{u.phone} · {u.email?.slice(0, 25)}</div>
-                        {u.work_email && <div style={{ color: '#16a34a', fontSize: 11, marginTop: 2 }}>🏢 {u.work_email}</div>}
-                        {u.referral_code && (
-                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                            🎁 Code: <span style={{ color: '#facc15', fontWeight: 700 }}>{u.referral_code}</span>
-                            {u.referred_by && <span style={{ color: '#888' }}> · Referred by: {users.find(x => x.referral_code === u.referred_by)?.full_name || u.referred_by}</span>}
-                          </div>
-                        )}
-                        <div style={{ color: '#555', fontSize: 11, marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                          <span>🚗 {u.total_rides_given || 0} given</span>
-                          <span>🙋 {u.total_rides_taken || 0} taken</span>
-                          <span>⭐ {Number(u.avg_rating || 0).toFixed(1)}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
-                          <span style={{
-                            background: wallets[u.id] > 5 ? '#14532d' : wallets[u.id] > 0 ? '#422006' : '#3b0764',
-                            color: wallets[u.id] > 5 ? '#4ade80' : wallets[u.id] > 0 ? '#fb923c' : '#c084fc',
-                            fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                          }}>
+                        <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{u.phone} · {u.email?.slice(0,22)}</div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
+                          <span style={{ background: wallets[u.id] > 5 ? '#14532d' : '#1a1a1a', color: wallets[u.id] > 5 ? '#4ade80' : '#888', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
                             💰 ₹{wallets[u.id] ?? '—'}
                           </span>
-                          <span style={{ color: '#444', fontSize: 10 }}>
-                            Joined {new Date(u.created_at).toLocaleDateString('en-IN')}
-                          </span>
+                          <span style={{ color: '#444', fontSize: 10 }}>Joined {new Date(u.created_at).toLocaleDateString('en-IN')}</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => toggleVerified(u.id, u.is_verified)}
-                        style={{
-                          padding: '6px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                          background: u.is_verified ? '#1d4ed8' : '#333',
-                          color: u.is_verified ? '#fff' : '#888', flexShrink: 0, marginLeft: 8,
-                        }}>
-                        {u.is_verified ? '✓ Verified' : 'Verify'}
-                      </button>
+                      <span style={{ color: '#444', fontSize: 16 }}>›</span>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
+
+            {/* User Detail Modal */}
+            {selectedUser && (() => {
+              const u = selectedUser
+              const initials = u.full_name?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() || '?'
+              const userBookings = bookings.filter(b => b.rider_id === u.id || b.driver_id === u.id)
+              return (
+                <div onClick={() => setSelectedUser(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
+                  <div onClick={e => e.stopPropagation()} style={{ background: '#111', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '85vh', overflowY: 'auto' }}>
+                    {/* Handle */}
+                    <div style={{ width: 40, height: 4, background: '#333', borderRadius: 2, margin: '0 auto 20px' }} />
+
+                    {/* Profile photo - large */}
+                    <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt="avatar" style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '3px solid #facc15', marginBottom: 10 }} />
+                      ) : (
+                        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#222', color: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 28, margin: '0 auto 10px' }}>
+                          {initials}
+                        </div>
+                      )}
+                      <div style={{ fontWeight: 800, fontSize: 18, color: '#fff' }}>{u.full_name || 'No name'}</div>
+                      <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{u.email}</div>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                        {u.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 10, fontWeight: 700 }}>✓ Verified</span>}
+                        {u.work_email_verified && <span style={{ background: '#16a34a', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 10, fontWeight: 700 }}>🏢 Work Verified</span>}
+                        {u.is_admin && <span style={{ background: '#dc2626', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 10, fontWeight: 700 }}>👑 Admin</span>}
+                      </div>
+                    </div>
+
+                    {/* Details grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                      {[
+                        ['📱 Phone', u.phone || '—'],
+                        ['💰 Wallet', `₹${wallets[u.id] ?? '—'}`],
+                        ['🚗 Rides given', u.total_rides_given || 0],
+                        ['🙋 Rides taken', u.total_rides_taken || 0],
+                        ['⭐ Rating', Number(u.avg_rating || 0).toFixed(1)],
+                        ['🎁 Referral code', u.referral_code || '—'],
+                        ['🚘 Vehicle', u.vehicle_model || '—'],
+                        ['💳 UPI', u.upi_id || '—'],
+                      ].map(([k, v]) => (
+                        <div key={k} style={{ background: '#1a1a1a', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 10, color: '#666' }}>{k}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginTop: 2 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Work email */}
+                    {u.work_email && (
+                      <div style={{ background: '#0a2e1a', borderRadius: 8, padding: '8px 12px', marginBottom: 10, border: '1px solid #166534' }}>
+                        <div style={{ fontSize: 10, color: '#16a34a' }}>🏢 VERIFIED WORK EMAIL</div>
+                        <div style={{ fontSize: 13, color: '#4ade80', fontWeight: 600, marginTop: 2 }}>{u.work_email}</div>
+                      </div>
+                    )}
+
+                    {/* Emergency contact */}
+                    {u.emergency_contact_phone && (
+                      <div style={{ background: '#2a0a0a', borderRadius: 8, padding: '8px 12px', marginBottom: 10, border: '1px solid #7f1d1d' }}>
+                        <div style={{ fontSize: 10, color: '#f87171' }}>🆘 EMERGENCY CONTACT</div>
+                        <div style={{ fontSize: 13, color: '#fca5a5', fontWeight: 600, marginTop: 2 }}>{u.emergency_contact_name} · {u.emergency_contact_phone}</div>
+                      </div>
+                    )}
+
+                    {/* Referred by */}
+                    {u.referred_by && (
+                      <div style={{ background: '#1a1a1a', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+                        <div style={{ fontSize: 10, color: '#888' }}>🎁 REFERRED BY CODE</div>
+                        <div style={{ fontSize: 13, color: '#facc15', fontWeight: 700, marginTop: 2 }}>{u.referred_by} → {users.find(x => x.referral_code === u.referred_by)?.full_name || 'Unknown'}</div>
+                      </div>
+                    )}
+
+                    {/* Joined */}
+                    <div style={{ color: '#444', fontSize: 11, textAlign: 'center', marginBottom: 14 }}>
+                      Member since {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => toggleVerified(u.id, u.is_verified)} style={{
+                        flex: 1, padding: 12, borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                        background: u.is_verified ? '#333' : '#1d4ed8', color: '#fff',
+                      }}>
+                        {u.is_verified ? '✕ Unverify' : '✓ Verify'}
+                      </button>
+                      {!u.is_admin && (
+                        <button onClick={() => deleteUser(u)} style={{
+                          flex: 1, padding: 12, borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                          background: '#7f1d1d', color: '#fca5a5',
+                        }}>
+                          🗑️ Delete Account
+                        </button>
+                      )}
+                    </div>
+                    <button onClick={() => setSelectedUser(null)} style={{ width: '100%', marginTop: 8, padding: 10, background: 'none', border: '1px solid #333', borderRadius: 10, color: '#666', fontSize: 13, cursor: 'pointer' }}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* RIDES */}
             {tab === 'rides' && (
