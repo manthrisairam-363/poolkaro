@@ -207,9 +207,9 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
           <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '12px 14px', marginBottom: 16, border: '1px solid #bbf7d0' }}>
             <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 700, marginBottom: 4 }}>💰 Your Earnings</div>
             <div style={{ fontSize: 13 }}>
-              {form.seats_available} seats × ₹{form.fare - 2} = <strong>₹{form.seats_available * (form.fare - 2)}</strong>
+              {form.seats_available} seats × ₹{form.fare} = <strong>₹{form.seats_available * form.fare}</strong> via UPI
             </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>CarpoolKaro deducts ₹2 per confirmed booking</div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹2 platform fee per booking charged from your wallet separately</div>
           </div>
         )}
 
