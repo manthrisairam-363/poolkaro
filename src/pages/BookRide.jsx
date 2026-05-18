@@ -68,7 +68,7 @@ export default function BookRide() {
     const { data: myProf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
     const { error: notifErr } = await supabase.from('notifications').insert({
       user_id: ride.driver_id,
-      title: '🎉 New Booking!',
+      type: 'booking', title: '🎉 New Booking!',
       message: `${myProf?.full_name || 'Someone'} booked ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''} on your ${ride.from_location} → ${ride.to_location} ride.`,
       is_read: false,
     })
