@@ -267,11 +267,10 @@ export default function MyRides() {
   useEffect(() => { fetchData() }, [])
 
   async function sendNotification(userId, title, body) {
-    try {
-      await supabase.from('notifications').insert({
-        user_id: userId, title, body, read: false
-      })
-    } catch(e) { console.error('Notif error:', e) }
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId, title, body, read: false
+    })
+    if (error) console.error('Notification failed:', error.message, '| user:', userId)
   }
 
   async function fetchData() {
@@ -323,11 +322,13 @@ export default function MyRides() {
 
       // Refund both parties for each booking via SECURITY DEFINER RPC
       for (const b of (bookings || [])) {
-        await supabase.rpc('refund_cancellation', {
+        const { data: refundResult, error: refundErr } = await supabase.rpc('refund_cancellation', {
           p_rider_id: b.rider_id,
           p_driver_id: user.id,
           p_amount: 200,
         })
+        if (refundErr) console.error('Refund error for rider', b.rider_id, ':', refundErr.message)
+        if (refundResult?.success === false) console.error('Refund failed:', refundResult.error)
       }
 
       // Notify all cancelled riders
@@ -389,13 +390,24 @@ export default function MyRides() {
           status: newSeats > 0 ? 'active' : 'full'
         }).eq('id', rideId)
 
-        // Steps 4+5: Refund ₹2 to BOTH wallets via SECURITY DEFINER RPC (bypasses RLS)
-        const { error: refundErr } = await supabase.rpc('refund_cancellation', {
+        // Refund both wallets via SECURITY DEFINER RPC
+        const { data: refundResult, error: refundErr } = await supabase.rpc('refund_cancellation', {
           p_rider_id: user.id,
           p_driver_id: ride.driver_id,
           p_amount: 200,
         })
-        if (refundErr) console.error('Refund error:', refundErr.message)
+        if (refundErr) {
+          console.error('Refund RPC error:', refundErr.message)
+          alert('⚠️ Booking cancelled but refund failed. Contact support@carpoolkaro.com')
+          await fetchData()
+          return
+        }
+        if (refundResult?.success === false) {
+          console.error('Refund failed:', refundResult.error)
+          alert('⚠️ Booking cancelled but refund failed: ' + refundResult.error)
+          await fetchData()
+          return
+        }
       }
 
       // Notify driver
