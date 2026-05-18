@@ -17,7 +17,7 @@ export default function NotificationBell() {
   }, [open])
 
   // FIXED: column is "read" not "is_read"
-  const unread = notifications.filter(n => !n.read).length
+  const unread = notifications.filter(n => !n.is_read).length
 
   useEffect(() => {
     if (!user) return
@@ -49,10 +49,10 @@ export default function NotificationBell() {
   async function markAllRead() {
     // FIXED: column is "read" not "is_read"
     await supabase.from('notifications')
-      .update({ read: true })
+      .update({ is_read: true })
       .eq('user_id', user.id)
-      .eq('read', false)
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+      .eq('is_read', false)
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
   }
 
   function timeAgo(date) {
@@ -93,10 +93,10 @@ export default function NotificationBell() {
             <div style={{ padding: 24, textAlign: 'center', color: '#aaa', fontSize: 13 }}>No notifications yet</div>
           ) : (
             notifications.map(n => (
-              <div key={n.id} style={{ padding: '12px 16px', background: n.read ? '#fff' : '#f0f4ff', borderBottom: '1px solid #f5f5f5' }}>
+              <div key={n.id} style={{ padding: '12px 16px', background: n.is_read ? '#fff' : '#f0f4ff', borderBottom: '1px solid #f5f5f5' }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{n.title}</div>
                 {/* FIXED: column is "body" not "message" */}
-                <div style={{ fontSize: 12, color: '#666', marginTop: 2, lineHeight: 1.5 }}>{n.body}</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 2, lineHeight: 1.5 }}>{n.message}</div>
                 <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>{timeAgo(n.created_at)}</div>
               </div>
             ))
