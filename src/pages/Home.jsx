@@ -387,8 +387,8 @@ export default function Home() {
                     await supabase.from('notifications').insert({
                       user_id: req.rider_id,
                       title: '🚗 Someone can offer you a ride!',
-                      body: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides now!`,
-                      read: false,
+                      message: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides now!`,
+                      is_read: false,
                     })
                     alert('✅ Rider notified!')
                   }} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 8 }}>
@@ -496,8 +496,8 @@ export default function Home() {
                         await supabase.from('notifications').insert({
                           user_id: req.rider_id,
                           title: '🚗 Someone can offer you a ride!',
-                          body: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides tab now!`,
-                          read: false,
+                          message: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides tab now!`,
+                          is_read: false,
                         })
                         alert('✅ Rider has been notified! They will check the rides now.')
                       }} style={{ background: '#111', color: '#facc15', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
