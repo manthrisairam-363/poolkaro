@@ -386,7 +386,7 @@ export default function Home() {
                   <button onClick={async () => {
                     await supabase.from('notifications').insert({
                       user_id: req.rider_id,
-                      title: '🚗 Someone can offer you a ride!',
+                      type: 'general', title: '🚗 Someone can offer you a ride!',
                       message: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides now!`,
                       is_read: false,
                     })
@@ -495,7 +495,7 @@ export default function Home() {
                       <button onClick={async () => {
                         await supabase.from('notifications').insert({
                           user_id: req.rider_id,
-                          title: '🚗 Someone can offer you a ride!',
+                          type: 'general', title: '🚗 Someone can offer you a ride!',
                           message: `A car owner is available for ${req.from_location} → ${req.to_location}. Check All Rides tab now!`,
                           is_read: false,
                         })
