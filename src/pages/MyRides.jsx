@@ -268,7 +268,7 @@ export default function MyRides() {
 
   async function sendNotification(userId, title, message) {
     const { error } = await supabase.from('notifications').insert({
-      user_id: userId, title, message, type: 'general', is_read: false
+      user_id: userId, title, message, type: 'booking', is_read: false
     })
     if (error) console.error('Notification failed:', error.message, '| user:', userId)
   }
