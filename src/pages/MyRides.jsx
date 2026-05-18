@@ -266,9 +266,9 @@ export default function MyRides() {
 
   useEffect(() => { fetchData() }, [])
 
-  async function sendNotification(userId, title, body) {
+  async function sendNotification(userId, title, message) {
     const { error } = await supabase.from('notifications').insert({
-      user_id: userId, title, body, read: false
+      user_id: userId, title, body, is_read: false
     })
     if (error) console.error('Notification failed:', error.message, '| user:', userId)
   }
