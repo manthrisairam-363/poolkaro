@@ -69,8 +69,8 @@ export default function BookRide() {
     const { error: notifErr } = await supabase.from('notifications').insert({
       user_id: ride.driver_id,
       title: '🎉 New Booking!',
-      body: `${myProf?.full_name || 'Someone'} booked ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''} on your ${ride.from_location} → ${ride.to_location} ride.`,
-      read: false,
+      message: `${myProf?.full_name || 'Someone'} booked ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''} on your ${ride.from_location} → ${ride.to_location} ride.`,
+      is_read: false,
     })
     if (notifErr) console.error('Booking notification failed:', notifErr.message)
 
