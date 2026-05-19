@@ -1,55 +1,81 @@
 import { useState, useRef, useEffect } from 'react'
 
 const SUGGESTED_AREAS = [
-  // IT Corridors & Tech Parks
-  'HITEC City', 'Madhapur', 'Gachibowli', 'Kondapur', 'Kokapet',
-  'Nanakramguda', 'Financial District', 'Mindspace', 'DLF Cybercity',
-  'Raheja Mindspace', 'WaveRock', 'Salarpuria', 'Incor 9',
-  'Divyasree Techno Park', 'Lanco Hills', 'Aparna Cyber Life',
-  'ISB Hyderabad', 'BITS Hyderabad', 'Inorbit Mall', 'Jubilee Hills',
-  'Banjara Hills', 'Khajaguda', 'Narsingi', 'Puppalaguda',
-  'Manikonda', 'Tellapur', 'Gopanpally', 'Serilingampally',
+  // ── IT HUBS & TECH PARKS ───────────────────────────
+  'HITEC City', 'Hitech City', 'Madhapur', 'Raheja Mindspace', 'Mindspace Madhapur',
+  'Financial District', 'Nanakramguda', 'WaveRock SEZ', 'DLF Cyber City',
+  'Gachibowli', 'Divyasree Orion', 'Salarpuria Knowledge City',
+  'Kokapet', 'GAR Kokapet', 'Raidurgam', 'Khajaguda',
+  'Manikonda', 'Narsingi', 'Puppalaguda', 'Tellapur', 'Gopanpally',
+  'Kondapur', 'Kothaguda', 'Mindspace Pocharam', 'Pocharam', 'Nacharam',
+  'TCS Synergy Park', 'L&T Infocity', 'Cyberabad', 'Vanenburg IT Park',
+  'ISB Campus', 'Incor 9', 'Lanco Hills', 'Phoenix Hyderabad',
 
-  // East Hyderabad
-  'Uppal Ring Road', 'Uppal', 'Nagole', 'LB Nagar', 'Dilsukhnagar',
-  'Vanasthalipuram', 'Hayathnagar', 'Pocharam', 'Ghatkesar',
-  'Boduppal', 'Peerzadiguda', 'Medipally', 'Ramanthapur',
-  'Tarnaka', 'Malkajgiri', 'Sainikpuri', 'Neredmet',
-  'AS Rao Nagar', 'ECIL', 'Kapra', 'Kushaiguda',
+  // ── MAJOR COMPANY CAMPUSES ─────────────────────────
+  'Amazon Hyderabad', 'Amazon Campus Nanakramguda',
+  'Microsoft Campus Hyderabad', 'Google Hyderabad',
+  'Oracle Hyderabad', 'Facebook Hyderabad',
+  'Infosys Pocharam', 'TCS Gachibowli', 'Wipro Gachibowli', 'Wipro SEZ',
+  'Accenture Gachibowli', 'Capgemini Gachibowli',
+  'Cognizant Gachibowli', 'HCL Uppal', 'IBM Gachibowli',
+  'Tech Mahindra Gachibowli', 'Deloitte Hyderabad',
+  'JP Morgan Madhapur', 'Apple India Hyderabad',
 
-  // West Hyderabad
-  'Kukatpally', 'KPHB', 'Miyapur', 'Bachupally', 'Kompally',
-  'Nizampet', 'Pragati Nagar', 'Chandanagar', 'Lingampally',
+  // ── WEST HYDERABAD (residential near IT) ──────────
+  'Miyapur', 'KPHB', 'Kukatpally', 'Bachupally', 'Nizampet',
+  'Chanda Nagar', 'Chandanagar', 'Lingampally', 'Hafeezpet',
+  'Pragathi Nagar', 'Serilingampally', 'Nallagandla',
   'Patancheru', 'Isnapur', 'Dundigal', 'Quthbullapur',
-  'Alwal', 'Suraram', 'Jeedimetla', 'Balanagar',
 
-  // North Hyderabad
-  'Secunderabad', 'Begumpet', 'Bowenpally', 'Trimulgherry',
-  'Karkhana', 'Maredpally', 'Marredpally', 'Paradise',
-  'SD Road', 'Clock Tower', 'West Maredpally', 'East Marredpally',
-  'Lalaguda', 'Tirumalagiri', 'Rasoolpura',
+  // ── GACHIBOWLI / SOUTH-WEST ────────────────────────
+  'Attapur', 'Rajendra Nagar', 'Gandipet', 'Kismatpur',
+  'Bandlaguda', 'Shadnagar', 'Maheshwaram', 'Adibatla',
 
-  // Central Hyderabad
-  'Ameerpet', 'SR Nagar', 'Erragadda', 'Sanath Nagar',
-  'Punjagutta', 'Somajiguda', 'Raj Bhavan', 'Lakdi Ka Pul',
-  'Nampally', 'Abids', 'Koti', 'Sultan Bazar', 'Mozamjahi Market',
-  'Charminar', 'Falaknuma', 'Mehdipatnam', 'Masab Tank',
-  'Tolichowki', 'Attapur', 'Rethibowli',
+  // ── MADHAPUR / JUBILEE / BANJARA ──────────────────
+  'Jubilee Hills', 'Banjara Hills', 'Film Nagar', 'Panjagutta',
+  'Kavuri Hills', 'Durgam Cheruvu', 'Ayyappa Society',
 
-  // South Hyderabad
-  'Rajendra Nagar', 'Owaisi', 'Shamshabad', 'RGI Airport',
-  'Shamirpet', 'Medchal', 'Kandlakoya', 'Keesara',
+  // ── CENTRAL HYDERABAD ─────────────────────────────
+  'Ameerpet', 'SR Nagar', 'Punjagutta', 'Somajiguda',
+  'Khairatabad', 'Lakdikapul', 'Mehdipatnam', 'Tolichowki',
+  'Masab Tank', 'Himayatnagar', 'Narayanguda',
+  'Erragadda', 'Sanath Nagar', 'Rethibowli',
+  'Koti', 'Abids', 'Nampally', 'Sultan Bazar',
 
-  // Outer Ring Road & New Areas
-  'Kokapet ORR', 'Nanakramguda ORR', 'Gachibowli ORR',
-  'Shamshabad ORR', 'Patancheru ORR', 'Kompally ORR',
+  // ── NORTH HYDERABAD ───────────────────────────────
+  'Secunderabad', 'Begumpet', 'Old Bowenpally', 'Bowenpally',
+  'Trimulgherry', 'Karkhana', 'Maredpally', 'Paradise',
+  'Rasoolpura', 'Lalaguda', 'Tirumalagiri',
+  'Jeedimetla', 'IDA Jeedimetla', 'Balanagar',
+  'Alwal', 'Malkajgiri', 'Sainikpuri', 'AS Rao Nagar',
+  'Yapral', 'Kapra', 'Ecil', 'Kushaiguda', 'Neredmet',
+  'Kompally', 'Medchal', 'Shamirpet', 'Kandlakoya',
 
-  // IT Company Areas
-  'GAR Kokapet', 'Lakshmi Infobahn', 'Phoenix Hyderabad',
-  'L&T Infocity', 'Tata Consultancy Deccan Park', 'Infosys SDB',
-  'Wipro SEZ', 'Capgemini Gachibowli', 'Accenture Hi-Tech City',
-  'Microsoft Hyderabad', 'Amazon Hyderabad', 'Google Hyderabad',
-  'Facebook Hyderabad', 'Apple India', 'Deloitte Hyderabad',
+  // ── EAST HYDERABAD ─────────────────────────────────
+  'Uppal', 'Uppal Ring Road', 'Uppal Metro',
+  'Nagole', 'Nagole Metro', 'LB Nagar', 'Dilsukhnagar',
+  'Kothapet', 'Mallapur', 'Habsiguda',
+  'Tarnaka', 'Mettuguda', 'Boduppal',
+  'Peerzadiguda', 'Ghatkesar', 'Medipally',
+  'Hayathnagar', 'Vanasthalipuram', 'Saroornagar',
+  'Ramanthapur', 'Amberpet', 'Moulali', 'Chilkalguda',
+
+  // ── METRO STATIONS ────────────────────────────────
+  'Miyapur Metro', 'JNTU Metro', 'KPHB Metro', 'Kukatpally Metro',
+  'Balanagar Metro', 'Moosapet Metro', 'Bharat Nagar Metro',
+  'Erragadda Metro', 'SR Nagar Metro', 'Ameerpet Metro',
+  'Punjagutta Metro', 'Khairatabad Metro', 'Lakdikapul Metro',
+  'Assembly Metro', 'Nampally Metro', 'Gandhi Bhavan Metro',
+  'Dilsukhnagar Metro', 'Chaitanyapuri Metro', 'LB Nagar Metro',
+  'Habsiguda Metro', 'Tarnaka Metro', 'Mettuguda Metro',
+  'Secunderabad East Metro', 'Secunderabad Metro', 'Paradise Metro',
+  'Begumpet Metro', 'Yusufguda Metro', 'Madhura Nagar Metro',
+  'Vittal Rao Nagar Metro', 'Madhapur Metro', 'Durgam Cheruvu Metro',
+  'Hitec City Metro', 'Raidurg Metro',
+
+  // ── AIRPORT & ORR ─────────────────────────────────
+  'Rajiv Gandhi International Airport', 'RGI Airport', 'Shamshabad',
+  'ORR Gachibowli', 'ORR Patancheru', 'ORR Shamshabad', 'ORR Kompally',
 ]
 
 export default function LocationInput({ label, value, onChange, placeholder }) {
