@@ -366,65 +366,24 @@ export default function MyRides() {
 
   async function cancelBooking(bookingId, rideId, seatsBooked) {
     if (!confirm('Cancel your booking?\n\nYour ₹2 platform fee will be refunded to your wallet.')) return
-
     try {
-      // Step 1: Get booking details first
-      const { data: booking } = await supabase
-        .from('bookings').select('*').eq('id', bookingId).maybeSingle()
-      if (!booking) { alert('Booking not found'); return }
+      const { data, error } = await supabase.rpc('cancel_booking_atomic', {
+        p_booking_id: bookingId,
+        p_rider_id: user.id,
+      })
+      if (error) throw error
+      if (!data?.success) throw new Error(data?.error || 'Cancel failed')
 
-      // Step 2: Cancel the booking
-      await supabase.from('bookings')
-        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-        .eq('id', bookingId)
-
-      // Step 3: Restore seats in ride
-      const { data: ride } = await supabase
-        .from('rides').select('seats_available, seats_total, driver_id, status')
-        .eq('id', rideId).maybeSingle()
-
-      if (ride) {
-        const newSeats = Math.min(ride.seats_total, (ride.seats_available || 0) + (seatsBooked || 1))
-        await supabase.from('rides').update({
-          seats_available: newSeats,
-          status: newSeats > 0 ? 'active' : 'full'
-        }).eq('id', rideId)
-
-        // Refund both wallets via SECURITY DEFINER RPC
-        const { data: refundResult, error: refundErr } = await supabase.rpc('refund_cancellation', {
-          p_rider_id: user.id,
-          p_driver_id: ride.driver_id,
-          p_amount: 200,
-        })
-        if (refundErr) {
-          console.error('Refund RPC error:', refundErr.message)
-          alert('⚠️ Booking cancelled but refund failed. Contact support@carpoolkaro.com')
-          await fetchData()
-          return
-        }
-        if (refundResult?.success === false) {
-          console.error('Refund failed:', refundResult.error)
-          alert('⚠️ Booking cancelled but refund failed: ' + refundResult.error)
-          await fetchData()
-          return
-        }
-      }
-
-      // Notify driver
-      const { data: rideData } = await supabase
-        .from('rides').select('driver_id, from_location, to_location').eq('id', rideId).maybeSingle()
-      if (rideData) {
-        await sendNotification(
-          rideData.driver_id,
-          '❌ Booking Cancelled',
-          `A co-rider cancelled their booking for ${rideData.from_location} → ${rideData.to_location}. ₹2 refunded to your wallet.`
-        )
-      }
+      await sendNotification(
+        data.driver_id,
+        '❌ Booking Cancelled',
+        `A co-rider cancelled their booking for ${data.from_location} → ${data.to_location}. ₹2 refunded to your wallet.`
+      )
       alert('✅ Booking cancelled. ₹2 refunded to your wallet.')
       await fetchData()
     } catch (err) {
       console.error('Cancel error:', err)
-      alert('Something went wrong. Please try again.')
+      alert('Something went wrong: ' + err.message)
     }
   }
 
