@@ -8,6 +8,29 @@ import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import NotificationBell from '../components/NotificationBell'
 
+// Hyderabad IT corridor locations
+const HYD_LOCATIONS = [
+  'Uppal', 'Uppal Ring Road', 'Uppal Metro', 'Nagole', 'Nagole Metro',
+  'LB Nagar', 'Dilsukhnagar', 'Kothapet', 'Mallapur', 'Habsiguda',
+  'Tarnaka', 'Mettuguda', 'Secunderabad', 'Begumpet', 'Ameerpet',
+  'SR Nagar', 'Punjagutta', 'Somajiguda', 'Khairatabad', 'Lakdikapul',
+  'Mehdipatnam', 'Tolichowki', 'Manikonda', 'Narsingi', 'Gachibowli',
+  'Kondapur', 'Madhapur', 'Hitech City', 'HITEC City', 'Raidurgam',
+  'Raheja Mindspace', 'Kokapet', 'GAR Kokapet', 'Narsingi', 'Financial District',
+  'Nanakramguda', 'Khajaguda', 'Puppalaguda', 'Rajendra Nagar',
+  'Miyapur', 'KPHB', 'Kukatpally', 'Bachupally', 'Nizampet',
+  'Kompally', 'Alwal', 'Malkajgiri', 'Sainikpuri', 'AS Rao Nagar',
+  'Boduppal', 'Peerzadiguda', 'Ghatkesar', 'Medchal',
+  'Shamshabad', 'Rajiv Gandhi International Airport',
+  'Shamirpet', 'Ecil', 'Kushaiguda', 'Neredmet',
+  'Banjara Hills', 'Jubilee Hills', 'Film Nagar', 'Panjagutta',
+  'Masab Tank', 'Abids', 'Koti', 'Nampally', 'Himayatnagar',
+  'Chanda Nagar', 'Lingampally', 'Patancheru', 'Sangareddy',
+  'Hayathnagar', 'Vanasthalipuram', 'Saroornagar',
+  'Kapra', 'Yapral', 'Moulali', 'Chilkalguda',
+  'Old Bowenpally', 'Bowenpally', 'Jeedimetla', 'IDA Jeedimetla',
+]
+
 function RideCard({ ride, onBook, myUserId }) {
   const [expanded, setExpanded] = useState(false)
   const isToOffice = ride.ride_type === 'to_office'
@@ -139,7 +162,9 @@ export default function Home() {
   const [filterTo, setFilterTo] = useState('')
   const [filterDate, setFilterDate] = useState('all') // all | today | tomorrow
   const [filterTime, setFilterTime] = useState('all') // all | morning | evening
-  const [selectedDriver, setSelectedDriver] = useState(null)  // ADD THIS after white blank screen
+  const [selectedDriver, setSelectedDriver] = useState(null)
+  const [showFromSug, setShowFromSug] = useState(false)
+  const [showToSug, setShowToSug] = useState(false)
 
   const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
@@ -256,6 +281,50 @@ export default function Home() {
     return 0
   })
 
+  function handleNotificationClick(n) {
+    if (n.title?.includes('offer you a ride')) {
+      const match = n.message?.match(/for (.+) → (.+)\. Check/)
+      if (match) {
+        setFilterFrom(match[1])
+        setFilterTo(match[2])
+        setShowFilters(false)
+        setFilter('all')
+      }
+    }
+  }
+
+  function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocations }) {
+    const combined = [...new Set([...HYD_LOCATIONS, ...(liveLocations || [])])].sort()
+    const suggestions = combined.filter(s => s.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
+    return (
+      <div style={{ position: 'relative' }}>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>{label}</div>
+        <input
+          placeholder={label === 'FROM' ? 'e.g. Uppal' : 'e.g. Kokapet'}
+          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
+          value={value}
+          onChange={e => { onChange(e.target.value); setShowSug(true) }}
+          onFocus={() => setShowSug(true)}
+          onBlur={() => setTimeout(() => setShowSug(false), 150)}
+        />
+        {showSug && suggestions.length > 0 && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, zIndex: 100, maxHeight: 180, overflowY: 'auto', marginTop: 2 }}>
+            {suggestions.map(s => (
+              <button key={s} onMouseDown={() => { onChange(s); setShowSug(false) }}
+                style={{ width: '100%', padding: '8px 12px', background: 'none', border: 'none', color: '#fff', fontSize: 12, textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #222' }}>
+                📍 {s}
+              </button>
+            ))}
+            <div style={{ padding: '6px 12px', fontSize: 10, color: '#555' }}>Or type any location above</div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const liveFromLocations = rides.map(r => r.from_location).filter(Boolean)
+  const liveToLocations = rides.map(r => r.to_location).filter(Boolean)
+
   return (
     <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
       <div style={{ background: '#111', padding: '20px 16px 14px', position: 'sticky', top: 0, zIndex: 40 }}>
@@ -269,7 +338,7 @@ export default function Home() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <NotificationBell />
+            <NotificationBell onNotificationClick={handleNotificationClick} />
             <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 16, cursor: 'pointer' }}>
               ↺
             </button>
@@ -302,18 +371,10 @@ export default function Home() {
         {showFilters && (
           <div style={{ marginTop: 10, background: '#1a1a1a', borderRadius: 12, padding: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-              <div>
-                <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>FROM</div>
-                <input placeholder="e.g. Uppal"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
-                  value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>TO</div>
-                <input placeholder="e.g. Kokapet"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
-                  value={filterTo} onChange={e => setFilterTo(e.target.value)} />
-              </div>
+              <LocationInput label="FROM" value={filterFrom} onChange={setFilterFrom}
+                showSug={showFromSug} setShowSug={setShowFromSug} liveLocations={liveFromLocations} />
+              <LocationInput label="TO" value={filterTo} onChange={setFilterTo}
+                showSug={showToSug} setShowSug={setShowToSug} liveLocations={liveToLocations} />
             </div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
               {[['all','📅 Any Day'],['today','Today'],['tomorrow','Tomorrow']].map(([v,l]) => (
