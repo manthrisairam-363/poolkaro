@@ -148,6 +148,36 @@ function RideCard({ ride, onBook, myUserId }) {
   )
 }
 
+// Location autocomplete — must be outside Home to prevent remount on every keystroke
+function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocations }) {
+  const combined = [...new Set([...HYD_LOCATIONS, ...(liveLocations || [])])].sort()
+  const suggestions = combined.filter(s => s.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>{label}</div>
+      <input
+        placeholder={label === 'FROM' ? 'e.g. Uppal' : 'e.g. Kokapet'}
+        style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
+        value={value}
+        onChange={e => { onChange(e.target.value); setShowSug(true) }}
+        onFocus={() => setShowSug(true)}
+        onBlur={() => setTimeout(() => setShowSug(false), 150)}
+      />
+      {showSug && suggestions.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, zIndex: 100, maxHeight: 180, overflowY: 'auto', marginTop: 2 }}>
+          {suggestions.map(s => (
+            <button key={s} onMouseDown={() => { onChange(s); setShowSug(false) }}
+              style={{ width: '100%', padding: '8px 12px', background: 'none', border: 'none', color: '#fff', fontSize: 12, textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #222' }}>
+              📍 {s}
+            </button>
+          ))}
+          <div style={{ padding: '6px 12px', fontSize: 10, color: '#555' }}>Or type any location above</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Home() {
   const { profile, user } = useAuth()
   const navigate = useNavigate()
@@ -291,35 +321,6 @@ export default function Home() {
         setFilter('all')
       }
     }
-  }
-
-  function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocations }) {
-    const combined = [...new Set([...HYD_LOCATIONS, ...(liveLocations || [])])].sort()
-    const suggestions = combined.filter(s => s.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
-    return (
-      <div style={{ position: 'relative' }}>
-        <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>{label}</div>
-        <input
-          placeholder={label === 'FROM' ? 'e.g. Uppal' : 'e.g. Kokapet'}
-          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#222', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
-          value={value}
-          onChange={e => { onChange(e.target.value); setShowSug(true) }}
-          onFocus={() => setShowSug(true)}
-          onBlur={() => setTimeout(() => setShowSug(false), 150)}
-        />
-        {showSug && suggestions.length > 0 && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, zIndex: 100, maxHeight: 180, overflowY: 'auto', marginTop: 2 }}>
-            {suggestions.map(s => (
-              <button key={s} onMouseDown={() => { onChange(s); setShowSug(false) }}
-                style={{ width: '100%', padding: '8px 12px', background: 'none', border: 'none', color: '#fff', fontSize: 12, textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #222' }}>
-                📍 {s}
-              </button>
-            ))}
-            <div style={{ padding: '6px 12px', fontSize: 10, color: '#555' }}>Or type any location above</div>
-          </div>
-        )}
-      </div>
-    )
   }
 
   const liveFromLocations = rides.map(r => r.from_location).filter(Boolean)
