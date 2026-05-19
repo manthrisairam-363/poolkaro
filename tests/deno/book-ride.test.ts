@@ -100,7 +100,7 @@ Deno.test('T04 - Marks ride as full when last seat taken', async () => {
   const riderId  = await getUserId('testrider@test.com')
   const ride = await createTestRide(driverId, 150, 1)
   await book(ride.id, riderId, 1)
-  const { data: updated } = await db.from('rides').select('status', 'seats_available').eq('id', ride.id).single()
+  const { data: updated } = await db.from('rides').select('status, seats_available').eq('id', ride.id).single()
   assertEquals(updated?.status, 'full')
   assertEquals(updated?.seats_available, 0)
   await cleanup(ride.id)
