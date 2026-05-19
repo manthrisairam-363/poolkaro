@@ -39,6 +39,9 @@ async function cancelBooking(bookingId: string, riderId: string) {
 async function cleanup() {
   const { data: rides } = await db.from('rides').select('id').eq('from_location', 'TEST_Uppal')
   for (const r of rides || []) {
+    await db.from('wallet_transactions').delete()
+      .in('type', ['booking_fee', 'posting_fee', 'refund_cancel'])
+      .like('description', '%TEST_%')
     await db.from('bookings').delete().eq('ride_id', r.id)
     await db.from('rides').delete().eq('id', r.id)
   }
