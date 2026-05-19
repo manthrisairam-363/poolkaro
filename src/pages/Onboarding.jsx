@@ -93,10 +93,10 @@ export default function Onboarding() {
     })
     if (error) { setError(error.message); setLoading(false); return }
 
-    // Credit new user ₹10 signup bonus (always)
+    // Credit new user ₹10 signup bonus ONLY if wallet is at 0 or less
     const { data: myWallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
-    if (myWallet) {
-      await supabase.from('wallets').update({ balance: myWallet.balance + 1000 }).eq('user_id', user.id)
+    if (myWallet && myWallet.balance <= 0) {
+      await supabase.from('wallets').update({ balance: 1000 }).eq('user_id', user.id)
       await supabase.from('wallet_transactions').insert({
         user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
       })
@@ -104,22 +104,32 @@ export default function Onboarding() {
 
     // Credit referrer ₹10 if valid code
     if (referrerId) {
-      const { data: referrerWallet } = await supabase.from('wallets').select('balance').eq('user_id', referrerId).maybeSingle()
+      const { data: referrerWallet } = await supabase
+        .from('wallets').select('balance').eq('user_id', referrerId).maybeSingle()
       if (referrerWallet) {
-        await supabase.from('wallets').update({ balance: referrerWallet.balance + 1000 }).eq('user_id', referrerId)
+        // Credit ₹10 to referrer wallet
+        await supabase.from('wallets')
+          .update({ balance: referrerWallet.balance + 1000 })
+          .eq('user_id', referrerId)
+
+        // Record transaction
         await supabase.from('wallet_transactions').insert({
-          user_id: referrerId, amount: 1000, type: 'referral_bonus',
-          description: `₹10 referral bonus — ${form.full_name} joined using your code`
+          user_id: referrerId,
+          amount: 1000,
+          type: 'referral_bonus',
+          description: `₹10 referral bonus — ${form.full_name} joined using your code`,
         })
-        await supabase.from('profiles').update({
-          referral_count: supabase.rpc('increment_referral_count', { uid: referrerId })
-        }).eq('id', referrerId)
+
+        // Increment referral count correctly
+        await supabase.rpc('increment_referral_count', { uid: referrerId })
+
         // Notify referrer
         await supabase.from('notifications').insert({
           user_id: referrerId,
+          type: 'booking',
           title: '🎁 Referral Bonus!',
-          body: `${form.full_name} joined using your code. ₹10 added to your wallet!`,
-          read: false,
+          message: `${form.full_name} joined CarpoolKaro using your invite code. ₹10 added to your wallet!`,
+          is_read: false,
         })
       }
     }
