@@ -45,6 +45,14 @@ async function createTestRide(driverId: string, fare = 150, seats = 3) {
 
 async function cleanup(rideId?: string) {
   if (rideId) {
+    // Clean up wallet transactions created by test bookings
+    const { data: bookings } = await db.from('bookings').select('id').eq('ride_id', rideId)
+    for (const b of bookings || []) {
+      await db.from('wallet_transactions').delete().eq('booking_id', b.id)
+    }
+    await db.from('wallet_transactions').delete()
+      .in('type', ['booking_fee', 'posting_fee', 'refund_cancel'])
+      .like('description', '%TEST_%')
     await db.from('bookings').delete().eq('ride_id', rideId)
     await db.from('rides').delete().eq('id', rideId)
   }
