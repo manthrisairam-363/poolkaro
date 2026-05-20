@@ -93,47 +93,20 @@ export default function Onboarding() {
     })
     if (error) { setError(error.message); setLoading(false); return }
 
-    // Credit new user wallet
-    let newUserBalance = 1000 // ₹10 signup bonus always
-    if (referrerId) newUserBalance += 1000 // +₹10 for using referral code
-
-    await supabase.from('wallets').update({ balance: newUserBalance }).eq('user_id', user.id)
+    // Give new user ₹10 signup bonus
+    await supabase.from('wallets').update({ balance: 1000 }).eq('user_id', user.id)
     await supabase.from('wallet_transactions').insert({
       user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
     })
-    if (referrerId) {
-      await supabase.from('wallet_transactions').insert({
-        user_id: user.id, amount: 1000, type: 'referral_bonus', description: '₹10 bonus for joining with invite code'
+
+    // Handle referral atomically via SQL function (handles everything: new user bonus,
+    // referrer bonus, count increment, notification, duplicate check)
+    if (referralCode) {
+      await supabase.rpc('complete_onboarding_referral', {
+        p_new_user_id: user.id,
+        p_referral_code: referralCode,
+        p_new_user_name: form.full_name,
       })
-    }
-
-    // Credit referrer ₹10 if valid code — uses SECURITY DEFINER to bypass RLS
-    if (referrerId) {
-      // Check: don't give bonus if same phone already exists (duplicate account prevention)
-      let isDuplicate = false
-      if (form.phone) {
-        const { data: existingPhone } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('phone', form.phone)
-          .neq('id', user.id)
-          .maybeSingle()
-        isDuplicate = !!existingPhone
-      }
-
-      if (!isDuplicate) {
-        await supabase.rpc('credit_referral_bonus', {
-          p_referrer_id: referrerId,
-          p_referee_name: form.full_name,
-        })
-        await supabase.from('notifications').insert({
-          user_id: referrerId,
-          type: 'booking',
-          title: '🎁 Referral Bonus!',
-          message: `${form.full_name} joined CarpoolKaro using your invite code. ₹10 added to your wallet!`,
-          is_read: false,
-        })
-      }
     }
 
     setLoading(false)
