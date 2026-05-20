@@ -104,18 +104,31 @@ export default function Onboarding() {
 
     // Credit referrer ₹10 if valid code — uses SECURITY DEFINER to bypass RLS
     if (referrerId) {
-      await supabase.rpc('credit_referral_bonus', {
-        p_referrer_id: referrerId,
-        p_referee_name: form.full_name,
-      })
-      // Notify referrer
-      await supabase.from('notifications').insert({
-        user_id: referrerId,
-        type: 'booking',
-        title: '🎁 Referral Bonus!',
-        message: `${form.full_name} joined CarpoolKaro using your invite code. ₹10 added to your wallet!`,
-        is_read: false,
-      })
+      // Check: don't give bonus if same phone already exists (duplicate account prevention)
+      let isDuplicate = false
+      if (form.phone) {
+        const { data: existingPhone } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('phone', form.phone)
+          .neq('id', user.id)
+          .maybeSingle()
+        isDuplicate = !!existingPhone
+      }
+
+      if (!isDuplicate) {
+        await supabase.rpc('credit_referral_bonus', {
+          p_referrer_id: referrerId,
+          p_referee_name: form.full_name,
+        })
+        await supabase.from('notifications').insert({
+          user_id: referrerId,
+          type: 'booking',
+          title: '🎁 Referral Bonus!',
+          message: `${form.full_name} joined CarpoolKaro using your invite code. ₹10 added to your wallet!`,
+          is_read: false,
+        })
+      }
     }
 
     setLoading(false)
