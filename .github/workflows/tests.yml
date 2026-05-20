@@ -26,6 +26,9 @@ jobs:
       - name: Run wallet tests
         run: deno test --allow-net --allow-env tests/deno/wallet.test.ts
 
+      - name: Run referral tests
+        run: deno test --allow-net --allow-env tests/deno/referral.test.ts
+
   playwright-tests:
     name: Playwright E2E Tests
     runs-on: ubuntu-latest
