@@ -39,8 +39,13 @@ jobs:
         run: npm install -D @playwright/test
       - name: Install browsers
         run: npx playwright install --with-deps chromium
+      - name: Debug files
+        run: |
+          echo "=== Spec file ===" && cat tests/playwright/carpoolkaro.spec.ts
+          echo "=== Playwright version ===" && npx playwright --version
+
       - name: Run E2E tests
-        run: npx playwright test tests/playwright/carpoolkaro.spec.ts --reporter=list
+        run: npx playwright test --reporter=list
         env:
           CI: true
       - uses: actions/upload-artifact@v4
