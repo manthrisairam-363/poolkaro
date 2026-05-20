@@ -25,15 +25,15 @@ jobs:
           deno-version: v1.x
 
       - name: Run book-ride tests
-        run: deno test --allow-net --allow-env tests/deno/book-ride.test.ts
+        run: deno test --allow-net --allow-env --jobs=1 tests/deno/book-ride.test.ts
         continue-on-error: false
 
       - name: Run cancel-booking tests
-        run: deno test --allow-net --allow-env tests/deno/cancel-booking.test.ts
+        run: deno test --allow-net --allow-env --jobs=1 tests/deno/cancel-booking.test.ts
         continue-on-error: false
 
       - name: Run wallet tests
-        run: deno test --allow-net --allow-env tests/deno/wallet.test.ts
+        run: deno test --allow-net --allow-env --jobs=1 tests/deno/wallet.test.ts
         continue-on-error: false
 
   # ── Playwright E2E Tests ───────────────────────────────
@@ -49,10 +49,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -69,5 +68,3 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 14
-
-          
