@@ -79,9 +79,9 @@ export default function AdminDashboard() {
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
 
   async function toggleVerified(userId, current) {
-    await supabase.from('profiles').update({ is_verified: !current }).eq('id', userId)
+    await supabase.rpc('admin_toggle_verified', { p_user_id: userId, p_verified: !current })
     setSelectedUser(prev => prev?.id === userId ? { ...prev, is_verified: !current } : prev)
-    fetchAll()
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified: !current } : u))
   }
 
   async function deleteUser(u) {
