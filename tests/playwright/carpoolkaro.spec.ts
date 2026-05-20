@@ -4,7 +4,7 @@ const APP = 'https://app.carpoolkaro.com'
 
 test('app loads and shows login', async ({ page }) => {
   await page.goto(APP)
-  await expect(page.locator('text=CarpoolKaro')).toBeVisible({ timeout: 10000 })
+  await expect(page.locator('text=CarpoolKaro').first()).toBeVisible({ timeout: 10000 })
   await expect(page.locator('text=Continue with Google')).toBeVisible({ timeout: 5000 })
 })
 
