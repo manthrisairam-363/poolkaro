@@ -102,36 +102,20 @@ export default function Onboarding() {
       })
     }
 
-    // Credit referrer ₹10 if valid code
+    // Credit referrer ₹10 if valid code — uses SECURITY DEFINER to bypass RLS
     if (referrerId) {
-      const { data: referrerWallet } = await supabase
-        .from('wallets').select('balance').eq('user_id', referrerId).maybeSingle()
-      if (referrerWallet) {
-        // Credit ₹10 to referrer wallet
-        await supabase.from('wallets')
-          .update({ balance: referrerWallet.balance + 1000 })
-          .eq('user_id', referrerId)
-
-        // Record transaction
-        await supabase.from('wallet_transactions').insert({
-          user_id: referrerId,
-          amount: 1000,
-          type: 'referral_bonus',
-          description: `₹10 referral bonus — ${form.full_name} joined using your code`,
-        })
-
-        // Increment referral count correctly
-        await supabase.rpc('increment_referral_count', { uid: referrerId })
-
-        // Notify referrer
-        await supabase.from('notifications').insert({
-          user_id: referrerId,
-          type: 'booking',
-          title: '🎁 Referral Bonus!',
-          message: `${form.full_name} joined CarpoolKaro using your invite code. ₹10 added to your wallet!`,
-          is_read: false,
-        })
-      }
+      await supabase.rpc('credit_referral_bonus', {
+        p_referrer_id: referrerId,
+        p_referee_name: form.full_name,
+      })
+      // Notify referrer
+      await supabase.from('notifications').insert({
+        user_id: referrerId,
+        type: 'booking',
+        title: '🎁 Referral Bonus!',
+        message: `${form.full_name} joined CarpoolKaro using your invite code. ₹10 added to your wallet!`,
+        is_read: false,
+      })
     }
 
     setLoading(false)
