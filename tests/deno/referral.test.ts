@@ -24,10 +24,10 @@ async function createUser(tag: string): Promise<{ id: string; code: string }> {
   if (error) throw new Error('createUser failed: ' + error.message)
   const uid = data.user!.id
   const code = `R${tag.toUpperCase().slice(0,5)}${Math.random().toString(36).slice(2,4).toUpperCase()}`
-  const { error: pe } = await db.from('profiles').insert({
+  const { error: pe } = await db.from('profiles').upsert({
     id: uid, full_name: `Test ${tag}`, email, role: 'both',
     onboarding_complete: true, referral_code: code, referral_count: 0,
-  })
+  }, { onConflict: 'id' })
   if (pe) throw new Error(`Profile insert failed (${tag}): ${pe.message}`)
   const { error: we } = await db.from('wallets').upsert({ user_id: uid, balance: 5000 }, { onConflict: 'user_id' })
   if (we) throw new Error(`Wallet insert failed (${tag}): ${we.message}`)
