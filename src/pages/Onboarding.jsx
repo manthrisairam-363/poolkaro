@@ -93,12 +93,17 @@ export default function Onboarding() {
     })
     if (error) { setError(error.message); setLoading(false); return }
 
-    // Credit new user ₹10 signup bonus ONLY if wallet is at 0 or less
-    const { data: myWallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
-    if (myWallet && myWallet.balance <= 0) {
-      await supabase.from('wallets').update({ balance: 1000 }).eq('user_id', user.id)
+    // Credit new user wallet
+    let newUserBalance = 1000 // ₹10 signup bonus always
+    if (referrerId) newUserBalance += 1000 // +₹10 for using referral code
+
+    await supabase.from('wallets').update({ balance: newUserBalance }).eq('user_id', user.id)
+    await supabase.from('wallet_transactions').insert({
+      user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
+    })
+    if (referrerId) {
       await supabase.from('wallet_transactions').insert({
-        user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
+        user_id: user.id, amount: 1000, type: 'referral_bonus', description: '₹10 bonus for joining with invite code'
       })
     }
 
