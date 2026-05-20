@@ -40,11 +40,7 @@ jobs:
       - name: Install browsers
         run: npx playwright install --with-deps chromium
       - name: Run E2E tests
-        run: |
-          npx playwright test tests/playwright/carpoolkaro.spec.ts \
-            --browser=chromium \
-            --reporter=list \
-            --timeout=30000
+        run: npx playwright test tests/playwright/carpoolkaro.spec.ts --project="Mobile Chrome" --reporter=list --timeout=30000
         env:
           CI: true
       - uses: actions/upload-artifact@v4
