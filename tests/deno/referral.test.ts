@@ -17,9 +17,13 @@ async function getWallet(uid: string) {
   const { data } = await db.from('wallets').select('balance').eq('user_id', uid).maybeSingle()
   return data?.balance ?? 0
 }
-async function getReferralCode(uid: string) {
+async function ensureReferralCode(uid: string): Promise<string> {
   const { data } = await db.from('profiles').select('referral_code').eq('id', uid).maybeSingle()
-  return data?.referral_code as string
+  if (data?.referral_code) return data.referral_code
+  // Generate one if missing
+  const code = Math.random().toString(36).slice(2,8).toUpperCase()
+  await db.from('profiles').update({ referral_code: code }).eq('id', uid)
+  return code
 }
 async function getReferralCount(uid: string) {
   const { data } = await db.from('profiles').select('referral_count').eq('id', uid).maybeSingle()
@@ -49,7 +53,7 @@ async function createTestUser(suffix: string) {
 // ── Tests ──────────────────────────────────────────────
 Deno.test('R_T01 - complete_onboarding_referral gives new user ₹10', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const newUserId = await createTestUser('r01')
   try {
     await db.rpc('complete_onboarding_referral', {
@@ -63,7 +67,7 @@ Deno.test('R_T01 - complete_onboarding_referral gives new user ₹10', async () 
 
 Deno.test('R_T02 - complete_onboarding_referral gives referrer ₹10', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const before = await getWallet(referrerId)
   const newUserId = await createTestUser('r02')
   try {
@@ -78,7 +82,7 @@ Deno.test('R_T02 - complete_onboarding_referral gives referrer ₹10', async () 
 
 Deno.test('R_T03 - referral_count incremented on referrer profile', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const before = await getReferralCount(referrerId)
   const newUserId = await createTestUser('r03')
   try {
@@ -93,7 +97,7 @@ Deno.test('R_T03 - referral_count incremented on referrer profile', async () => 
 
 Deno.test('R_T04 - referral bonus transaction created for new user', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const newUserId = await createTestUser('r04')
   try {
     await db.rpc('complete_onboarding_referral', {
@@ -109,7 +113,7 @@ Deno.test('R_T04 - referral bonus transaction created for new user', async () =>
 
 Deno.test('R_T05 - referral bonus transaction created for referrer', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const newUserId = await createTestUser('r05')
   try {
     await db.rpc('complete_onboarding_referral', {
@@ -126,7 +130,7 @@ Deno.test('R_T05 - referral bonus transaction created for referrer', async () =>
 
 Deno.test('R_T06 - notification sent to referrer', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const newUserId = await createTestUser('r06')
   try {
     await db.rpc('complete_onboarding_referral', {
@@ -155,7 +159,7 @@ Deno.test('R_T07 - fails for invalid referral code', async () => {
 
 Deno.test('R_T08 - duplicate phone blocked: no bonus for referrer', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   // Create user with existing phone
   const uid1 = await createTestUser('r08a')
   await db.from('profiles').update({ phone: '9000000001' }).eq('id', uid1)
@@ -177,7 +181,7 @@ Deno.test('R_T08 - duplicate phone blocked: no bonus for referrer', async () => 
 
 Deno.test('R_T09 - cannot refer yourself', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const before = await getWallet(referrerId)
   const { data } = await db.rpc('complete_onboarding_referral', {
     p_new_user_id: referrerId,
@@ -190,7 +194,7 @@ Deno.test('R_T09 - cannot refer yourself', async () => {
 
 Deno.test('R_T10 - referral code is case insensitive', async () => {
   const referrerId = await getUserId('testdriver@test.com')
-  const refCode = await getReferralCode(referrerId)
+  const refCode = await ensureReferralCode(referrerId)
   const newUserId = await createTestUser('r10')
   try {
     const { data } = await db.rpc('complete_onboarding_referral', {
