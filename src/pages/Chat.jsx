@@ -354,14 +354,13 @@ export default function Chat() {
               </div>
               {!mine && (
                 <button onClick={async () => {
-                  if (!confirm('Report this message?')) return
-                  const { data: admin } = await supabase.from('profiles').select('id').eq('is_admin', true).single()
-                  if (admin?.id) await supabase.from('notifications').insert({
-                    user_id: admin.id, title: '🚨 Message Reported',
-                    message: `Chat ${bookingId}: "${item.text.slice(0, 60)}"`,
-                    type: 'booking', is_read: false,
+                  if (!confirm('Report this message for sharing personal contact info?')) return
+                  await supabase.from('reported_messages').insert({
+                    booking_id: bookingId,
+                    reported_by: user.id,
+                    message_text: item.text,
                   })
-                  alert('Reported. We will review this.')
+                  alert('✅ Reported. We will review and take action within 24 hours.')
                 }} style={{ background: 'none', border: 'none', color: '#333', fontSize: 14, cursor: 'pointer', padding: 2, flexShrink: 0, opacity: 0.5 }} title="Report">⚑</button>
               )}
             </div>
