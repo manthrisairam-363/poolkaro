@@ -14,6 +14,7 @@ import EditRide from './pages/EditRide'
 import AdminDashboard from './pages/AdminDashboard'
 import TermsPrivacy from './pages/TermsPrivacy'
 import Install from './pages/Install'
+import Chat from './pages/Chat'
 import { usePushNotifications } from './lib/pushNotifications'
 
 function Loader() {
@@ -62,6 +63,7 @@ function AppRoutes() {
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/terms" element={<TermsPrivacy />} />
       <Route path="/install" element={<Install />} />
+      <Route path="/chat/:bookingId" element={<Chat />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
