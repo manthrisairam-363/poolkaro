@@ -26,6 +26,7 @@ export default function AdminDashboard() {
   const [broadcastSent, setBroadcastSent] = useState(null)
   const [revenueData, setRevenueData] = useState([])
   const [popularRoutes, setPopularRoutes] = useState([])
+  const [reports, setReports] = useState([])
 
   const isAdmin = profile?.is_admin === true
 
@@ -109,6 +110,14 @@ export default function AdminDashboard() {
       setUsers(usersData)
       setRides(ridesData)
       setBookings(bookingsData)
+
+      // Fetch reports
+      const { data: reportsData } = await supabase
+        .from('reported_messages')
+        .select('*, reporter:profiles!reported_messages_reported_by_fkey(full_name)')
+        .eq('resolved', false)
+        .order('created_at', { ascending: false })
+      setReports(reportsData || [])
     } catch (err) {
       console.error('Admin fetch error:', err.message)
     } finally {
@@ -398,10 +407,10 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
           {[
             ['overview','📊'],['users','👥'],['suspicious','⚠️'],
-            ['rides','🚗'],['bookings','🎫'],['broadcast','📢']
+            ['rides','🚗'],['bookings','🎫'],['broadcast','📢'],['reports','🚨']
           ].map(([v,l]) => (
             <button key={v} onClick={() => setTab(v)} style={tabStyle(v)}>
-              {l} {v === 'suspicious' && suspiciousUsers.length > 0 ? `(${suspiciousUsers.length})` : v.charAt(0).toUpperCase() + v.slice(1)}
+              {l} {v === 'suspicious' && suspiciousUsers.length > 0 ? `(${suspiciousUsers.length})` : v === 'reports' && reports.length > 0 ? `(${reports.length})` : v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
           ))}
         </div>
@@ -513,7 +522,11 @@ export default function AdminDashboard() {
                       <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
                         <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 700 }}>₹{Math.round((wallets[u.id] || 0) / 100)}</span>
                         <span style={{ color: '#555', fontSize: 11 }}>🚗 {u.total_rides_given || 0} · 🙋 {u.total_rides_taken || 0}</span>
-                        <span style={{ color: '#555', fontSize: 11, marginLeft: 'auto' }}>{new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                        <span style={{ color: '#555', fontSize: 11, marginLeft: 'auto' }}>
+                          {u.last_seen_at
+                            ? `👁 ${new Date(u.last_seen_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                            : `📅 ${new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -634,6 +647,78 @@ export default function AdminDashboard() {
                     {broadcastLoading ? 'Sending...' : `📢 Send to All ${stats?.totalUsers} Users`}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* REPORTS */}
+            {tab === 'reports' && (
+              <div>
+                <div style={{ background: '#2a0a0a', borderRadius: 12, padding: 14, marginBottom: 16, border: '1px solid #7f1d1d' }}>
+                  <div style={{ fontWeight: 700, color: '#fca5a5', marginBottom: 4 }}>🚨 Reported Messages</div>
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    Users flagged these messages for sharing phone numbers or contact info.
+                    You can warn or delete the offending user's account.
+                  </div>
+                </div>
+
+                {reports.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 40, color: '#4ade80', fontSize: 20 }}>
+                    ✅ No reports pending
+                  </div>
+                ) : reports.map(r => {
+                  const offender = users.find(u => {
+                    // Find user who sent this message via booking
+                    return false // we'll show booking ID for now
+                  })
+                  return (
+                    <div key={r.id} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #7f1d1d' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, color: '#666' }}>
+                          Reported by: <span style={{ color: '#fca5a5' }}>{r.reporter?.full_name || 'Unknown'}</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: '#555' }}>
+                          {new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#2a0a0a', borderRadius: 8, padding: '10px 12px', marginBottom: 10, border: '1px solid #450a0a' }}>
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Reported message:</div>
+                        <div style={{ fontSize: 13, color: '#fca5a5' }}>"{r.message_text}"</div>
+                      </div>
+
+                      <div style={{ fontSize: 11, color: '#555', marginBottom: 10 }}>
+                        Booking ID: {r.booking_id?.slice(0, 8)}...
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={async () => {
+                          // Warn user — send notification to all in this booking
+                          const { data: booking } = await supabase.from('bookings').select('rider_id, rides(driver_id)').eq('id', r.booking_id).single()
+                          const userIds = [booking?.rider_id, booking?.rides?.driver_id].filter(Boolean)
+                          for (const uid of userIds) {
+                            await supabase.from('notifications').insert({
+                              user_id: uid,
+                              title: '⚠️ Account Warning',
+                              message: 'Sharing phone numbers or contact info in chat violates our terms. Repeated violations will result in account deletion.',
+                              type: 'booking', is_read: false,
+                            })
+                          }
+                          await supabase.from('reported_messages').update({ resolved: true }).eq('id', r.id)
+                          setReports(prev => prev.filter(x => x.id !== r.id))
+                          alert('⚠️ Warning sent to both users in this booking.')
+                        }} style={{ flex: 1, padding: '10px', background: '#78350f', color: '#fed7aa', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>
+                          ⚠️ Warn Both Users
+                        </button>
+                        <button onClick={async () => {
+                          await supabase.from('reported_messages').update({ resolved: true }).eq('id', r.id)
+                          setReports(prev => prev.filter(x => x.id !== r.id))
+                        }} style={{ flex: 1, padding: '10px', background: '#222', color: '#888', border: '1px solid #333', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>
+                          ✓ Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </>
