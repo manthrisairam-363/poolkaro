@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { supabase } from './lib/supabase'
 import RequestRide from './pages/RequestRide'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Login from './pages/Login'
@@ -44,8 +46,14 @@ function Loader() {
 
 function AppRoutes() {
   const { user, profile, loading } = useAuth()
-  // Auto-register push notifications when logged in
   usePushNotifications(user?.id)
+
+  // Track last seen
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', user.id).then(() => {})
+  }, [user?.id])
+
   if (loading) return <Loader />
   if (!user) return <Login />
   if (!profile?.onboarding_complete) return <Onboarding />
