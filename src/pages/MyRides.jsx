@@ -5,11 +5,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 
-// Contact buttons — call + WhatsApp
-function ContactButtons({ phone, name }) {
+// Contact buttons — call + in-app chat
+function ContactButtons({ phone, name, bookingId, navigate }) {
   if (!phone) return null
   const clean = phone.replace(/\D/g, '')
-  const waMsg = encodeURIComponent(`Hi ${name}! This is regarding our CarpoolKaro ride today. 🚗`)
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
       <a href={`tel:+91${clean}`} style={{
@@ -20,15 +19,16 @@ function ContactButtons({ phone, name }) {
       }}>
         📞 Call
       </a>
-      <a href={`https://wa.me/91${clean}?text=${waMsg}`} target="_blank" rel="noreferrer"
-        style={{
+      {bookingId && (
+        <button onClick={() => navigate(`/chat/${bookingId}`)} style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 6, padding: '9px', background: '#f0fdf9', color: '#25D366',
-          borderRadius: 10, fontSize: 13, fontWeight: 600, textDecoration: 'none',
-          border: '1px solid #bbf7d0',
+          gap: 6, padding: '9px', background: '#fefce8', color: '#854d0e',
+          borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          border: '1px solid #fef08a',
         }}>
-        💬 WhatsApp
-      </a>
+          💬 Chat
+        </button>
+      )}
     </div>
   )
 }
@@ -36,6 +36,7 @@ function ContactButtons({ phone, name }) {
 // Single passenger card inside a ride
 function PassengerCard({ booking }) {
   const rider = booking.profiles
+  const navigate = useNavigate()
   const initials = rider?.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   return (
@@ -77,7 +78,7 @@ function PassengerCard({ booking }) {
       </div>
 
       {/* Contact buttons */}
-      <ContactButtons phone={rider?.phone} name={rider?.full_name} />
+      <ContactButtons phone={rider?.phone} name={rider?.full_name} bookingId={booking.id} navigate={navigate} />
     </div>
   )
 }
@@ -458,7 +459,7 @@ export default function MyRides() {
                 <div style={{ marginTop: 8, background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
                   <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>🚗 Car Owner</div>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{b.rides.profiles.full_name}</div>
-                  <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} />
+                  <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} bookingId={b.id} navigate={navigate} />
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
