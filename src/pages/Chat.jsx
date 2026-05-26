@@ -3,17 +3,54 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
-// Mask phone numbers and UPI IDs
-function sanitize(text) {
-  return text
-    .replace(/(\+91[\s\-]?)?[6-9]\d{9}/g, '📵 [number hidden]')
-    .replace(/\b91[6-9]\d{9}\b/g, '📵 [number hidden]')
-    .replace(/[\w.\-+]+@[\w.\-]+\.\w+/g, '🚫 [UPI hidden]')
+// Convert common word numbers to digits for detection
+function wordsToDigits(text) {
+  const map = {
+    'zero':'0','one':'1','two':'2','three':'3','four':'4',
+    'five':'5','six':'6','seven':'7','eight':'8','nine':'9',
+    'ek':'1','do':'2','teen':'3','char':'4','paanch':'5',
+    'chhe':'6','saat':'7','aath':'8','nau':'9','dus':'0',
+  }
+  let t = text.toLowerCase()
+  Object.entries(map).forEach(([w, d]) => {
+    t = t.replace(new RegExp('\\b' + w + '\\b', 'g'), d)
+  })
+  return t
 }
+
+// Normalize unicode/fullwidth digits to ASCII
+function normalizeDigits(text) {
+  return text
+    .replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))  // Arabic
+    .replace(/[०१२३४५६७८९]/g, d => '०१२३४५६७८९'.indexOf(d))    // Devanagari
+    .replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFF10 + 48)) // Fullwidth
+}
+
+function stripSeparators(text) {
+  return text.replace(/[\s.\-,/\\|_*()\[\]{}:;~@#!?'"`]+/g, '')
+}
+
 function hasSensitive(text) {
-  return /(\+91[\s\-]?)?[6-9]\d{9}/.test(text) ||
-         /\b91[6-9]\d{9}\b/.test(text) ||
-         /[\w.\-+]+@[\w.\-]+\.\w+/.test(text)
+  const normalized = normalizeDigits(wordsToDigits(text))
+  const stripped = stripSeparators(normalized)
+  // 10 digit Indian mobile (6-9 start)
+  const hasPhone = /[6-9]\d{9}/.test(stripped) ||
+                   /\d{10,}/.test(stripped) ||
+                   /91[6-9]\d{9}/.test(stripped)
+  // UPI ID
+  const hasUPI = /[\w.\-+]+@[\w.\-]+/.test(text)
+  return hasPhone || hasUPI
+}
+
+function sanitize(text) {
+  const normalized = normalizeDigits(wordsToDigits(text))
+  const stripped = stripSeparators(normalized)
+  let result = text
+  if (/[6-9]\d{9}/.test(stripped) || /\d{10,}/.test(stripped)) {
+    result = result.replace(/[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d][\s.\-,/\\|_*()\[\]{}:;~]*[\d]/g, '📵 [number hidden]')
+  }
+  result = result.replace(/[\w.\-+]+@[\w.\-]+/, '🚫 [UPI hidden]')
+  return result
 }
 
 const QUICK = [
@@ -301,7 +338,7 @@ export default function Chat() {
           )
           const mine = item.sender_id === user.id
           return (
-            <div key={item.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 2 }}>
+            <div key={item.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 2, alignItems: 'flex-end', gap: 4 }}>
               <div style={{
                 maxWidth: '78%',
                 background: mine ? '#facc15' : '#1e1e1e',
@@ -315,6 +352,18 @@ export default function Chat() {
                   {mine && <span style={{ color: item.read ? '#16a34a' : '#777' }}>{item.read ? '✓✓' : '✓'}</span>}
                 </div>
               </div>
+              {!mine && (
+                <button onClick={async () => {
+                  if (!confirm('Report this message?')) return
+                  const { data: admin } = await supabase.from('profiles').select('id').eq('is_admin', true).single()
+                  if (admin?.id) await supabase.from('notifications').insert({
+                    user_id: admin.id, title: '🚨 Message Reported',
+                    message: `Chat ${bookingId}: "${item.text.slice(0, 60)}"`,
+                    type: 'booking', is_read: false,
+                  })
+                  alert('Reported. We will review this.')
+                }} style={{ background: 'none', border: 'none', color: '#333', fontSize: 14, cursor: 'pointer', padding: 2, flexShrink: 0, opacity: 0.5 }} title="Report">⚑</button>
+              )}
             </div>
           )
         })}
