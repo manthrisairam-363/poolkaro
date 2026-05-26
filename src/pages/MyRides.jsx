@@ -309,7 +309,7 @@ export default function MyRides() {
       supabase.from('bookings')
         .select('*, rides(from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))') 
         .eq('rider_id', user.id)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: true }),
     ])
     if (!ridesRes.error) setRides(ridesRes.data || [])
     if (!bookingsRes.error) {
