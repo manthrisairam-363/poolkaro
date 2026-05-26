@@ -93,11 +93,20 @@ export default function Onboarding() {
     })
     if (error) { setError(error.message); setLoading(false); return }
 
-    // Give new user ₹10 signup bonus
-    await supabase.from('wallets').update({ balance: 1000 }).eq('user_id', user.id)
-    await supabase.from('wallet_transactions').insert({
-      user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
-    })
+    // Give new user ₹10 signup bonus — upsert so it always works
+    await supabase.from('wallets').upsert(
+      { user_id: user.id, balance: 1000 },
+      { onConflict: 'user_id', ignoreDuplicates: false }
+    )
+    // Only add signup_bonus transaction if not already exists
+    const { count } = await supabase.from('wallet_transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id).eq('type', 'signup_bonus')
+    if (!count || count === 0) {
+      await supabase.from('wallet_transactions').insert({
+        user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
+      })
+    }
 
     // Handle referral atomically via SQL function (handles everything: new user bonus,
     // referrer bonus, count increment, notification, duplicate check)
@@ -114,9 +123,18 @@ export default function Onboarding() {
   }
 
   function next() {
-    // Validation
-    if (STEPS[step] === 'role' && !form.role) { setError('Please select your role'); return }
-    if (STEPS[step] === 'personal' && !form.full_name) { setError('Enter your name'); return }
+    // Strict validation — no bypassing
+    if (STEPS[step] === 'role' && !form.role) {
+      setError('Please select your role to continue'); return
+    }
+    if (STEPS[step] === 'personal') {
+      if (!form.full_name?.trim()) { setError('Name is required'); return }
+      if (form.full_name.trim().length < 3) { setError('Enter your full name (at least 3 characters)'); return }
+      if (!form.phone?.trim()) { setError('Phone number is required'); return }
+      const digits = form.phone.replace(/\D/g, '')
+      if (digits.length !== 10) { setError('Enter a valid 10-digit phone number'); return }
+      if (!/^[6-9]/.test(digits)) { setError('Enter a valid Indian mobile number'); return }
+    }
     setError('')
 
     // Skip vehicle step if rider only
