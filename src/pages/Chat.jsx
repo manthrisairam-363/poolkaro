@@ -1,143 +1,209 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
-// ── Smart content filter ──────────────────────────────────
-// Masks phone numbers and UPI IDs typed in chat
-function sanitizeMessage(text) {
-  // Mask Indian phone numbers (10 digits, with or without +91/0)
-  let safe = text.replace(/(\+91[\s-]?)?(\b[6-9]\d{9}\b)/g, '📵 [number hidden]')
-  // Mask 91XXXXXXXXXX format
-  safe = safe.replace(/\b91[6-9]\d{9}\b/g, '📵 [number hidden]')
-  // Mask UPI IDs (anything@something)
-  safe = safe.replace(/[\w.\-+]+@[\w.\-]+/g, '🚫 [UPI hidden]')
-  // Mask written-out numbers (nine eight seven...)
-  return safe
+// Mask phone numbers and UPI IDs
+function sanitize(text) {
+  return text
+    .replace(/(\+91[\s\-]?)?[6-9]\d{9}/g, '📵 [number hidden]')
+    .replace(/\b91[6-9]\d{9}\b/g, '📵 [number hidden]')
+    .replace(/[\w.\-+]+@[\w.\-]+\.\w+/g, '🚫 [UPI hidden]')
+}
+function hasSensitive(text) {
+  return /(\+91[\s\-]?)?[6-9]\d{9}/.test(text) ||
+         /\b91[6-9]\d{9}\b/.test(text) ||
+         /[\w.\-+]+@[\w.\-]+\.\w+/.test(text)
 }
 
-function containsSensitive(text) {
-  const phoneRegex = /(\+91[\s-]?)?[6-9]\d{9}|91[6-9]\d{9}/
-  const upiRegex = /[\w.\-+]+@[\w.\-]+/
-  return phoneRegex.test(text) || upiRegex.test(text)
-}
+const QUICK = [
+  '👋 Hi! I booked your ride',
+  '📍 What\'s the exact pickup point?',
+  '🕐 Running 5 mins late, sorry!',
+  '✅ I\'m here, ready to go!',
+  '🙏 Thanks for the ride!',
+]
 
 export default function Chat() {
   const { bookingId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [messages, setMessages] = useState([])
+  const [msgs, setMsgs] = useState([])
   const [text, setText] = useState('')
-  const [booking, setBooking] = useState(null)
-  const [otherUser, setOtherUser] = useState(null)
-  const [senderProfile, setSenderProfile] = useState(null)
+  const [info, setInfo] = useState(null) // { rideInfo, otherName, otherAvatar, otherPhone, otherId, isCancelled }
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [warning, setWarning] = useState('')
+  const [warn, setWarn] = useState('')
+  const [senderName, setSenderName] = useState('')
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const latestMsgId = useRef(null)
 
-  useEffect(() => { fetchAll() }, [bookingId])
+  const scrollBottom = useCallback(() => {
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  }, [])
 
-  useEffect(() => {
-    if (!booking) return
+  useEffect(() => { init() }, [bookingId])
 
-    const channel = supabase
-      .channel(`chat:${bookingId}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'messages',
-        filter: `booking_id=eq.${bookingId}`
-      }, payload => {
-        setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-        // Mark as read if from other user
-        if (payload.new.sender_id !== user.id) {
-          supabase.from('messages').update({ read: true }).eq('id', payload.new.id)
-        }
-      })
-      .subscribe()
+  async function init() {
+    setLoading(true)
 
-    // Mark existing messages as read
+    // 1. Fetch booking simply
+    const { data: b, error: bErr } = await supabase
+      .from('bookings')
+      .select('id, status, rider_id, ride_id')
+      .eq('id', bookingId)
+      .single()
+
+    if (bErr || !b) { navigate('/my-rides'); return }
+
+    const isRider = b.rider_id === user.id
+
+    // 2. Fetch ride + driver
+    const { data: ride } = await supabase
+      .from('rides')
+      .select('from_location, to_location, ride_date, ride_time, fare, driver_id')
+      .eq('id', b.ride_id)
+      .single()
+
+    const isDriver = ride?.driver_id === user.id
+    if (!isRider && !isDriver) { navigate('/my-rides'); return }
+
+    const otherId = isRider ? ride?.driver_id : b.rider_id
+
+    // 3. Fetch other user profile
+    const { data: other } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url, phone')
+      .eq('id', otherId)
+      .single()
+
+    // 4. Fetch own name for notifications
+    const { data: me } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single()
+
+    setSenderName(me?.full_name || 'Someone')
+    setInfo({
+      rideInfo: `${ride?.from_location} → ${ride?.to_location} · ${ride?.ride_date}`,
+      otherName: other?.full_name || 'Co-rider',
+      otherAvatar: other?.avatar_url,
+      otherPhone: other?.phone,
+      otherId,
+      isCancelled: b.status === 'cancelled',
+    })
+
+    // 5. Load messages
+    await loadMessages()
+    setLoading(false)
+
+    // 6. Mark as read
     supabase.from('messages')
       .update({ read: true })
       .eq('booking_id', bookingId)
       .neq('sender_id', user.id)
+      .then(() => {})
+  }
 
-    return () => supabase.removeChannel(channel)
-  }, [booking])
-
-  useEffect(() => {
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 200)
-  }, [messages])
-
-  async function fetchAll() {
-    // Fetch booking with ride + both users
-    const { data: b } = await supabase
-      .from('bookings')
-      .select('*, rides(*, driver:profiles!rides_driver_id_fkey(id, full_name, avatar_url, phone)), rider:profiles!bookings_rider_id_fkey(id, full_name, avatar_url, phone)')
-      .eq('id', bookingId)
-      .single()
-
-    if (!b) { navigate('/my-rides'); return }
-
-    const isRider = b.rider_id === user.id
-    const isDriver = b.rides?.driver_id === user.id
-    if (!isRider && !isDriver) { navigate('/my-rides'); return }
-
-    setBooking(b)
-    setOtherUser(isRider ? b.rides?.driver : b.rider)
-
-    // Get sender's profile name for notifications
-    const { data: sp } = await supabase
-      .from('profiles').select('full_name').eq('id', user.id).single()
-    setSenderProfile(sp)
-
-    // Fetch messages
-    const { data: msgs } = await supabase
+  async function loadMessages() {
+    const { data } = await supabase
       .from('messages')
       .select('*')
       .eq('booking_id', bookingId)
       .order('created_at', { ascending: true })
-    setMessages(msgs || [])
-    setLoading(false)
-
-    // Mark all as read
-    supabase.from('messages')
-      .update({ read: true })
-      .eq('booking_id', bookingId)
-      .neq('sender_id', user.id)
+    if (data) {
+      setMsgs(data)
+      if (data.length > 0) latestMsgId.current = data[data.length - 1].id
+    }
+    return data
   }
 
-  async function sendMessage(e) {
+  // Realtime subscription
+  useEffect(() => {
+    if (loading) return
+
+    const channel = supabase
+      .channel(`chat_${bookingId}_${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `booking_id=eq.${bookingId}`,
+      }, payload => {
+        const newMsg = payload.new
+        setMsgs(prev => {
+          if (prev.find(m => m.id === newMsg.id)) return prev
+          latestMsgId.current = newMsg.id
+          return [...prev, newMsg]
+        })
+        scrollBottom()
+        // Mark as read if from other person
+        if (newMsg.sender_id !== user.id) {
+          supabase.from('messages').update({ read: true }).eq('id', newMsg.id).then(() => {})
+        }
+      })
+      .subscribe((status) => {
+        console.log('Chat realtime status:', status)
+      })
+
+    return () => { supabase.removeChannel(channel) }
+  }, [loading, bookingId])
+
+  // Polling fallback — every 4 seconds fetch new messages
+  useEffect(() => {
+    if (loading) return
+    const poll = setInterval(async () => {
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('booking_id', bookingId)
+        .order('created_at', { ascending: true })
+      if (data && data.length > 0) {
+        const latestId = data[data.length - 1].id
+        if (latestId !== latestMsgId.current) {
+          latestMsgId.current = latestId
+          setMsgs(data)
+          scrollBottom()
+          // Mark new messages as read
+          supabase.from('messages').update({ read: true })
+            .eq('booking_id', bookingId).neq('sender_id', user.id).then(() => {})
+        }
+      }
+    }, 4000)
+    return () => clearInterval(poll)
+  }, [loading, bookingId])
+
+  useEffect(() => { scrollBottom() }, [msgs.length])
+
+  async function send(e) {
     e?.preventDefault()
     if (!text.trim() || sending) return
-
-    // Warn if sensitive content detected
-    if (containsSensitive(text)) {
-      setWarning('⚠️ Phone numbers and UPI IDs are not allowed in chat for your safety.')
+    if (hasSensitive(text)) {
+      setWarn('⚠️ Phone numbers and UPI IDs are not allowed in chat for your safety.')
       return
     }
-
     setSending(true)
-    setWarning('')
-    const msgText = sanitizeMessage(text.trim())
+    setWarn('')
+    const msgText = sanitize(text.trim())
     setText('')
 
-    const { data: msg, error } = await supabase.from('messages').insert({
+    const { data: saved } = await supabase.from('messages').insert({
       booking_id: bookingId,
       sender_id: user.id,
       text: msgText,
       read: false,
     }).select().single()
 
-    if (!error && msg) {
-      setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg])
-
-      // Send notification to other user with correct sender name
-      if (otherUser?.id) {
-        const senderName = senderProfile?.full_name || 'Someone'
+    if (saved) {
+      setMsgs(prev => prev.find(m => m.id === saved.id) ? prev : [...prev, saved])
+      latestMsgId.current = saved.id
+      scrollBottom()
+      // Notify other user
+      if (info?.otherId) {
         await supabase.from('notifications').insert({
-          user_id: otherUser.id,
+          user_id: info.otherId,
           title: `💬 ${senderName}`,
           message: msgText.slice(0, 80),
           type: 'booking',
@@ -145,67 +211,36 @@ export default function Chat() {
         })
       }
     }
-
     setSending(false)
-    setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-      inputRef.current?.focus()
-    }, 100)
+    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
-  function handleTextChange(e) {
-    setText(e.target.value)
-    if (warning) setWarning('')
-  }
-
-  function formatTime(ts) {
+  function fmtTime(ts) {
     const d = new Date(ts)
-    const now = new Date()
-    const isToday = d.toDateString() === now.toDateString()
+    const isToday = d.toDateString() === new Date().toDateString()
     if (isToday) return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' +
            d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
   }
 
-  function groupMessages(msgs) {
-    const groups = []
-    let lastDate = ''
-    msgs.forEach(m => {
-      const d = new Date(m.created_at).toDateString()
-      if (d !== lastDate) {
-        groups.push({
-          type: 'date',
-          label: d === new Date().toDateString() ? 'Today' :
-                 new Date(m.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })
-        })
-        lastDate = d
-      }
-      groups.push({ type: 'msg', ...m })
-    })
-    return groups
-  }
+  // Group by date
+  const grouped = []
+  let lastDate = ''
+  msgs.forEach(m => {
+    const d = new Date(m.created_at).toDateString()
+    if (d !== lastDate) {
+      grouped.push({ type: 'date', label: d === new Date().toDateString() ? 'Today' : new Date(m.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' }) })
+      lastDate = d
+    }
+    grouped.push({ type: 'msg', ...m })
+  })
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 36, marginBottom: 8 }}>💬</div>
-        Loading chat...
-      </div>
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontSize: 36 }}>💬</div>
+      Loading chat...
     </div>
   )
-
-  const ride = booking?.rides
-  const isCancelled = booking?.status === 'cancelled'
-  const grouped = groupMessages(messages)
-
-  const QUICK_REPLIES = [
-    '👋 Hi! I booked your ride',
-    '📍 What\'s the exact pickup point?',
-    '🕐 Running 5 mins late',
-    '✅ I\'m here, ready!',
-    '🙏 Thanks for the ride!',
-    '💺 Can I book 2 seats?',
-  ]
 
   return (
     <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff' }}>
@@ -213,96 +248,71 @@ export default function Chat() {
       {/* Header */}
       <div style={{ background: '#111', padding: '12px 16px', borderBottom: '1px solid #1a1a1a', flexShrink: 0, paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: '4px 6px 4px 0' }}>←</button>
+          <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', paddingRight: 6 }}>←</button>
 
-          {/* Avatar */}
           <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#222', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#facc15', fontSize: 16 }}>
-            {otherUser?.avatar_url
-              ? <img src={otherUser.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-              : (otherUser?.full_name?.[0]?.toUpperCase() || '?')}
+            {info?.otherAvatar
+              ? <img src={info.otherAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+              : info?.otherName?.[0]?.toUpperCase()}
           </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {otherUser?.full_name || 'Co-rider'}
-            </div>
-            <div style={{ color: '#555', fontSize: 11, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {ride?.from_location} → {ride?.to_location}
-            </div>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>{info?.otherName}</div>
+            <div style={{ color: '#555', fontSize: 11, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info?.rideInfo}</div>
           </div>
 
-          {/* Call button — masked, number never shown */}
-          {otherUser?.phone && (
-            <a href={`tel:+91${otherUser.phone.replace(/\D/g, '')}`}
-              style={{ background: '#1a1a1a', border: '1px solid #222', color: '#4ade80', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, textDecoration: 'none', flexShrink: 0 }}
-              title="Call">
+          {info?.otherPhone && (
+            <a href={`tel:+91${info.otherPhone.replace(/\D/g,'')}`}
+              style={{ background: '#1a1a1a', border: '1px solid #222', color: '#4ade80', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, textDecoration: 'none', flexShrink: 0 }}>
               📞
             </a>
           )}
         </div>
 
-        {/* Ride status bar */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <span style={{ background: '#1a1a1a', padding: '4px 10px', borderRadius: 20, fontSize: 11, color: '#666' }}>
-            📅 {ride?.ride_date} · {ride?.ride_time?.slice(0,5)}
-          </span>
-          <span style={{ background: isCancelled ? '#3b0000' : '#052e16', padding: '4px 10px', borderRadius: 20, fontSize: 11, color: isCancelled ? '#f87171' : '#4ade80', fontWeight: 700 }}>
-            ● {booking?.status}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <span style={{ background: info?.isCancelled ? '#3b0000' : '#052e16', padding: '4px 10px', borderRadius: 20, fontSize: 11, color: info?.isCancelled ? '#f87171' : '#4ade80', fontWeight: 700 }}>
+            ● {info?.isCancelled ? 'cancelled' : 'confirmed'}
           </span>
         </div>
       </div>
 
-      {/* Safety notice — shown once */}
-      <div style={{ background: '#1a0f00', borderBottom: '1px solid #2a1800', padding: '8px 16px', flexShrink: 0 }}>
-        <div style={{ fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>
-          🔒 For your safety, phone numbers and UPI IDs are blocked in chat. Use the 📞 call button to call or UPI section to pay.
+      {/* Safety bar */}
+      <div style={{ background: '#1a0f00', borderBottom: '1px solid #2a1800', padding: '7px 16px', flexShrink: 0 }}>
+        <div style={{ fontSize: 11, color: '#92400e' }}>
+          🔒 Phone numbers & UPI IDs are blocked. Use 📞 to call or UPI section to pay.
         </div>
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-
-        {grouped.length === 0 && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#333', textAlign: 'center', padding: 32 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {msgs.length === 0 && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 32 }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
-            <div style={{ fontWeight: 700, color: '#444', marginBottom: 6 }}>Say hello!</div>
-            <div style={{ fontSize: 13, color: '#333', lineHeight: 1.6 }}>
-              Coordinate your pickup point,<br/>timing, or anything else here.
-            </div>
+            <div style={{ fontWeight: 700, color: '#444', marginBottom: 6 }}>No messages yet</div>
+            <div style={{ fontSize: 13, color: '#333', lineHeight: 1.6 }}>Coordinate pickup point,<br/>timing or anything else here.</div>
           </div>
         )}
 
         {grouped.map((item, i) => {
           if (item.type === 'date') return (
-            <div key={`date-${i}`} style={{ textAlign: 'center', margin: '10px 0 6px' }}>
-              <span style={{ background: '#1a1a1a', color: '#555', fontSize: 11, padding: '4px 12px', borderRadius: 10 }}>
-                {item.label}
-              </span>
+            <div key={i} style={{ textAlign: 'center', margin: '10px 0 6px' }}>
+              <span style={{ background: '#1a1a1a', color: '#555', fontSize: 11, padding: '4px 12px', borderRadius: 10 }}>{item.label}</span>
             </div>
           )
-
-          const isMine = item.sender_id === user.id
+          const mine = item.sender_id === user.id
           return (
-            <div key={item.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 2 }}>
+            <div key={item.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 2 }}>
               <div style={{
                 maxWidth: '78%',
-                background: isMine ? '#facc15' : '#1e1e1e',
-                color: isMine ? '#111' : '#fff',
-                borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                padding: '10px 14px',
-                fontSize: 14,
-                lineHeight: 1.5,
-                wordBreak: 'break-word',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                background: mine ? '#facc15' : '#1e1e1e',
+                color: mine ? '#111' : '#fff',
+                borderRadius: mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                padding: '10px 14px', fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word',
               }}>
-                <div>{item.text}</div>
-                <div style={{ fontSize: 10, color: isMine ? '#78350f' : '#555', marginTop: 4, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
-                  {formatTime(item.created_at)}
-                  {isMine && (
-                    <span style={{ color: item.read ? '#16a34a' : '#555' }}>
-                      {item.read ? '✓✓' : '✓'}
-                    </span>
-                  )}
+                {item.text}
+                <div style={{ fontSize: 10, color: mine ? '#78350f' : '#555', marginTop: 4, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                  {fmtTime(item.created_at)}
+                  {mine && <span style={{ color: item.read ? '#16a34a' : '#777' }}>{item.read ? '✓✓' : '✓'}</span>}
                 </div>
               </div>
             </div>
@@ -311,64 +321,43 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Quick replies — show when no messages */}
-      {!isCancelled && messages.length < 2 && (
+      {/* Quick replies */}
+      {!info?.isCancelled && msgs.length < 3 && (
         <div style={{ padding: '6px 10px', display: 'flex', gap: 8, overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none' }}>
-          {QUICK_REPLIES.map(q => (
-            <button key={q} onClick={() => { setText(q); inputRef.current?.focus() }} style={{
-              background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#bbb',
-              padding: '7px 12px', borderRadius: 18, fontSize: 12,
-              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-            }}>{q}</button>
+          {QUICK.map(q => (
+            <button key={q} onClick={() => { setText(q); inputRef.current?.focus() }}
+              style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#bbb', padding: '7px 12px', borderRadius: 18, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {q}
+            </button>
           ))}
         </div>
       )}
 
-      {/* Warning */}
-      {warning && (
-        <div style={{ background: '#2a1500', padding: '10px 16px', flexShrink: 0, borderTop: '1px solid #3a2000' }}>
-          <div style={{ fontSize: 12, color: '#f97316' }}>{warning}</div>
+      {warn && (
+        <div style={{ background: '#2a1500', padding: '9px 16px', flexShrink: 0 }}>
+          <div style={{ fontSize: 12, color: '#f97316' }}>{warn}</div>
         </div>
       )}
 
-      {/* Input */}
-      {!isCancelled ? (
-        <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', padding: '10px 12px', flexShrink: 0, display: 'flex', gap: 10, alignItems: 'flex-end', paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
+      {!info?.isCancelled ? (
+        <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', padding: '10px 12px', paddingBottom: 'max(10px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <textarea
             ref={inputRef}
             value={text}
-            onChange={handleTextChange}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+            onChange={e => { setText(e.target.value); if (warn) setWarn('') }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             placeholder="Type a message..."
             rows={1}
-            style={{
-              flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff',
-              borderRadius: 22, padding: '10px 16px', fontSize: 14, resize: 'none',
-              outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120,
-              transition: 'border-color 0.2s',
-            }}
-            onInput={e => {
-              e.target.style.height = 'auto'
-              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
-            }}
+            style={{ flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: 22, padding: '10px 16px', fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120 }}
+            onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
           />
-          <button
-            onClick={sendMessage}
-            disabled={!text.trim() || sending}
-            style={{
-              width: 44, height: 44, borderRadius: '50%', border: 'none',
-              cursor: text.trim() ? 'pointer' : 'default',
-              background: text.trim() ? '#facc15' : '#1a1a1a',
-              color: text.trim() ? '#111' : '#444',
-              fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, transition: '0.2s',
-            }}
-          >
+          <button onClick={send} disabled={!text.trim() || sending}
+            style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: text.trim() ? 'pointer' : 'default', background: text.trim() ? '#facc15' : '#1a1a1a', color: text.trim() ? '#111' : '#444', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: '0.2s' }}>
             {sending ? '⏳' : '➤'}
           </button>
         </div>
       ) : (
-        <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', padding: '14px 16px', textAlign: 'center', color: '#555', fontSize: 13, flexShrink: 0 }}>
+        <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', padding: '14px', textAlign: 'center', color: '#555', fontSize: 13, flexShrink: 0 }}>
           This booking was cancelled. Chat is read-only.
         </div>
       )}
