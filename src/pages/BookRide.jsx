@@ -171,7 +171,7 @@ export default function BookRide() {
                   ⚠️ Car owner hasn't set UPI ID
                 </div>
                 <div style={{ fontSize: 12, color: '#888' }}>
-                  Contact them via WhatsApp to arrange payment directly.
+                  Use the chat button below to coordinate payment with them directly.
                 </div>
               </div>
             ) : (
@@ -214,16 +214,18 @@ export default function BookRide() {
 
             </>
             )}
-            {/* WhatsApp car owner */}
-            <a href={`https://wa.me/91${owner?.phone?.replace(/\D/g,'')}?text=${waMsg}`}
-              target="_blank" rel="noreferrer"
-              style={{
-                display: 'block', width: '100%', background: '#25D366',
-                color: '#fff', borderRadius: 12, padding: 13,
-                fontSize: 14, fontWeight: 700, textAlign: 'center', textDecoration: 'none',
-              }}>
-              💬 WhatsApp {owner?.full_name}
-            </a>
+            {/* Chat with car owner */}
+            {bookingData?.id && (
+              <button onClick={() => navigate(`/chat/${bookingData.id}`)}
+                style={{
+                  display: 'block', width: '100%', background: '#facc15',
+                  color: '#111', borderRadius: 12, padding: 13,
+                  fontSize: 14, fontWeight: 700, textAlign: 'center',
+                  border: 'none', cursor: 'pointer',
+                }}>
+                💬 Chat with {owner?.full_name?.split(' ')[0]}
+              </button>
+            )}
           </div>
 
           {/* Disclaimer */}
