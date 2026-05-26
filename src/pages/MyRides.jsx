@@ -34,7 +34,7 @@ function ContactButtons({ phone, name, bookingId, navigate }) {
 }
 
 // Single passenger card inside a ride
-function PassengerCard({ booking }) {
+function PassengerCard({ booking, unreadCount }) {
   const rider = booking.profiles
   const navigate = useNavigate()
   const initials = rider?.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
@@ -79,12 +79,23 @@ function PassengerCard({ booking }) {
 
       {/* Contact buttons */}
       <ContactButtons phone={rider?.phone} name={rider?.full_name} bookingId={booking.id} navigate={navigate} />
+      {/* Unread message badge */}
+      {unreadCount > 0 && (
+        <button onClick={() => navigate(`/chat/${booking.id}`)} style={{
+          width: '100%', marginTop: 10, padding: '10px', background: '#fefce8',
+          border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          fontWeight: 700, fontSize: 13, color: '#854d0e',
+        }}>
+          💬 {unreadCount} new message{unreadCount > 1 ? 's' : ''} from rider
+        </button>
+      )}
     </div>
   )
 }
 
 // Driver's posted ride card with passenger list
-function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
+function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {} }) {
   const [expanded, setExpanded] = useState(false)
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
@@ -249,7 +260,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll }) {
           ) : passengers.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 12, color: '#aaa', fontSize: 13 }}>No confirmed bookings yet</div>
           ) : (
-            passengers.map(b => <PassengerCard key={b.id} booking={b} />)
+            passengers.map(b => <PassengerCard key={b.id} booking={b} unreadCount={unreadCounts[b.id] || 0} />)
           )}
         </div>
       )}
@@ -264,8 +275,25 @@ export default function MyRides() {
   const [rides, setRides] = useState([])
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
+  const [unreadCounts, setUnreadCounts] = useState({}) // bookingId → count
 
   useEffect(() => { fetchData() }, [])
+
+  // Fetch unread message counts for all bookings
+  async function fetchUnreadCounts(bookingIds) {
+    if (!bookingIds.length) return
+    const { data } = await supabase
+      .from('messages')
+      .select('booking_id')
+      .in('booking_id', bookingIds)
+      .eq('read', false)
+      .neq('sender_id', user.id)
+    const counts = {}
+    ;(data || []).forEach(m => {
+      counts[m.booking_id] = (counts[m.booking_id] || 0) + 1
+    })
+    setUnreadCounts(counts)
+  }
 
   async function sendNotification(userId, title, message) {
     const { error } = await supabase.from('notifications').insert({
@@ -299,7 +327,10 @@ export default function MyRides() {
       })
       // Add cancelled bookings separately (not grouped)
       const cancelled = allBookings.filter(b => b.status === 'cancelled')
-      setBookings([...Object.values(grouped), ...cancelled])
+      const finalBookings = [...Object.values(grouped), ...cancelled]
+      setBookings(finalBookings)
+      // Fetch unread message counts
+      fetchUnreadCounts(finalBookings.map(b => b.id))
     }
     setLoading(false)
   }
@@ -425,7 +456,7 @@ export default function MyRides() {
               <div style={{ color: '#aaa', marginTop: 8 }}>No rides posted yet</div>
               <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Tap + below to post your first ride</div>
             </div>
-          ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} />)
+          ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} />)
 
         ) : (
           activeBookings.length === 0 && cancelledBookings.length === 0 ? (
@@ -461,6 +492,17 @@ export default function MyRides() {
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{b.rides.profiles.full_name}</div>
                   <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} bookingId={b.id} navigate={navigate} />
                 </div>
+              )}
+              {/* Unread message badge + chat CTA */}
+              {unreadCounts[b.id] > 0 && (
+                <button onClick={() => navigate(`/chat/${b.id}`)} style={{
+                  width: '100%', marginTop: 10, padding: '10px', background: '#fefce8',
+                  border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  fontWeight: 700, fontSize: 13, color: '#854d0e',
+                }}>
+                  💬 {unreadCounts[b.id]} new message{unreadCounts[b.id] > 1 ? 's' : ''} from car owner
+                </button>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
