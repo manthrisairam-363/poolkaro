@@ -89,6 +89,7 @@ export default function Onboarding() {
       vehicle_number: form.vehicle_number?.toUpperCase() || null,
       upi_id: form.upi_id || null,
       onboarding_complete: true,
+      consent_given: form.consent_given || false,
       referred_by: referrerId ? referralCode : null,
     })
     if (error) { setError(error.message); setLoading(false); return }
@@ -238,9 +239,35 @@ export default function Onboarding() {
         {currentStep !== 'upi' ? (
           <button style={s.btnPrimary} onClick={next}>Continue →</button>
         ) : (
-          <button style={s.btnPrimary} onClick={finish} disabled={loading}>
-            {loading ? 'Setting up...' : '🎉 Enter CarpoolKaro'}
-          </button>
+          <>
+            {/* Legal consent — Point 5 & 6 */}
+            <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 14, marginBottom: 16, border: '1px solid #e5e7eb' }}>
+              <label style={{ display: 'flex', gap: 12, alignItems: 'flex-start', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.consent_given || false}
+                  onChange={e => set('consent_given', e.target.checked)}
+                  style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, accentColor: '#111' }}
+                />
+                <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6 }}>
+                  I agree to share my name and phone number with matched co-riders for ride coordination purposes.
+                  I understand that CarpoolKaro is a <strong>technology platform only</strong> and does not own vehicles or employ drivers.
+                  Users are responsible for their own safety during rides. By joining, I accept the{' '}
+                  <a href="/terms" style={{ color: '#111', fontWeight: 700 }}>Terms of Use & Privacy Policy</a>.
+                </div>
+              </label>
+            </div>
+            <button style={{
+              ...s.btnPrimary,
+              opacity: form.consent_given ? 1 : 0.5,
+              cursor: form.consent_given ? 'pointer' : 'default',
+            }} onClick={() => {
+              if (!form.consent_given) { setError('Please read and accept the terms to continue'); return }
+              finish()
+            }} disabled={loading}>
+              {loading ? 'Setting up...' : '🎉 Enter CarpoolKaro'}
+            </button>
+          </>
         )}
 
         {step > 0 && (
