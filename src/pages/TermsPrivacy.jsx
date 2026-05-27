@@ -37,10 +37,18 @@ const sections = {
     },
     {
       title: '9. Limitation of Liability',
-      content: 'CarpoolKaro is a technology platform only. We are not responsible for the conduct of users, quality of rides, accidents, or losses incurred during rides. Our maximum liability is limited to the platform fee collected.',
+      content: 'CarpoolKaro is a technology platform only. We do not own vehicles, employ drivers, or operate transportation services. We connect independent users who choose to share rides voluntarily. CarpoolKaro is not liable for: (a) any accidents, injuries, or deaths occurring during rides; (b) the conduct, behaviour, or reliability of any user; (c) loss of property during rides; (d) disputes between car owners and co-riders regarding fares or safety. Users participate at their own risk. Our maximum liability is limited to the platform fee collected in the specific transaction.',
     },
     {
-      title: '10. Changes to Terms',
+      title: '10. User Data Consent',
+      content: 'By using CarpoolKaro, you explicitly consent to: (a) sharing your name and phone number with matched co-riders and car owners for ride coordination; (b) receiving ride-related notifications via push notifications; (c) your profile photo being visible to matched users. This consent is given voluntarily and is required to use the platform. You may withdraw consent by deleting your account.',
+    },
+    {
+      title: '11. Subscription Policy',
+      content: 'CarpoolKaro Pro subscriptions are non-refundable once activated. Subscriptions cannot be cancelled mid-period and remain valid till the expiry date. No auto-renewal — you must manually renew. Subscribed users enjoy zero platform fees for the subscription duration.',
+    },
+    {
+      title: '12. Changes to Terms',
       content: 'CarpoolKaro may update these terms at any time. Users will be notified of significant changes. Continued use of the app after changes means you accept the new terms.',
     },
   ],
