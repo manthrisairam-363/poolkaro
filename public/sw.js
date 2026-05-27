@@ -1,4 +1,4 @@
-// PoolKaro Service Worker
+// CarpoolKaro Service Worker v2
 // Handles push notifications and caching
 
 self.addEventListener('install', (e) => {
