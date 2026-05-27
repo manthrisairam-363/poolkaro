@@ -262,6 +262,9 @@ export default function Home() {
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [showFromSug, setShowFromSug] = useState(false)
   const [showToSug, setShowToSug] = useState(false)
+  const [suggestedRoutes, setSuggestedRoutes] = useState([])
+
+  useEffect(() => { fetchSuggestedRoutes() }, [])
 
   const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
@@ -288,6 +291,35 @@ export default function Home() {
 
     return () => supabase.removeChannel(channel)
   }, [])
+
+  async function fetchSuggestedRoutes() {
+    if (!user?.id) return
+    // Get user's 3 most used routes from past bookings
+    const { data } = await supabase
+      .from('bookings')
+      .select('rides(from_location, to_location)')
+      .eq('rider_id', user.id)
+      .eq('status', 'confirmed')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (!data) return
+    // Count route frequency
+    const routeCount = {}
+    data.forEach(b => {
+      if (b.rides?.from_location && b.rides?.to_location) {
+        const key = `${b.rides.from_location}||${b.rides.to_location}`
+        routeCount[key] = (routeCount[key] || 0) + 1
+      }
+    })
+    const top = Object.entries(routeCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([key]) => {
+        const [from, to] = key.split('||')
+        return { from, to }
+      })
+    setSuggestedRoutes(top)
+  }
 
   async function fetchRequests() {
     const istOffset = 5.5 * 60 * 60 * 1000
@@ -534,7 +566,38 @@ export default function Home() {
           </div>
         )}
 
-        {/* My active request banner — shows auto-filter is active */}
+        {/* Route suggestions from history */}
+        {suggestedRoutes.length > 0 && filter === 'all' && !search && !hasActiveFilters && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: '#888', fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>
+              🕐 YOUR USUAL ROUTES
+            </div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {suggestedRoutes.map((r, i) => (
+                <button key={i} onClick={() => {
+                  setFilterFrom(r.from.split(' ')[0])
+                  setFilterTo(r.to.split(' ')[0])
+                  setShowFilters(false)
+                }} style={{
+                  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20,
+                  padding: '7px 12px', fontSize: 11, fontWeight: 600, color: '#111',
+                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                }}>
+                  📍 {r.from.split(' ')[0]} → {r.to.split(' ')[0]}
+                </button>
+              ))}
+              <button onClick={() => { setFilterFrom(''); setFilterTo('') }} style={{
+                background: 'none', border: '1px dashed #ddd', borderRadius: 20,
+                padding: '7px 12px', fontSize: 11, color: '#aaa', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
+              }}>
+                + Add route
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* My active request banner */}
         {myRequest && filter !== 'requests' && (
           <div style={{ background: '#f0f4ff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #bfdbfe' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 4 }}>🎯 SHOWING RIDES MATCHING YOUR REQUEST</div>
