@@ -27,6 +27,8 @@ export default function AdminDashboard() {
   const [revenueData, setRevenueData] = useState([])
   const [popularRoutes, setPopularRoutes] = useState([])
   const [reports, setReports] = useState([])
+  const [userFilter, setUserFilter] = useState('all')
+  const [userSort, setUserSort] = useState('joined_desc')
 
   const isAdmin = profile?.is_admin === true
 
@@ -218,10 +220,35 @@ export default function AdminDashboard() {
     ].filter(Boolean)
   }))
 
-  const filteredUsers = users.filter(u => {
-    const q = search.toLowerCase()
-    return !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.phone?.includes(q)
-  })
+  function getFilteredSortedUsers() {
+    const now = new Date()
+    const weekAgo = new Date(now - 7 * 86400000)
+    let list = users.filter(u => {
+      const q = search.toLowerCase()
+      const matchSearch = !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.phone?.includes(q)
+      if (!matchSearch) return false
+      if (userFilter === 'pro') return u.subscription_expires_at && new Date(u.subscription_expires_at) > now
+      if (userFilter === 'free') return !u.subscription_expires_at || new Date(u.subscription_expires_at) <= now
+      if (userFilter === 'verified') return u.is_verified
+      if (userFilter === 'active_week') return u.last_seen_at && new Date(u.last_seen_at) > weekAgo
+      if (userFilter === 'low_balance') return (wallets[u.id] || 0) < 500
+      if (userFilter === 'no_rides') return (u.total_rides_given || 0) === 0 && (u.total_rides_taken || 0) === 0
+      if (userFilter === 'referred') return !!u.referred_by
+      return true
+    })
+    list = [...list].sort((a, b) => {
+      if (userSort === 'joined_desc') return new Date(b.created_at) - new Date(a.created_at)
+      if (userSort === 'joined_asc') return new Date(a.created_at) - new Date(b.created_at)
+      if (userSort === 'last_seen') return new Date(b.last_seen_at || 0) - new Date(a.last_seen_at || 0)
+      if (userSort === 'balance_desc') return (wallets[b.id] || 0) - (wallets[a.id] || 0)
+      if (userSort === 'balance_asc') return (wallets[a.id] || 0) - (wallets[b.id] || 0)
+      if (userSort === 'rides_desc') return (b.total_rides_given || 0) - (a.total_rides_given || 0)
+      if (userSort === 'cancellations_desc') return (b.cancellation_count || 0) - (a.cancellation_count || 0)
+      if (userSort === 'referrals_desc') return (b.referral_count || 0) - (a.referral_count || 0)
+      return 0
+    })
+    return list
+  }
 
   if (!isAdmin) return null
 
@@ -499,15 +526,52 @@ export default function AdminDashboard() {
             {/* USERS */}
             {tab === 'users' && (
               <div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search by name, email or phone..."
+                {/* Search */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search name, email or phone..."
                     style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 13 }} />
                   {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#666', fontSize: 18, cursor: 'pointer' }}>✕</button>}
                 </div>
-                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>
-                  {filteredUsers.length} {search ? 'results' : 'total users'} — tap to view details
+
+                {/* Filter chips */}
+                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10, paddingBottom: 4, scrollbarWidth: 'none' }}>
+                  {[
+                    ['all', 'All'],
+                    ['pro', '⭐ Pro'],
+                    ['free', '🆓 Free'],
+                    ['verified', '✓ Verified'],
+                    ['active_week', '👁 Active this week'],
+                    ['low_balance', '⚠️ Low balance'],
+                    ['no_rides', '😴 No rides'],
+                    ['referred', '🎁 Referred'],
+                  ].map(([f, label]) => (
+                    <button key={f} onClick={() => setUserFilter(f)} style={{
+                      padding: '6px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700,
+                      background: userFilter === f ? '#facc15' : '#1a1a1a', color: userFilter === f ? '#111' : '#666',
+                    }}>{label}</button>
+                  ))}
                 </div>
-                {filteredUsers.map(u => (
+
+                {/* Sort */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#555', flexShrink: 0 }}>Sort by:</span>
+                  <select value={userSort} onChange={e => setUserSort(e.target.value)} style={{ flex: 1, padding: '7px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12 }}>
+                    <option value="joined_desc">Joined (newest first)</option>
+                    <option value="joined_asc">Joined (oldest first)</option>
+                    <option value="last_seen">Last active</option>
+                    <option value="balance_desc">Balance (highest)</option>
+                    <option value="balance_asc">Balance (lowest)</option>
+                    <option value="rides_desc">Most rides given</option>
+                    <option value="cancellations_desc">Most cancellations</option>
+                    <option value="referrals_desc">Most referrals</option>
+                  </select>
+                </div>
+
+                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>
+                  {getFilteredSortedUsers().length} {search || userFilter !== 'all' ? 'results' : 'total users'}
+                </div>
+
+                {getFilteredSortedUsers().map(u => (
                   <div key={u.id} onClick={() => setSelectedUser(u)} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'center' }}>
                     <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#333', color: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0, overflow: 'hidden' }}>
                       {u.avatar_url ? <img src={u.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : u.full_name?.[0]?.toUpperCase() || '?'}
@@ -516,6 +580,7 @@ export default function AdminDashboard() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 14 }}>{u.full_name || 'No name'}</span>
                         {u.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
+                        {u.subscription_expires_at && new Date(u.subscription_expires_at) > new Date() && <span style={{ background: '#facc15', color: '#111', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>⭐</span>}
                         {suspiciousUsers.find(s => s.id === u.id) && <span style={{ background: '#7f1d1d', color: '#fca5a5', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>⚠️</span>}
                       </div>
                       <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{u.phone} · {u.email?.slice(0,25)}</div>
