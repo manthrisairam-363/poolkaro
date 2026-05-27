@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
@@ -61,6 +62,7 @@ function TransactionItem({ txn }) {
 
 export default function Wallet() {
   const { user, profile } = useAuth()
+  const navigate = useNavigate()
   const [wallet, setWallet] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -222,6 +224,29 @@ export default function Wallet() {
       </div>
 
       <div style={{ padding: 16 }}>
+
+        {/* Pro subscription banner */}
+        {profile?.subscription_expires_at && new Date(profile.subscription_expires_at) > new Date() ? (
+          <div style={{ background: 'linear-gradient(135deg, #052e16, #064e3b)', borderRadius: 14, padding: '12px 16px', marginBottom: 14, border: '1px solid #166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 800, color: '#4ade80', fontSize: 14 }}>⭐ Pro Active — Zero fees!</div>
+              <div style={{ color: '#86efac', fontSize: 11, marginTop: 2 }}>
+                Valid till {new Date(profile.subscription_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
+            </div>
+            <button onClick={() => navigate('/subscription')} style={{ background: 'none', border: '1px solid #166634', color: '#4ade80', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 }}>
+              Renew
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => navigate('/subscription')} style={{ width: '100%', background: '#fefce8', border: '2px solid #facc15', borderRadius: 14, padding: '12px 16px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontWeight: 800, color: '#854d0e', fontSize: 14 }}>⭐ Upgrade to Pro</div>
+              <div style={{ color: '#92400e', fontSize: 11, marginTop: 2 }}>Save ₹2 on every ride · From ₹99/month</div>
+            </div>
+            <div style={{ color: '#854d0e', fontSize: 20 }}>›</div>
+          </button>
+        )}
         {success && (
           <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '12px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
             {success}
