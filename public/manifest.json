@@ -1,25 +1,89 @@
 {
+  "id": "com.carpoolkaro.app",
   "name": "CarpoolKaro",
   "short_name": "CarpoolKaro",
-  "description": "Hyderabad IT Carpool — Share rides, save money",
+  "description": "Hyderabad IT Carpool — Share rides with colleagues, save money and reduce traffic",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#111111",
   "theme_color": "#facc15",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["travel", "lifestyle", "social"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-home.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Home — Browse available rides"
+    },
+    {
+      "src": "/screenshot-book.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Book a ride with one tap"
+    },
+    {
+      "src": "/screenshot-wallet.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Wallet — Track your savings"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Post a Ride",
+      "short_name": "Post",
+      "description": "Offer your car to colleagues",
+      "url": "/post",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Find a Ride",
+      "short_name": "Find",
+      "description": "Find rides on your route",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Wallet",
+      "short_name": "Wallet",
+      "description": "Check your wallet balance",
+      "url": "/wallet",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
 }
