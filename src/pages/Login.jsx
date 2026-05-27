@@ -47,16 +47,12 @@ export default function Login() {
     <div style={{ minHeight: '100vh', background: '#111', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
 
       {/* Logo — tap 7x to unlock email login */}
-      <div onClick={handleLogoTap} style={{ width: 80, height: 80, borderRadius: 24, background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44, marginBottom: 12, boxShadow: '0 8px 32px rgba(250,204,21,0.3)', cursor: 'default' }}>
-        <svg width="44" height="36" viewBox="0 0 48 36" fill="none">
-          <path d="M8 20L12 8h24l4 12" stroke="#111" strokeWidth="3" strokeLinecap="round"/>
-          <rect x="3" y="20" width="42" height="12" rx="3" fill="#111"/>
-          <circle cx="13" cy="32" r="3.5" fill="#111" stroke="#facc15" strokeWidth="2"/>
-          <circle cx="35" cy="32" r="3.5" fill="#111" stroke="#facc15" strokeWidth="2"/>
-          <rect x="3" y="24" width="42" height="1.5" fill="#facc15"/>
-          <rect x="16" y="11" width="16" height="9" rx="2" fill="#222"/>
-        </svg>
-      </div>
+      <img
+        src="/icon-512.png"
+        alt="CarpoolKaro"
+        onClick={handleLogoTap}
+        style={{ width: 96, height: 96, borderRadius: 24, marginBottom: 16, boxShadow: '0 8px 32px rgba(250,204,21,0.35)', objectFit: 'cover', cursor: 'default' }}
+      />
 
       <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-1px', marginBottom: 4 }}>
         <span style={{ color: '#facc15' }}>Carpool</span>
