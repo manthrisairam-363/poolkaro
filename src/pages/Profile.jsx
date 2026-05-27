@@ -179,6 +179,9 @@ export default function Profile() {
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {profile?.full_name || 'Your Name'}
               {profile?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>✓ VERIFIED</span>}
+              {profile?.subscription_expires_at && new Date(profile.subscription_expires_at) > new Date() && (
+                <span style={{ background: '#facc15', color: '#111', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>⭐ PRO</span>
+              )}
             </div>
             <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
@@ -350,6 +353,33 @@ export default function Profile() {
             </div>
           )}
         </div>
+
+        {/* ── Pro Subscription Banner ── */}
+        {profile?.subscription_expires_at && new Date(profile.subscription_expires_at) > new Date() ? (
+          <button onClick={() => navigate('/subscription')} style={{ width: '100%', padding: '14px 16px', background: 'linear-gradient(135deg, #052e16, #064e3b)', border: '1px solid #166534', borderRadius: 14, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <span style={{ fontSize: 16 }}>⭐</span>
+                <span style={{ fontWeight: 800, fontSize: 14, color: '#4ade80' }}>Pro Active</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#86efac' }}>
+                Expires {new Date(profile.subscription_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
+            </div>
+            <span style={{ color: '#4ade80', fontSize: 20 }}>›</span>
+          </button>
+        ) : (
+          <button onClick={() => navigate('/subscription')} style={{ width: '100%', padding: '14px 16px', background: '#fefce8', border: '2px solid #facc15', borderRadius: 14, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <span style={{ fontSize: 16 }}>⭐</span>
+                <span style={{ fontWeight: 800, fontSize: 14, color: '#854d0e' }}>Upgrade to Pro</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#92400e' }}>Zero platform fees · From ₹99/month</div>
+            </div>
+            <span style={{ color: '#854d0e', fontSize: 20 }}>›</span>
+          </button>
+        )}
 
         {/* ── Group 2: Links ── */}
         <div style={card}>
