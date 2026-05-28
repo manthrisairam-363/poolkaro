@@ -124,7 +124,7 @@ export default function Onboarding() {
   }
 
   function next() {
-    // Strict validation — no bypassing
+    // Strict validation
     if (STEPS[step] === 'role' && !form.role) {
       setError('Please select your role to continue'); return
     }
@@ -135,23 +135,26 @@ export default function Onboarding() {
       const digits = form.phone.replace(/\D/g, '')
       if (digits.length !== 10) { setError('Enter a valid 10-digit phone number'); return }
       if (!/^[6-9]/.test(digits)) { setError('Enter a valid Indian mobile number'); return }
+      // Riders skip vehicle AND upi — go straight to finish (after consent)
+      if (form.role === 'rider') {
+        if (!form.consent_given) { setError('Please read and accept the terms to continue'); return }
+        setError('')
+        finish()
+        return
+      }
     }
     setError('')
-
-    // Skip vehicle step if rider only
-    if (STEPS[step] === 'personal' && form.role === 'rider') {
-      setStep(s => s + 2) // skip to upi
-      return
-    }
     setStep(s => s + 1)
   }
 
   const currentStep = STEPS[step]
+  const isRider = form.role === 'rider'
+  const totalSteps = isRider ? 2 : 4
 
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <div style={s.step}>Step {step + 1} of {form.role === 'rider' ? 3 : 4}</div>
+        <div style={s.step}>Step {step + 1} of {totalSteps}</div>
         <div style={s.title}>
           {currentStep === 'role' && 'How will you use CarpoolKaro?'}
           {currentStep === 'personal' && 'Tell us about yourself'}
@@ -162,7 +165,7 @@ export default function Onboarding() {
           {currentStep === 'role' && 'You can always change this later in Settings'}
           {currentStep === 'personal' && 'Your name will be shown to co-riders'}
           {currentStep === 'vehicle' && 'Riders will see this when booking your seat'}
-          {currentStep === 'upi' && 'Required to send and receive money instantly'}
+          {currentStep === 'upi' && 'Required for drivers to receive fare payments'}
         </div>
       </div>
 
@@ -201,6 +204,19 @@ export default function Onboarding() {
               value={form.referral_code}
               onChange={e => set('referral_code', e.target.value.toUpperCase().slice(0, 6))}
             />
+            {/* Consent on personal step for RIDERS (their last step) */}
+            {isRider && (
+              <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 14, marginTop: 8, border: '1px solid #e5e7eb' }}>
+                <label style={{ display: 'flex', gap: 12, alignItems: 'flex-start', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.consent_given || false} onChange={e => set('consent_given', e.target.checked)}
+                    style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, accentColor: '#111' }} />
+                  <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6 }}>
+                    I agree to share my name and phone with matched car owners. CarpoolKaro is a <strong>technology platform only</strong>. By joining I accept the{' '}
+                    <a href="/terms" style={{ color: '#111', fontWeight: 700 }}>Terms & Privacy Policy</a>.
+                  </div>
+                </label>
+              </div>
+            )}
           </>
         )}
 
@@ -236,8 +252,13 @@ export default function Onboarding() {
         )}
 
         {/* Navigation */}
-        {currentStep !== 'upi' ? (
+        {(currentStep === 'role' || (currentStep === 'personal' && !isRider) || currentStep === 'vehicle') ? (
           <button style={s.btnPrimary} onClick={next}>Continue →</button>
+        ) : currentStep === 'personal' && isRider ? (
+          <button style={{ ...s.btnPrimary, opacity: form.consent_given ? 1 : 0.5 }}
+            onClick={next} disabled={loading}>
+            {loading ? 'Setting up...' : '🎉 Join CarpoolKaro'}
+          </button>
         ) : (
           <>
             {/* Legal consent — Point 5 & 6 */}
