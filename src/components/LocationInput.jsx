@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { getLocationsForCity } from '../lib/cityLocations'
 
-const SUGGESTED_AREAS = [
+const AREAS = [
   // ── IT HUBS & TECH PARKS ───────────────────────────
   'HITEC City', 'Hitech City', 'Madhapur', 'Raheja Mindspace', 'Mindspace Madhapur',
   'Financial District', 'Nanakramguda', 'WaveRock SEZ', 'DLF Cyber City',
@@ -78,7 +79,8 @@ const SUGGESTED_AREAS = [
   'ORR Gachibowli', 'ORR Patancheru', 'ORR Shamshabad', 'ORR Kompally',
 ]
 
-export default function LocationInput({ label, value, onChange, placeholder }) {
+export default function LocationInput({ label, value, onChange, placeholder, city }) {
+  const AREAS = getLocationsForCity(city || 'Hyderabad')
   const [query, setQuery] = useState(value || '')
   const [suggestions, setSuggestions] = useState([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -102,13 +104,13 @@ export default function LocationInput({ label, value, onChange, placeholder }) {
     onChange(val) // allow free text — user can type anything
 
     if (val.length > 0) {
-      const filtered = SUGGESTED_AREAS.filter(a =>
+      const filtered = AREAS.filter(a =>
         a.toLowerCase().includes(val.toLowerCase())
       ).slice(0, 6)
       setSuggestions(filtered)
       setShowDropdown(true)
     } else {
-      setSuggestions(SUGGESTED_AREAS.slice(0, 6))
+      setSuggestions(AREAS.slice(0, 6))
       setShowDropdown(true)
     }
   }
@@ -121,8 +123,8 @@ export default function LocationInput({ label, value, onChange, placeholder }) {
 
   function handleFocus() {
     const filtered = query
-      ? SUGGESTED_AREAS.filter(a => a.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
-      : SUGGESTED_AREAS.slice(0, 6)
+      ? AREAS.filter(a => a.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+      : AREAS.slice(0, 6)
     setSuggestions(filtered)
     setShowDropdown(true)
   }
@@ -159,7 +161,7 @@ export default function LocationInput({ label, value, onChange, placeholder }) {
           maxHeight: 200, overflowY: 'auto',
         }}>
           {/* Show "use typed text" option if not in list */}
-          {query && !SUGGESTED_AREAS.some(a => a.toLowerCase() === query.toLowerCase()) && (
+          {query && !AREAS.some(a => a.toLowerCase() === query.toLowerCase()) && (
             <div
               onClick={() => handleSelect(query)}
               style={{
