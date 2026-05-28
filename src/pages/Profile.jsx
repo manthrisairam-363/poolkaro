@@ -57,6 +57,7 @@ export default function Profile() {
     setLoading(true)
     const { error } = await supabase.from('profiles').update({
       full_name: form.full_name, phone: form.phone,
+      city: form.city || 'Hyderabad',
       vehicle_model: form.vehicle_model || null,
       vehicle_number: form.vehicle_number?.toUpperCase() || null,
       upi_id: form.upi_id || null, role: form.role,
@@ -244,6 +245,12 @@ export default function Profile() {
                   <div style={{ height: 8 }} />
                   <span style={lbl}>Full Name</span><input style={inp} value={form.full_name} onChange={e => set('full_name', e.target.value)} />
                   <span style={lbl}>Phone</span><input style={inp} value={form.phone} onChange={e => set('phone', e.target.value)} type="tel" />
+                  <span style={lbl}>City</span>
+                  <select style={inp} value={form.city || 'Hyderabad'} onChange={e => set('city', e.target.value)}>
+                    {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
                   <span style={lbl}>Role</span>
                   <select style={inp} value={form.role} onChange={e => set('role', e.target.value)}>
                     <option value="both">Car Owner & Co-rider</option>
@@ -363,7 +370,7 @@ export default function Profile() {
                 <span style={{ fontWeight: 800, fontSize: 14, color: '#4ade80' }}>Pro Active</span>
               </div>
               <div style={{ fontSize: 11, color: '#86efac' }}>
-                Expires {new Date(profile.subscription_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {Math.max(0, Math.ceil((new Date(profile.subscription_expires_at) - new Date()) / 86400000))} days left · expires {new Date(profile.subscription_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
               </div>
             </div>
             <span style={{ color: '#4ade80', fontSize: 20 }}>›</span>
