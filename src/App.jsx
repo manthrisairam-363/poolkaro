@@ -18,6 +18,7 @@ import TermsPrivacy from './pages/TermsPrivacy'
 import Install from './pages/Install'
 import Chat from './pages/Chat'
 import Subscription from './pages/Subscription'
+import Feedback from './pages/Feedback'
 import { usePushNotifications } from './lib/pushNotifications'
 
 function Loader() {
@@ -69,6 +70,7 @@ function AppRoutes() {
       <Route path="/install" element={<Install />} />
       <Route path="/chat/:bookingId" element={<Chat />} />
       <Route path="/subscription" element={<Subscription />} />
+      <Route path="/feedback" element={<Feedback />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
