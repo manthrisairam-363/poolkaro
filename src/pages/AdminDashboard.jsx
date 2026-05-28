@@ -29,6 +29,9 @@ export default function AdminDashboard() {
   const [reports, setReports] = useState([])
   const [userFilter, setUserFilter] = useState('all')
   const [userSort, setUserSort] = useState('joined_desc')
+  const [feedbackList, setFeedbackList] = useState([])
+  const [replyText, setReplyText] = useState({})
+  const [replyingTo, setReplyingTo] = useState(null)
 
   const isAdmin = profile?.is_admin === true
 
@@ -120,6 +123,13 @@ export default function AdminDashboard() {
         .eq('resolved', false)
         .order('created_at', { ascending: false })
       setReports(reportsData || [])
+
+      // Fetch feedback
+      const { data: fbData } = await supabase
+        .from('feedback')
+        .select('*, profiles(full_name, email, avatar_url)')
+        .order('created_at', { ascending: false })
+      setFeedbackList(fbData || [])
     } catch (err) {
       console.error('Admin fetch error:', err.message)
     } finally {
@@ -434,10 +444,11 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
           {[
             ['overview','📊'],['users','👥'],['suspicious','⚠️'],
-            ['rides','🚗'],['bookings','🎫'],['broadcast','📢'],['reports','🚨']
+            ['rides','🚗'],['bookings','🎫'],['broadcast','📢'],
+            ['reports','🚨'],['feedback','💡']
           ].map(([v,l]) => (
             <button key={v} onClick={() => setTab(v)} style={tabStyle(v)}>
-              {l} {v === 'suspicious' && suspiciousUsers.length > 0 ? `(${suspiciousUsers.length})` : v === 'reports' && reports.length > 0 ? `(${reports.length})` : v.charAt(0).toUpperCase() + v.slice(1)}
+              {l} {v === 'suspicious' && suspiciousUsers.length > 0 ? `(${suspiciousUsers.length})` : v === 'reports' && reports.length > 0 ? `(${reports.length})` : v === 'feedback' && feedbackList.filter(f => f.status === 'open').length > 0 ? `(${feedbackList.filter(f => f.status === 'open').length})` : v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
           ))}
         </div>
@@ -781,6 +792,126 @@ export default function AdminDashboard() {
                           ✓ Dismiss
                         </button>
                       </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {/* FEEDBACK */}
+            {tab === 'feedback' && (
+              <div>
+                <div style={{ background: '#1a1200', borderRadius: 12, padding: 14, marginBottom: 16, border: '1px solid #2a1f00' }}>
+                  <div style={{ fontWeight: 700, color: '#facc15', marginBottom: 4 }}>💡 User Feedback & Suggestions</div>
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    {feedbackList.filter(f => f.status === 'open').length} pending · {feedbackList.filter(f => f.status === 'replied').length} replied · {feedbackList.length} total
+                  </div>
+                </div>
+
+                {/* Filter bar */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto' }}>
+                  {['all', 'open', 'replied', 'suggestion', 'bug', 'feature'].map(f => (
+                    <button key={f} style={{
+                      padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                      background: '#1a1a1a', color: '#888',
+                    }}>
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
+                {feedbackList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 40, color: '#555' }}>No feedback yet</div>
+                ) : feedbackList.map(fb => {
+                  const typeEmoji = { suggestion: '💡', bug: '🐛', feature: '🚀', other: '💬' }[fb.type] || '💬'
+                  return (
+                    <div key={fb.id} style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, marginBottom: 12, border: fb.status === 'open' ? '1px solid #2a2a2a' : '1px solid #052e16' }}>
+                      {/* User info */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#333', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#facc15', fontSize: 14 }}>
+                          {fb.profiles?.avatar_url ? <img src={fb.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : fb.profiles?.full_name?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>{fb.profiles?.full_name || 'Unknown'}</div>
+                          <div style={{ fontSize: 11, color: '#555' }}>{fb.profiles?.email?.slice(0, 30)}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 11, color: '#666' }}>{typeEmoji} {fb.type}</div>
+                          <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>
+                            {new Date(fb.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Message */}
+                      <div style={{ background: '#111', borderRadius: 10, padding: '10px 12px', marginBottom: 10, fontSize: 14, color: '#ccc', lineHeight: 1.5 }}>
+                        {fb.message}
+                      </div>
+
+                      {/* Admin reply shown */}
+                      {fb.admin_reply && (
+                        <div style={{ background: '#052e16', borderRadius: 10, padding: '10px 12px', marginBottom: 10, border: '1px solid #166534' }}>
+                          <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 700, marginBottom: 4 }}>Your reply:</div>
+                          <div style={{ fontSize: 13, color: '#86efac' }}>{fb.admin_reply}</div>
+                        </div>
+                      )}
+
+                      {/* Reply input */}
+                      {replyingTo === fb.id ? (
+                        <div>
+                          <textarea
+                            value={replyText[fb.id] || ''}
+                            onChange={e => setReplyText(prev => ({ ...prev, [fb.id]: e.target.value }))}
+                            placeholder="Write your reply..."
+                            rows={3}
+                            style={{ width: '100%', padding: '10px', background: '#222', border: '1px solid #333', color: '#fff', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box', marginBottom: 8 }}
+                          />
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={async () => {
+                              const reply = replyText[fb.id]?.trim()
+                              if (!reply) return
+                              await supabase.from('feedback').update({
+                                admin_reply: reply,
+                                status: 'replied',
+                                replied_at: new Date().toISOString(),
+                              }).eq('id', fb.id)
+                              // Notify user
+                              await supabase.from('notifications').insert({
+                                user_id: fb.user_id,
+                                title: '💡 Team replied to your suggestion!',
+                                message: reply.slice(0, 80),
+                                type: 'booking', is_read: false,
+                              })
+                              setReplyingTo(null)
+                              setReplyText(prev => ({ ...prev, [fb.id]: '' }))
+                              setFeedbackList(prev => prev.map(f => f.id === fb.id ? { ...f, admin_reply: reply, status: 'replied', replied_at: new Date().toISOString() } : f))
+                            }} style={{ flex: 1, padding: '9px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                              ✅ Send Reply
+                            </button>
+                            <button onClick={() => setReplyingTo(null)} style={{ padding: '9px 14px', background: '#222', color: '#888', border: '1px solid #333', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => setReplyingTo(fb.id)} style={{
+                            flex: 1, padding: '9px', background: '#1e3a5f', color: '#60a5fa',
+                            border: '1px solid #1e40af', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          }}>
+                            {fb.admin_reply ? '✏️ Edit Reply' : '💬 Reply'}
+                          </button>
+                          <button onClick={async () => {
+                            await supabase.from('feedback').update({ status: 'closed' }).eq('id', fb.id)
+                            setFeedbackList(prev => prev.map(f => f.id === fb.id ? { ...f, status: 'closed' } : f))
+                          }} style={{
+                            padding: '9px 12px', background: '#222', color: '#555',
+                            border: '1px solid #333', borderRadius: 8, fontSize: 11, cursor: 'pointer',
+                          }}>
+                            ✓ Close
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
