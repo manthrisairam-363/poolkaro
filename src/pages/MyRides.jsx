@@ -34,35 +34,48 @@ function ContactButtons({ phone, name, bookingId, navigate }) {
 }
 
 // Single passenger card inside a ride
-function PassengerCard({ booking, unreadCount }) {
+function PassengerCard({ booking, unreadCount, onRate }) {
   const rider = booking.profiles
   const navigate = useNavigate()
+  const { user } = useAuth()
   const initials = rider?.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+  const [rating, setRating] = useState(0)
+  const [rated, setRated] = useState(booking.driver_rated || false)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submitRating(stars) {
+    setSubmitting(true)
+    await supabase.from('ratings').insert({
+      booking_id: booking.id,
+      rated_by: user.id,
+      rated_user: booking.rider_id,
+      stars,
+      role: 'driver',
+    })
+    // Update rider's avg_rating
+    const { data: allRatings } = await supabase
+      .from('ratings').select('stars').eq('rated_user', booking.rider_id)
+    if (allRatings?.length) {
+      const avg = allRatings.reduce((s, r) => s + r.stars, 0) / allRatings.length
+      await supabase.from('profiles').update({ avg_rating: Math.round(avg * 10) / 10, total_ratings: allRatings.length }).eq('id', booking.rider_id)
+    }
+    setRated(true)
+    setSubmitting(false)
+  }
 
   return (
-    <div style={{
-      background: '#f8f9fa', borderRadius: 12, padding: 12,
-      marginTop: 10, border: '1px solid #e5e7eb',
-    }}>
-      {/* Rider info */}
+    <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 12, marginTop: 10, border: '1px solid #e5e7eb' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 38, height: 38, borderRadius: '50%',
-          background: '#7c3aed', color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, fontSize: 13, flexShrink: 0,
-        }}>{initials}</div>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#7c3aed', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{initials}</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{rider?.full_name || 'Co-rider'}</div>
           <div style={{ color: '#888', fontSize: 12 }}>📱 {rider?.phone || 'No phone'}</div>
         </div>
-        <span style={{
-          background: '#f0fdf4', color: '#16a34a',
-          borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700,
-        }}>✅ Confirmed</span>
+        <span style={{ background: booking.status === 'completed' ? '#f0f0f0' : '#f0fdf4', color: booking.status === 'completed' ? '#888' : '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
+          {booking.status === 'completed' ? '✓ Done' : '✅ Confirmed'}
+        </span>
       </div>
 
-      {/* Booking details */}
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[
           ['💰 Platform fee', '₹2 (wallet)'],
@@ -77,18 +90,33 @@ function PassengerCard({ booking, unreadCount }) {
         ))}
       </div>
 
-      {/* Contact buttons */}
       <ContactButtons phone={rider?.phone} name={rider?.full_name} bookingId={booking.id} navigate={navigate} />
-      {/* Unread message badge */}
+      
       {unreadCount > 0 && (
-        <button onClick={() => navigate(`/chat/${booking.id}`)} style={{
-          width: '100%', marginTop: 10, padding: '10px', background: '#fefce8',
-          border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          fontWeight: 700, fontSize: 13, color: '#854d0e',
-        }}>
+        <button onClick={() => navigate(`/chat/${booking.id}`)} style={{ width: '100%', marginTop: 10, padding: '10px', background: '#fefce8', border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 700, fontSize: 13, color: '#854d0e' }}>
           💬 {unreadCount} new message{unreadCount > 1 ? 's' : ''} from rider
         </button>
+      )}
+
+      {/* Driver rates passenger */}
+      {booking.status === 'completed' && (
+        <div style={{ marginTop: 10, borderTop: '1px solid #e5e7eb', paddingTop: 10 }}>
+          {rated ? (
+            <div style={{ textAlign: 'center', fontSize: 12, color: '#16a34a', fontWeight: 600 }}>✅ You rated this passenger</div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Rate this passenger:</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[1,2,3,4,5].map(s => (
+                  <button key={s} onClick={() => !submitting && submitRating(s)} style={{ flex: 1, padding: '8px', background: rating >= s ? '#facc15' : '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 16, cursor: 'pointer' }}
+                    onMouseEnter={() => setRating(s)} onMouseLeave={() => setRating(0)}>
+                    ⭐
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -250,6 +278,27 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
             🚫 Cancel
           </button>
         )}
+        {/* Complete Ride button — show for past rides or full rides */}
+        {(ride.status === 'full' || (ride.status === 'active' && bookedCount > 0)) && (() => {
+          const istNow = new Date(Date.now() + 5.5 * 3600000)
+          const rideDateTime = new Date(`${ride.ride_date}T${ride.ride_time || '00:00'}`)
+          const isPast = rideDateTime < new Date(istNow - 30 * 60000) // 30 min after ride time
+          return isPast ? (
+            <button onClick={async () => {
+              if (!confirm('Mark this ride as completed? This will notify passengers to rate you.')) return
+              const { data } = await supabase.rpc('complete_ride', { p_ride_id: ride.id, p_driver_id: ride.driver_id })
+              if (data?.success) {
+                alert('✅ Ride marked as completed!')
+                window.location.reload()
+              }
+            }} style={{
+              padding: '8px 14px', background: '#052e16', color: '#4ade80',
+              border: '1px solid #166534', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>
+              ✅ Complete
+            </button>
+          ) : null
+        })()}
       </div>
 
       {/* Passenger list */}
