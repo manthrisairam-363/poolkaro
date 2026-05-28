@@ -96,6 +96,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       seats_total: Number(form.seats_available),
       vehicle_model: profile.vehicle_model, vehicle_number: profile.vehicle_number,
       status: 'active', is_recurring: form.recurring !== 'once',
+      city: profile?.city || 'Hyderabad',
     }
     const rideObjects = dates.map(date => ({ ...rideBase, ride_date: date }))
     const { error: err } = await supabase.from('rides').insert(rideObjects)
@@ -184,8 +185,8 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
           </div>
         </div>
 
-        <LocationInput label="From (Starting point) *" value={form.from_location} onChange={v => set('from_location', v)} placeholder="e.g. Uppal Ring Road" />
-        <LocationInput label="To (Destination) *" value={form.to_location} onChange={v => set('to_location', v)} placeholder="e.g. GAR Kokapet, Financial District" />
+        <LocationInput label="From (Starting point) *" value={form.from_location} onChange={v => set('from_location', v)} placeholder="e.g. Uppal Ring Road" city={profile?.city} />
+        <LocationInput label="To (Destination) *" value={form.to_location} onChange={v => set('to_location', v)} placeholder="e.g. GAR Kokapet, Financial District" city={profile?.city} />
 
         <span style={label}>Route via (optional)</span>
         <input style={{ ...inp, marginBottom: 14 }} placeholder="Uppal → Nagole → LB Nagar → Kokapet" value={form.route_description} onChange={e => set('route_description', e.target.value)} />
