@@ -4,50 +4,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
 const PLANS = [
-  {
-    id: 'monthly',
-    label: '1 Month',
-    duration: '30 days',
-    price: 99,
-    original: null,
-    saving: null,
-    days: 30,
-    popular: false,
-    color: '#1a1a1a',
-  },
-  {
-    id: 'quarterly',
-    label: '3 Months',
-    duration: '90 days',
-    price: 249,
-    original: 297,
-    saving: '₹48 (16%)',
-    days: 90,
-    popular: true,
-    color: '#facc15',
-  },
-  {
-    id: 'half_yearly',
-    label: '6 Months',
-    duration: '180 days',
-    price: 449,
-    original: 594,
-    saving: '₹145 (24%)',
-    days: 180,
-    popular: false,
-    color: '#1a1a1a',
-  },
-  {
-    id: 'yearly',
-    label: '1 Year',
-    duration: '365 days',
-    price: 749,
-    original: 1188,
-    saving: '₹439 (37%)',
-    days: 365,
-    popular: false,
-    color: '#1a1a1a',
-  },
+  { id: 'monthly', label: '1 Month', tag: 'Starter', duration: '30 days', price: 79, original: null, saving: null, days: 30, popular: false },
+  { id: 'quarterly', label: '3 Months', tag: '⭐ Most Popular', duration: '90 days', price: 199, original: 237, saving: '₹38 (16%)', days: 90, popular: true },
+  { id: 'half_yearly', label: '6 Months', tag: 'Best Value', duration: '180 days', price: 349, original: 474, saving: '₹125 (26%)', days: 180, popular: false },
+  { id: 'yearly', label: '1 Year', tag: '🚀 Max Savings', duration: '365 days', price: 599, original: 948, saving: '₹349 (37%)', days: 365, popular: false },
 ]
 
 export default function Subscription() {
@@ -204,11 +164,35 @@ export default function Subscription() {
 
       {/* Header */}
       <div style={{ background: '#111', padding: '20px 16px 16px', borderBottom: '1px solid #1a1a1a' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
           <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
           <div style={{ fontWeight: 800, fontSize: 20 }}>⭐ CarpoolKaro Pro</div>
         </div>
-        <div style={{ color: '#888', fontSize: 13, marginLeft: 36 }}>Zero fees. Unlimited rides.</div>
+        <div style={{ marginLeft: 36 }}>
+          <div style={{ color: '#facc15', fontWeight: 800, fontSize: 16, marginBottom: 4 }}>
+            India's Lowest Carpool Platform Fee
+          </div>
+          <div style={{ color: '#888', fontSize: 12 }}>
+            Save more on every ride with CarpoolKaro Pro
+          </div>
+        </div>
+      </div>
+
+      {/* Savings calculator banner */}
+      <div style={{ background: 'linear-gradient(135deg, #1a1200, #2a1f00)', borderBottom: '1px solid #2a1f00', padding: '12px 16px' }}>
+        <div style={{ fontSize: 12, color: '#facc15', fontWeight: 700, marginBottom: 6 }}>💰 How much can you save?</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            ['Daily commuter', '~₹80–₹160/mo'],
+            ['5 days/week', '~₹160–₹300/mo'],
+            ['Car owner', '₹2 saved per booking'],
+          ].map(([type, save]) => (
+            <div key={type} style={{ background: 'rgba(250,204,21,0.1)', border: '1px solid rgba(250,204,21,0.2)', borderRadius: 8, padding: '6px 10px' }}>
+              <div style={{ fontSize: 10, color: '#888' }}>{type}</div>
+              <div style={{ fontSize: 12, color: '#facc15', fontWeight: 700 }}>{save}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{ padding: 16 }}>
@@ -237,14 +221,14 @@ export default function Subscription() {
           </div>
         )}
 
-        {/* Benefits */}
         <div style={{ background: '#111', borderRadius: 16, padding: 16, marginBottom: 20, border: '1px solid #1a1a1a' }}>
-          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14, color: '#facc15' }}>What you get with Pro</div>
+          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14, color: '#facc15' }}>✅ What Pro includes</div>
           {[
-            ['🆓', 'Zero platform fee per booking', 'Save ₹2 every time you book or post'],
-            ['♾️', 'Unlimited rides & cancellations', 'No restrictions on how many rides you do'],
-            ['🚗', 'Post rides + Book rides', 'Do everything — one subscription covers all'],
+            ['🆓', 'Zero platform fee per booking', 'Save ₹2 every time — both as rider and driver'],
+            ['♾️', 'Unlimited rides & cancellations', 'No restrictions, no counting rides'],
+            ['🚗', 'Post rides + Book rides', 'Everything in one subscription'],
             ['⭐', 'Pro badge on your profile', 'Builds trust with co-riders'],
+            ['📊', 'Cheaper than every other carpool app', 'Built for daily IT commuters'],
           ].map(([icon, title, desc]) => (
             <div key={title} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'flex-start' }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>{icon}</span>
@@ -260,43 +244,29 @@ export default function Subscription() {
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>Choose your plan</div>
           {PLANS.map(plan => (
-            <div
-              key={plan.id}
-              onClick={() => setSelected(plan.id)}
-              style={{
-                background: selected === plan.id ? (plan.popular ? '#1a1200' : '#1a1a2e') : '#111',
-                border: `2px solid ${selected === plan.id ? (plan.popular ? '#facc15' : '#2563eb') : '#1a1a1a'}`,
-                borderRadius: 14, padding: '14px 16px', marginBottom: 10,
-                cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                position: 'relative', transition: '0.15s',
-              }}
-            >
+            <div key={plan.id} onClick={() => setSelected(plan.id)} style={{
+              background: selected === plan.id ? (plan.popular ? '#1a1200' : '#0f1a2e') : '#111',
+              border: `2px solid ${selected === plan.id ? (plan.popular ? '#facc15' : '#2563eb') : '#1a1a1a'}`,
+              borderRadius: 14, padding: '14px 16px', marginBottom: 10,
+              cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              position: 'relative', transition: '0.15s',
+            }}>
               {plan.popular && (
                 <div style={{ position: 'absolute', top: -10, left: 16, background: '#facc15', color: '#111', fontSize: 10, fontWeight: 800, padding: '2px 10px', borderRadius: 10 }}>
-                  MOST POPULAR
+                  ⭐ MOST POPULAR
                 </div>
               )}
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{plan.label}</div>
-                <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{plan.duration}</div>
-                {plan.saving && (
-                  <div style={{ color: '#4ade80', fontSize: 12, fontWeight: 700, marginTop: 4 }}>
-                    Save {plan.saving}
-                  </div>
-                )}
+                <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>{plan.duration} · {plan.tag}</div>
+                {plan.saving && <div style={{ color: '#4ade80', fontSize: 12, fontWeight: 700, marginTop: 4 }}>Save {plan.saving}</div>}
               </div>
               <div style={{ textAlign: 'right' }}>
-                {plan.original && (
-                  <div style={{ color: '#555', fontSize: 12, textDecoration: 'line-through' }}>₹{plan.original}</div>
-                )}
-                <div style={{ fontWeight: 900, fontSize: 22, color: selected === plan.id && plan.popular ? '#facc15' : '#fff' }}>
-                  ₹{plan.price}
+                {plan.original && <div style={{ color: '#555', fontSize: 12, textDecoration: 'line-through' }}>₹{plan.original}</div>}
+                <div style={{ fontWeight: 900, fontSize: 22, color: selected === plan.id && plan.popular ? '#facc15' : '#fff' }}>₹{plan.price}</div>
+                <div style={{ color: '#555', fontSize: 11 }}>
+                  ₹{Math.round(plan.price / (plan.id === 'monthly' ? 1 : plan.id === 'quarterly' ? 3 : plan.id === 'half_yearly' ? 6 : 12))}/mo
                 </div>
-                {plan.id !== 'monthly' && (
-                  <div style={{ color: '#666', fontSize: 11 }}>
-                    ₹{Math.round(plan.price / (plan.id === 'quarterly' ? 3 : plan.id === 'half_yearly' ? 6 : 12))}/mo
-                  </div>
-                )}
               </div>
             </div>
           ))}
