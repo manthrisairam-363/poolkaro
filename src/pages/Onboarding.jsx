@@ -90,6 +90,7 @@ export default function Onboarding() {
       upi_id: form.upi_id || null,
       onboarding_complete: true,
       consent_given: form.consent_given || false,
+      city: form.city || 'Hyderabad',
       referred_by: referrerId ? referralCode : null,
     })
     if (error) { setError(error.message); setLoading(false); return }
@@ -194,8 +195,14 @@ export default function Onboarding() {
           <>
             <label style={s.label}>Full Name *</label>
             <input style={s.input} placeholder="Your full name" value={form.full_name} onChange={e => set('full_name', e.target.value)} />
-            <label style={s.label}>Phone Number</label>
+            <label style={s.label}>Phone Number *</label>
             <input style={s.input} placeholder="10-digit mobile number" value={form.phone} onChange={e => set('phone', e.target.value)} readOnly={!!user?.phone} />
+            <label style={s.label}>Your City *</label>
+            <select style={{ ...s.input, background: '#fff' }} value={form.city || 'Hyderabad'} onChange={e => set('city', e.target.value)}>
+              {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
             <label style={s.label}>Email (optional)</label>
             <input style={s.input} type="email" placeholder="your@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
             <label style={s.label}>Referral Code (optional)</label>
