@@ -387,13 +387,17 @@ export default function Profile() {
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>📄</span> Terms of Use & Privacy Policy</span>
             <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
           </button>
+          <button onClick={() => navigate('/feedback')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>💡</span> Suggest a Feature</span>
+            <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
+          </button>
           <a href="mailto:support@carpoolkaro.com" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '17px 16px', textDecoration: 'none' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#111' }}><span style={{ fontSize: 18 }}>💬</span> Contact Support</span>
             <span style={{ fontSize: 12, color: '#aaa' }}>support@carpoolkaro.com</span>
           </a>
         </div>
 
-        {/* ── Admin Dashboard (admin only, standalone) ── */}
+        {/* ── Admin Dashboard (admin only) ── */}
         {profile?.is_admin && (
           <button onClick={() => navigate('/admin')} style={{ width: '100%', padding: '16px', background: '#111', color: '#facc15', border: 'none', borderRadius: 14, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>⚙️</span> Admin Dashboard</span>
@@ -405,7 +409,7 @@ export default function Profile() {
         <button onClick={async () => { await signOut(); navigate('/') }} style={{ width: '100%', padding: 14, background: '#fff', color: '#dc2626', border: '2px solid #fecaca', borderRadius: 12, fontSize: 15, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
           🚪 Logout
         </button>
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#ccc', marginTop: 8 }}>CarpoolKaro · Made with ❤️ in Hyderabad</div>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#ccc', marginTop: 8 }}>CarpoolKaro · Made with ❤️ in India</div>
       </div>
       {/* Photo fullscreen viewer */}
       {viewPhoto && profile?.avatar_url && (
