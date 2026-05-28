@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import NotificationBell from '../components/NotificationBell'
+import { getLocationsForCity } from '../lib/cityLocations'
 
 // Hyderabad IT corridor locations — IT parks, offices, residential areas
 const HYD_LOCATIONS = [
@@ -215,9 +216,10 @@ function RideCard({ ride, onBook, myUserId }) {
   )
 }
 
-// Location autocomplete — must be outside Home to prevent remount on every keystroke
-function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocations }) {
-  const combined = [...new Set([...HYD_LOCATIONS, ...(liveLocations || [])])].sort()
+// Location autocomplete — uses city-specific locations
+function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocations, city }) {
+  const cityLocs = getLocationsForCity(city || 'Hyderabad')
+  const combined = [...new Set([...cityLocs, ...(liveLocations || [])])].sort()
   const suggestions = combined.filter(s => s.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
   return (
     <div style={{ position: 'relative' }}>
@@ -353,6 +355,7 @@ export default function Home() {
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
       .in('status', ['active'])
       .gte('ride_date', today)
+      .eq('city', profile?.city || 'Hyderabad')
       .order('ride_date', { ascending: true })
       .order('ride_time', { ascending: true })
 
@@ -434,7 +437,7 @@ export default function Home() {
               <span style={{ color: '#facc15' }}>Carpool</span><span style={{ color: '#fff' }}>Karo</span>
             </div>
             <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
-              {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'Hyderabad IT Carpool'}
+              {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'IT Carpool'} · {profile?.city || 'Hyderabad'}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -472,9 +475,9 @@ export default function Home() {
           <div style={{ marginTop: 10, background: '#1a1a1a', borderRadius: 12, padding: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
               <LocationInput label="FROM" value={filterFrom} onChange={setFilterFrom}
-                showSug={showFromSug} setShowSug={setShowFromSug} liveLocations={liveFromLocations} />
+                showSug={showFromSug} setShowSug={setShowFromSug} liveLocations={liveFromLocations} city={profile?.city} />
               <LocationInput label="TO" value={filterTo} onChange={setFilterTo}
-                showSug={showToSug} setShowSug={setShowToSug} liveLocations={liveToLocations} />
+                showSug={showToSug} setShowSug={setShowToSug} liveLocations={liveToLocations} city={profile?.city} />
             </div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
               {[['all','📅 Any Day'],['today','Today'],['tomorrow','Tomorrow']].map(([v,l]) => (
