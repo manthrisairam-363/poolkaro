@@ -286,7 +286,7 @@ export default function LiveRide() {
           )}
 
           <button onClick={tracking ? stopTracking : startTracking} style={{
-            width:'100%', padding:13, borderRadius:10, border:'none', cursor:'pointer', fontWeight:800, fontSize:14,
+            width:'100%', padding:13, borderRadius:10, cursor:'pointer', fontWeight:800, fontSize:14,
             background: tracking ? '#2a0a0a' : '#facc15',
             color: tracking ? '#f87171' : '#000',
             border: tracking ? '1px solid #7f1d1d' : 'none',
