@@ -216,6 +216,22 @@ export default function Profile() {
         {/* ── Group 1: Main sections ── */}
         <div style={card}>
 
+          {/* City — visible outside Personal Details */}
+          <div style={{ padding: '0 16px 12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fa', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>📍</span>
+                <div>
+                  <div style={{ fontSize: 11, color: '#aaa' }}>Your City</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{profile?.city || 'Hyderabad'}</div>
+                </div>
+              </div>
+              <button onClick={() => { setOpenSection('personal'); setEditing(true) }} style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Change
+              </button>
+            </div>
+          </div>
+
           {/* Personal Details */}
           <Row id="personal" icon="👤" title="Personal Details" />
           {openSection === 'personal' && (
@@ -266,22 +282,6 @@ export default function Profile() {
                   </div>
                 </>
               )}
-            </div>
-          )}
-
-          {/* My Impact */}
-          <Row id="impact" icon="🌱" title="My Impact" />
-          {openSection === 'impact' && (
-            <div style={{ padding: '4px 16px 16px', borderBottom: '1px solid #f5f5f5' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
-                {[['🚗', 'Rides Given', profile?.total_rides_given || 0], ['🙋', 'Rides Taken', profile?.total_rides_taken || 0], ['🌿', 'CO₂ Saved', `${((profile?.total_rides_given || 0) * 2.1).toFixed(1)} kg`], ['💰', 'Money Saved', `₹${(profile?.total_rides_taken || 0) * 120}`], ['⭐', 'Avg Rating', Number(profile?.avg_rating || 0).toFixed(1)], ['🎁', 'Referrals', profile?.referral_count || 0]].map(([icon, label, value]) => (
-                  <div key={label} style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 20 }}>{icon}</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{value}</div>
-                    <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 

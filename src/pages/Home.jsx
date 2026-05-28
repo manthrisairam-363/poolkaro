@@ -444,14 +444,17 @@ export default function Home() {
     <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
       <div style={{ background: '#111', padding: '20px 16px 14px', position: 'sticky', top: 0, zIndex: 40 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div>
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px' }}>
-              <span style={{ color: '#facc15' }}>Carpool</span><span style={{ color: '#fff' }}>Karo</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img src="/icon-192.png" alt="CarpoolKaro" style={{ width: 32, height: 32, borderRadius: 8 }} />
+              <div>
+                <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', lineHeight: 1 }}>
+                  <span style={{ color: '#facc15' }}>Carpool</span><span style={{ color: '#fff' }}>Karo</span>
+                </div>
+                <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
+                  {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'IT Carpool'} · {profile?.city || 'Hyderabad'}
+                </div>
+              </div>
             </div>
-            <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
-              {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'IT Carpool'} · {profile?.city || 'Hyderabad'}
-            </div>
-          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <NotificationBell onNotificationClick={handleNotificationClick} />
             <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 16, cursor: 'pointer' }}>
