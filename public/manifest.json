@@ -5,7 +5,7 @@
   "description": "Hyderabad IT Carpool — Share rides with colleagues, save money and reduce traffic",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#111111",
   "theme_color": "#facc15",
