@@ -297,13 +297,6 @@ export default function Chat() {
             <div style={{ fontWeight: 800, fontSize: 15 }}>{info?.otherName}</div>
             <div style={{ color: '#555', fontSize: 11, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info?.rideInfo}</div>
           </div>
-
-          {info?.otherPhone && (
-            <a href={`tel:+91${info.otherPhone.replace(/\D/g,'')}`}
-              style={{ background: '#1a1a1a', border: '1px solid #222', color: '#4ade80', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, textDecoration: 'none', flexShrink: 0 }}>
-              📞
-            </a>
-          )}
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
