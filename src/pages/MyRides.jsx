@@ -7,28 +7,17 @@ import BottomNav from '../components/BottomNav'
 
 // Contact buttons — call + in-app chat
 function ContactButtons({ phone, name, bookingId, navigate }) {
-  if (!phone) return null
-  const clean = phone.replace(/\D/g, '')
+  if (!bookingId) return null
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-      <a href={`tel:+91${clean}`} style={{
+      <button onClick={() => navigate(`/chat/${bookingId}`)} style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: 6, padding: '9px', background: '#f0fdf4', color: '#16a34a',
-        borderRadius: 10, fontSize: 13, fontWeight: 600, textDecoration: 'none',
-        border: '1px solid #bbf7d0',
+        gap: 6, padding: '9px', background: '#fefce8', color: '#854d0e',
+        borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        border: '1px solid #fef08a',
       }}>
-        📞 Call
-      </a>
-      {bookingId && (
-        <button onClick={() => navigate(`/chat/${bookingId}`)} style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 6, padding: '9px', background: '#fefce8', color: '#854d0e',
-          borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          border: '1px solid #fef08a',
-        }}>
-          💬 Chat
-        </button>
-      )}
+        💬 Chat
+      </button>
     </div>
   )
 }
@@ -256,18 +245,6 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
             border: '1px solid #fed7aa', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
           }}>
             🔁 Cancel Series
-          </button>
-        )}
-        {(ride.status === 'active' || ride.status === 'full') && bookedCount > 0 && (
-          <button onClick={async () => {
-            const { data } = await supabase.from('bookings').select('id').eq('ride_id', ride.id).eq('status', 'confirmed').limit(1).maybeSingle()
-            if (data?.id) navigate(`/live/${data.id}`)
-            else alert('No confirmed bookings yet')
-          }} style={{
-            padding: '8px 12px', background: '#111', color: '#facc15',
-            border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-          }}>
-            📍 Live
           </button>
         )}
         {(ride.status === 'active' || ride.status === 'full') && (
@@ -578,12 +555,6 @@ export default function MyRides() {
                 </button>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                {b.status !== 'completed' && b.status !== 'cancelled' && (
-                  <button onClick={() => navigate(`/live/${b.id}`)} style={{
-                    flex: 1, padding: 9, background: '#0f172a', color: '#facc15',
-                    border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  }}>📍 Live Ride</button>
-                )}
                 <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{
                   flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed',
                   border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
