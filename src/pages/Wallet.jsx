@@ -242,7 +242,7 @@ export default function Wallet() {
           <button onClick={() => navigate('/subscription')} style={{ width: '100%', background: '#fefce8', border: '2px solid #facc15', borderRadius: 14, padding: '12px 16px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontWeight: 800, color: '#854d0e', fontSize: 14 }}>⭐ Upgrade to Pro</div>
-              <div style={{ color: '#92400e', fontSize: 11, marginTop: 2 }}>Save ₹2 on every ride · From ₹99/month</div>
+              <div style={{ color: '#92400e', fontSize: 11, marginTop: 2 }}>Save ₹2 on every ride · India's lowest fee · From ₹79/mo</div>
             </div>
             <div style={{ color: '#854d0e', fontSize: 20 }}>›</div>
           </button>
