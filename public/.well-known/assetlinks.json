@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.carpoolkaro.app",
+      "sha256_cert_fingerprints": [
+        "1D:B0:18:8C:8C:FB:85:F8:ED:88:FE:E1:B3:57:8D:BA:F1:F9:8D:E9:2E:2D:E8:B3:1B:60:76:AA:9E:DA:CC:10"
+      ]
+    }
+  }
+]
