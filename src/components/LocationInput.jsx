@@ -1,7 +1,50 @@
 import { useState, useRef, useEffect } from 'react'
 
 const CITY_LOCATIONS = {
-  'Hyderabad': ['HITEC City','Madhapur','Financial District','Gachibowli','Kokapet','Raidurgam','Kondapur','Manikonda','Narsingi','Nanakramguda','WaveRock SEZ','DLF Cyber City','Mindspace Madhapur','Salarpuria Knowledge City','Divyasree Orion','Khajaguda','Pocharam','Nacharam','Mindspace Pocharam','TCS Synergy Park','Cyberabad','Amazon Hyderabad','Microsoft Campus','Google Hyderabad','Infosys Pocharam','TCS Gachibowli','Wipro Gachibowli','Accenture Gachibowli','Capgemini Gachibowli','Cognizant Gachibowli','Tech Mahindra Gachibowli','IBM Gachibowli','JP Morgan Madhapur','Deloitte Hyderabad','HCL Uppal','Miyapur','KPHB','Kukatpally','Bachupally','Nizampet','Lingampally','Chandanagar','Hafeezpet','Tellapur','Nallagandla','Serilingampally','Jubilee Hills','Banjara Hills','Panjagutta','Film Nagar','Kavuri Hills','Ameerpet','SR Nagar','Somajiguda','Khairatabad','Mehdipatnam','Tolichowki','Secunderabad','Begumpet','Jeedimetla','Balanagar','Kompally','Medchal','Uppal','LB Nagar','Dilsukhnagar','Nagole','Boduppal','Ghatkesar','Miyapur Metro','KPHB Metro','Ameerpet Metro','Hitec City Metro','Raidurg Metro','Nagole Metro','Uppal Metro','LB Nagar Metro','Secunderabad Metro','Rajiv Gandhi International Airport','Shamshabad'],
+  'Hyderabad': [
+    // IT Hubs - Financial District & Kokapet
+    'Financial District','Nanakramguda','Kokapet','GAR Kokapet','Raidurgam','Khajaguda',
+    'DLF Cyber City Hyderabad','WaveRock SEZ','Divyasree Orion','Salarpuria Knowledge City',
+    'Cyber Towers','Cyber Gateway','HUDA Techno Enclave','iLabs Centre','RMZ Futura',
+    // IT Hubs - HITEC City & Madhapur
+    'HITEC City','Madhapur','Mindspace Madhapur','Cyberabad','DLF Cyber City',
+    'Inorbit Mall Area','ISB Hyderabad','Aparna Cyberzone',
+    // IT Hubs - Gachibowli & Kondapur
+    'Gachibowli','Kondapur','Manikonda','Narsingi','Serilingampally',
+    'TCS Gachibowli','Wipro Gachibowli','Accenture Gachibowli','Capgemini Gachibowli',
+    'Cognizant Gachibowli','Tech Mahindra Gachibowli','IBM Gachibowli',
+    'JP Morgan Madhapur','Deloitte Hyderabad','Amazon Hyderabad',
+    'Microsoft Campus Hyderabad','Google Hyderabad',
+    // IT Hubs - Pocharam & East
+    'Pocharam','Nacharam','Mindspace Pocharam','TCS Synergy Park',
+    'Infosys Pocharam','HCL Uppal','Uppal Ring Road',
+    // West Hyderabad residential
+    'Miyapur','KPHB','Kukatpally','Bachupally','Nizampet','Lingampally',
+    'Chandanagar','Hafeezpet','Tellapur','Nallagandla','Borabanda',
+    'Ameerpet','SR Nagar','Sanath Nagar','Erragadda',
+    // Central Hyderabad
+    'Jubilee Hills','Banjara Hills','Panjagutta','Film Nagar','Kavuri Hills',
+    'Somajiguda','Khairatabad','Mehdipatnam','Tolichowki','Masab Tank',
+    'Lakdikapool','Nampally','Abids','Koti','Sultan Bazar',
+    // South Hyderabad
+    'Attapur','Shaikpet','Puppalaguda','Manikonda','Rajendra Nagar',
+    'Shamshabad','Gandipet','Moinabad',
+    // North Hyderabad
+    'Secunderabad','Begumpet','Jeedimetla','Balanagar','Kompally',
+    'Medchal','Alwal','Bowenpally','Trimulgherry','Malkajgiri',
+    // East Hyderabad
+    'Uppal','LB Nagar','Dilsukhnagar','Nagole','Boduppal','Ghatkesar',
+    'Hayathnagar','Vanasthalipuram','Amberpet','Kothapet','Ramanthapur',
+    'Tarnaka','Habsiguda','ECIL','AS Rao Nagar',
+    // Old City
+    'Charminar','Begum Bazar','Nalgonda X Roads','Malakpet','Chaderghat',
+    // Metro stations
+    'Miyapur Metro','KPHB Metro','Ameerpet Metro','Hitec City Metro',
+    'Raidurg Metro','Nagole Metro','Uppal Metro','LB Nagar Metro',
+    'Secunderabad Metro','Jubilee Bus Station','MGBS',
+    // Airport
+    'Rajiv Gandhi International Airport','Shamshabad Airport',
+  ],
   'Bangalore': ['Whitefield','Marathahalli','Bellandur','Sarjapur Road','Outer Ring Road','Electronic City','Electronic City Phase 1','Electronic City Phase 2','Koramangala','HSR Layout','BTM Layout','Silk Board','Bommanahalli','Hebbal','Manyata Tech Park','Kirloskar Business Park','Yeshwanthpur','Rajajinagar','Indiranagar','CV Raman Nagar','Domlur','Airport Road','Jayanagar','JP Nagar','Bannerghatta Road','Yelahanka','Devanahalli','Kempegowda International Airport','Bagmane Tech Park','RMZ Infinity','Prestige Tech Park','Embassy TechVillage','Cessna Business Park','Ecospace','IBM Manyata','Cisco Bangalore','SAP Bangalore','Amazon Bangalore','Flipkart HQ','Infosys Bangalore','Wipro Sarjapur','HCL Bangalore','TCS Bangalore','Accenture Bangalore','MG Road','Church Street','Majestic','Shivajinagar'],
   'Pune': ['Hinjewadi','Hinjewadi Phase 1','Hinjewadi Phase 2','Hinjewadi Phase 3','Kharadi','Magarpatta','EON IT Park','World Trade Center Pune','Wakad','Baner','Balewadi','Sus Road','Viman Nagar','Kalyani Nagar','Nagar Road','Hadapsar','Fursungi','Aundh','Pimple Saudagar','Pimple Nilakh','Punawale','Shivajinagar','FC Road','JM Road','Deccan','Kothrud','Warje','Karve Road','Yerwada','Koregaon Park','Talegaon','Chakan','Infosys Pune','Wipro Pune','Cognizant Pune','TCS Pune','Zensar Pune','Tech Mahindra Pune','Persistent Pune','Katraj','Kondhwa','NIBM Road','Mundhwa','Commerzone','RMZ Westend'],
   'Mumbai': ['BKC','Bandra Kurla Complex','Bandra East','Bandra West','Powai','Hiranandani','Chandivali','SEEPZ','Andheri East','Andheri West','MIDC Andheri','Marol','Lower Parel','Worli','Kamala Mills','One BKC','Navi Mumbai','Belapur','Vashi','Nerul','Ghansoli','Mahape','Thane','Wagle Estate','Kolshet','Majiwada','Malad','Mindspace Malad','Link Road','Goregaon','NESCO IT Park','Goregaon East','Vikhroli','Kanjurmarg','LBS Marg','Kurla','Kalina','Santacruz East','Nariman Point','Fort','CSMT','Churchgate','Airoli','Rabale','TTC Industrial Area','Chembur','Ghatkopar','Mulund','Borivali','Kandivali','Dahisar','Chhatrapati Shivaji Airport','CSIA'],
