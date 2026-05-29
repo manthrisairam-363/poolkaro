@@ -179,19 +179,26 @@ export default function Subscription() {
       </div>
 
       {/* Savings calculator banner */}
-      <div style={{ background: 'linear-gradient(135deg, #1a1200, #2a1f00)', borderBottom: '1px solid #2a1f00', padding: '12px 16px' }}>
-        <div style={{ fontSize: 12, color: '#facc15', fontWeight: 700, marginBottom: 6 }}>💰 How much can you save?</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div style={{ background: '#1a1200', borderBottom: '1px solid #2a1f00', padding: '12px 16px' }}>
+        <div style={{ fontSize: 12, color: '#facc15', fontWeight: 700, marginBottom: 8 }}>💰 Break-even calculator</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+          Pro pays off if you do more than these rides per month:
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
           {[
-            ['Daily commuter', '~₹80–₹160/mo'],
-            ['5 days/week', '~₹160–₹300/mo'],
-            ['Car owner', '₹2 saved per booking'],
-          ].map(([type, save]) => (
-            <div key={type} style={{ background: 'rgba(250,204,21,0.1)', border: '1px solid rgba(250,204,21,0.2)', borderRadius: 8, padding: '6px 10px' }}>
-              <div style={{ fontSize: 10, color: '#888' }}>{type}</div>
-              <div style={{ fontSize: 12, color: '#facc15', fontWeight: 700 }}>{save}</div>
+            ['₹79 plan', '40 rides', '~2/day'],
+            ['₹199 plan', '33/mo avg', '~1.5/day'],
+            ['₹599 plan', '25/mo avg', '~1/day'],
+          ].map(([plan, rides, freq]) => (
+            <div key={plan} style={{ flex: 1, background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.15)', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#facc15', fontWeight: 700 }}>{plan}</div>
+              <div style={{ fontSize: 13, color: '#fff', fontWeight: 700, marginTop: 2 }}>{rides}</div>
+              <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>{freq}</div>
             </div>
           ))}
+        </div>
+        <div style={{ fontSize: 11, color: '#555', marginTop: 8 }}>
+          Daily IT commuters do 40–60 rides/month — Pro saves you money from day 1.
         </div>
       </div>
 
