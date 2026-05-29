@@ -186,6 +186,28 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
         </div>
 
         <LocationInput label="From (Starting point) *" value={form.from_location} onChange={v => set('from_location', v)} placeholder="e.g. Uppal Ring Road" city={profile?.city} />
+
+        {/* Swap button */}
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '-6px 0', position: 'relative', zIndex: 10 }}>
+          <button
+            type="button"
+            onClick={() => {
+              const temp = form.from_location
+              set('from_location', form.to_location)
+              set('to_location', temp)
+            }}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: '#facc15', border: '3px solid #fff',
+              cursor: 'pointer', fontSize: 18,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              transition: '0.2s',
+            }}
+            title="Swap from and to"
+          >⇅</button>
+        </div>
+
         <LocationInput label="To (Destination) *" value={form.to_location} onChange={v => set('to_location', v)} placeholder="e.g. GAR Kokapet, Financial District" city={profile?.city} />
 
         <span style={label}>Route via (optional)</span>
