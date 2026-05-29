@@ -24,19 +24,18 @@ import { usePushNotifications } from './lib/pushNotifications'
 function Loader() {
   return (
     <div style={{
-      minHeight: '100vh', background: '#111',
+      minHeight: '100vh', background: '#fff',
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 12,
+      alignItems: 'center', justifyContent: 'center', gap: 8,
     }}>
       <img
-        src="/icon-512.png"
+        src="/logo.png"
         alt="CarpoolKaro"
-        style={{ width: 96, height: 96, borderRadius: 24, boxShadow: '0 8px 32px rgba(250,204,21,0.35)', objectFit: 'cover' }}
+        style={{ width: 240, height: 'auto' }}
       />
-      <div style={{ fontWeight: 800, fontSize: 28, letterSpacing: '-1px' }}>
-        <span style={{ color: '#facc15' }}>Carpool</span><span style={{ color: '#fff' }}>Karo</span>
+      <div style={{ color: '#1a2744', fontSize: 12, fontWeight: 800, letterSpacing: '1.5px' }}>
+        RIDE TOGETHER, SAVE TOGETHER
       </div>
-      <div style={{ color: '#555', fontSize: 13 }}>Hyderabad IT Carpool</div>
     </div>
   )
 }
