@@ -127,9 +127,22 @@ export default function AdminDashboard() {
       // Fetch feedback
       const { data: fbData } = await supabase
         .from('feedback')
-        .select('*, profiles(full_name, email, avatar_url)')
+        .select('*')
         .order('created_at', { ascending: false })
-      setFeedbackList(fbData || [])
+
+      if (fbData?.length) {
+        // Get profile info for each feedback user
+        const userIds = [...new Set(fbData.map(f => f.user_id))]
+        const { data: fbProfiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, avatar_url')
+          .in('id', userIds)
+        const profileMap = {}
+        ;(fbProfiles || []).forEach(p => { profileMap[p.id] = p })
+        setFeedbackList(fbData.map(f => ({ ...f, profiles: profileMap[f.user_id] || null })))
+      } else {
+        setFeedbackList([])
+      }
     } catch (err) {
       console.error('Admin fetch error:', err.message)
     } finally {
