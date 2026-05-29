@@ -53,8 +53,8 @@ export default function Feedback() {
     return new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
-  const statusColor = { open: '#666', replied: '#16a34a', closed: '#2563eb' }
-  const statusLabel = { open: '⏳ Pending', replied: '✅ Replied', closed: '✓ Closed' }
+  const statusColor = { open: '#2563eb', replied: '#16a34a', closed: '#888' }
+  const statusLabel = { open: '✅ Submitted', replied: '💬 Replied', closed: '✓ Closed' }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa', paddingBottom: 40 }}>
