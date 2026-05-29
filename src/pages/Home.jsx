@@ -487,7 +487,7 @@ export default function Home() {
         {/* Logo full width */}
         <div style={{ padding: '4px 24px 4px' }}>
           <img
-            src="/icon-512.png"
+            src="/logo.png"
             alt="CarpoolKaro"
             style={{ width: '100%', maxWidth: 340, display: 'block', margin: '0 auto' }}
           />
