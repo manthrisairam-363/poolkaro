@@ -472,41 +472,47 @@ export default function Home() {
 
   return (
     <div style={{ background: '#f5f6fa', minHeight: '100vh', paddingBottom: 90 }}>
-      <div style={{ background: '#111', padding: '20px 16px 14px', position: 'sticky', top: 0, zIndex: 40 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src="/icon-192.png" alt="CarpoolKaro" style={{ width: 32, height: 32, borderRadius: 8 }} />
-              <div>
-                <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', lineHeight: 1 }}>
-                  <span style={{ color: '#facc15' }}>Carpool</span><span style={{ color: '#fff' }}>Karo</span>
-                </div>
-                <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
-                  {profile?.full_name ? `Hey ${profile.full_name.split(' ')[0]}! 👋` : 'IT Carpool'} · {profile?.city || 'Hyderabad'}
-                </div>
-              </div>
-            </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <NotificationBell onNotificationClick={handleNotificationClick} />
-            <button onClick={fetchRides} style={{ background: '#222', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#facc15', fontSize: 16, cursor: 'pointer' }}>
-              ↺
-            </button>
+      {/* White header with logo */}
+      <div style={{ background: '#fff', position: 'sticky', top: 0, zIndex: 40, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+        {/* Top bar — notification + refresh */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, padding: '10px 16px 0' }}>
+          <div style={{ flex: 1, fontSize: 11, color: '#aaa' }}>
+            📍 {profile?.city || 'Hyderabad'} · Hey {profile?.full_name?.split(' ')[0] || 'there'}! 👋
           </div>
+          <NotificationBell onNotificationClick={handleNotificationClick} />
+          <button onClick={fetchRides} style={{ background: '#f5f5f5', border: 'none', borderRadius: 10, padding: '8px 12px', color: '#888', fontSize: 16, cursor: 'pointer' }}>
+            ↺
+          </button>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        {/* Logo full width */}
+        <div style={{ padding: '4px 24px 4px' }}>
+          <img
+            src="/icon-512.png"
+            alt="CarpoolKaro"
+            style={{ width: '100%', maxWidth: 340, display: 'block', margin: '0 auto' }}
+          />
+        </div>
+        {/* Tagline */}
+        <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, color: '#1a2744', letterSpacing: '1.5px', paddingBottom: 10 }}>
+          RIDE TOGETHER, SAVE TOGETHER
+        </div>
+        {/* Search + filters on white */}
+        <div style={{ padding: '0 16px 12px', borderTop: '1px solid #f0f0f0', marginTop: 2 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <input
             placeholder="🔍 Search area..."
-            style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none', fontSize: 13, background: '#222', color: '#fff', boxSizing: 'border-box' }}
+            style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 13, background: '#f8f9fa', color: '#111', boxSizing: 'border-box' }}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           <button onClick={() => setShowFilters(!showFilters)} style={{
-            background: hasActiveFilters ? '#facc15' : '#222',
-            color: hasActiveFilters ? '#111' : '#fff',
+            background: hasActiveFilters ? '#facc15' : '#f0f0f0',
+            color: hasActiveFilters ? '#111' : '#666',
             border: 'none', borderRadius: 10, padding: '10px 14px',
             fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
             display: 'flex', alignItems: 'center', gap: 4,
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={hasActiveFilters ? '#111' : '#fff'} strokeWidth="2.5" strokeLinecap="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={hasActiveFilters ? '#111' : '#666'} strokeWidth="2.5" strokeLinecap="round">
               <line x1="4" y1="6" x2="20" y2="6"/>
               <line x1="8" y1="12" x2="16" y2="12"/>
               <line x1="11" y1="18" x2="13" y2="18"/>
@@ -514,6 +520,8 @@ export default function Home() {
             {hasActiveFilters && <span style={{ fontSize: 11, fontWeight: 800 }}>{[filterFrom,filterTo,filterDate!=='all'?filterDate:'',filterTime!=='all'?filterTime:''].filter(Boolean).length}</span>}
           </button>
         </div>
+        </div>
+      </div>
 
         {/* Advanced Filter Panel */}
         {showFilters && (
@@ -550,7 +558,6 @@ export default function Home() {
             )}
           </div>
         )}
-      </div>
 
       <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8, overflowX: 'auto' }}>
         {[['all','All Rides'],['to_office','🏢 To Office'],['to_home','🏠 To Home'],['requests','🙋 Requests']].map(([v,l]) => (
