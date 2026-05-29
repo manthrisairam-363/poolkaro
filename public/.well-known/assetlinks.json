@@ -4,9 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.carpoolkaro.app",
-      "sha256_cert_fingerprints": [
-        "1D:B0:18:8C:8C:FB:85:F8:ED:88:FE:E1:B3:57:8D:BA:F1:F9:8D:E9:2E:2D:E8:B3:1B:60:76:AA:9E:DA:CC:10"
-      ]
+      "sha256_cert_fingerprints": ["2F:DC:C4:8E:F3:AE:27:30:77:A3:39:80:28:0C:D7:E2:CF:3B:6C:83:38:22:D9:7E:08:1E:5C:6C:44:4F:48:78"]
     }
   }
 ]
