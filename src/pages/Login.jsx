@@ -46,12 +46,12 @@ export default function Login() {
   return (
     <div style={{ minHeight: '100vh', background: '#111', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
 
-      {/* Logo — tap 7x to unlock email login */}
+      {/* Logo */}
       <img
-        src="/icon-512.png"
+        src="/logo.png"
         alt="CarpoolKaro"
         onClick={handleLogoTap}
-        style={{ width: 96, height: 96, borderRadius: 24, marginBottom: 16, boxShadow: '0 8px 32px rgba(250,204,21,0.35)', objectFit: 'cover', cursor: 'default' }}
+        style={{ width: 220, height: 'auto', marginBottom: 8, cursor: 'default' }}
       />
 
       <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-1px', marginBottom: 4 }}>
