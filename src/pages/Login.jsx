@@ -60,8 +60,8 @@ export default function Login() {
             fontSize: 28, fontWeight: 900, color: '#0f172a',
             letterSpacing: '-0.8px', lineHeight: 1.2,
           }}>
-            Smart Commutes,<br />
-            <span style={{ color: '#f59e0b' }}>Better Connections</span>
+            Good Journeys,<br />
+            <span style={{ color: '#f59e0b' }}>Start Together</span>
           </div>
           <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, fontWeight: 500 }}>
             Share rides · Save money · Meet colleagues
