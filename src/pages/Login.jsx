@@ -39,38 +39,37 @@ export default function Login() {
       background: 'linear-gradient(180deg, #eef2ff 0%, #f0f4ff 50%, #fff 100%)',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'space-between',
-      padding: '0',
       maxWidth: 430, margin: '0 auto',
     }}>
 
       {/* Top section */}
       <div style={{ width: '100%', padding: '48px 28px 0', textAlign: 'center' }}>
         {/* Logo */}
-        <div onClick={handleLogoTap} style={{ cursor: 'default', marginBottom: 20 }}>
+        <div onClick={handleLogoTap} style={{ cursor: 'default', marginBottom: 28 }}>
           <img
             src="/logo.png"
             alt="CarpoolKaro"
-            style={{ width: '65%', maxWidth: 220, height: 'auto', display: 'block', margin: '0 auto' }}
+            style={{ width: '80%', maxWidth: 280, height: 'auto', display: 'block', margin: '0 auto' }}
           />
         </div>
 
         {/* Headline */}
-        <div style={{ marginBottom: 6 }}>
+        <div style={{ marginBottom: 28 }}>
           <div style={{
-            fontSize: 28, fontWeight: 900, color: '#0f172a',
-            letterSpacing: '-0.8px', lineHeight: 1.2,
+            fontSize: 30, fontWeight: 900, color: '#0f172a',
+            letterSpacing: '-0.8px', lineHeight: 1.3,
           }}>
             Good Journeys,<br />
             <span style={{ color: '#f59e0b' }}>Start Together</span>
           </div>
-          <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, fontWeight: 500 }}>
+          <div style={{ fontSize: 14, color: '#64748b', marginTop: 12, fontWeight: 500 }}>
             Share rides · Save money · Meet colleagues
           </div>
         </div>
       </div>
 
       {/* Illustration */}
-      <div style={{ width: '100%', padding: '0', flexShrink: 0 }}>
+      <div style={{ width: '100%', flexShrink: 0 }}>
         <img
           src="/login-illustration.png"
           alt="Carpool illustration"
@@ -79,19 +78,19 @@ export default function Login() {
       </div>
 
       {/* Bottom section */}
-      <div style={{ width: '100%', padding: '0 24px 40px' }}>
+      <div style={{ width: '100%', padding: '0 24px 48px' }}>
 
         {error && (
           <div style={{
             background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-            color: '#ef4444', fontSize: 12, marginBottom: 14, padding: '10px 14px',
+            color: '#ef4444', fontSize: 12, marginBottom: 20, padding: '10px 14px',
             borderRadius: 12, textAlign: 'center',
           }}>
             ⚠️ {error}
           </div>
         )}
 
-        {/* Google button — big yellow like reference */}
+        {/* Google button */}
         <button
           onClick={googleLogin}
           disabled={loading}
@@ -104,6 +103,7 @@ export default function Login() {
             cursor: loading ? 'default' : 'pointer',
             boxShadow: '0 8px 24px rgba(245,158,11,0.35)',
             letterSpacing: '-0.3px',
+            marginTop: 20,
           }}
         >
           <svg width="22" height="22" viewBox="0 0 48 48">
@@ -116,39 +116,32 @@ export default function Login() {
         </button>
 
         {/* Security text */}
-        <div style={{ textAlign: 'center', marginTop: 14, color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>
+        <div style={{ textAlign: 'center', marginTop: 16, color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>
           🔒 Secure · Simple · Reliable
         </div>
 
         {/* Terms */}
-        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 }}>
+        <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 }}>
           By continuing you agree to our{' '}
           <a href="/terms" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'none' }}>Terms & Privacy Policy</a>
         </div>
 
         {/* Hidden email login */}
         {showEmail && (
-          <div style={{ marginTop: 20, padding: 16, background: '#f8faff', borderRadius: 14, border: '1px solid #e0e7ff' }}>
-            <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 700, marginBottom: 10 }}>Admin Login</div>
+          <div style={{ marginTop: 24, padding: 16, background: '#f8faff', borderRadius: 14, border: '1px solid #e0e7ff' }}>
+            <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 700, marginBottom: 12 }}>Admin Login</div>
             <input
               type="email" placeholder="Email" value={email}
               onChange={e => setEmail(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #e0e7ff', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #e0e7ff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
             />
             <input
               type="password" placeholder="Password" value={password}
               onChange={e => setPassword(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #e0e7ff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #e0e7ff', fontSize: 13, marginBottom: 12, boxSizing: 'border-box' }}
             />
             <button
               onClick={emailLogin} disabled={loading}
               style={{ width: '100%', padding: 12, background: '#6366f1', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+              {loading ? 'Signing in...' : 'Sign
