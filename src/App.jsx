@@ -26,16 +26,9 @@ function Loader() {
     <div style={{
       minHeight: '100vh', background: '#fff',
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 8,
+      alignItems: 'center', justifyContent: 'center', padding: 40,
     }}>
-      <img
-        src="/logo.png"
-        alt="CarpoolKaro"
-        style={{ width: 240, height: 'auto' }}
-      />
-      <div style={{ color: '#1a2744', fontSize: 12, fontWeight: 800, letterSpacing: '1.5px' }}>
-        RIDE TOGETHER, SAVE TOGETHER
-      </div>
+      <img src="/logo.png" alt="CarpoolKaro" style={{ width: '80%', maxWidth: 280, height: 'auto' }} />
     </div>
   )
 }
