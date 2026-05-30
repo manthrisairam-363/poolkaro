@@ -2,13 +2,18 @@
   "id": "com.carpoolkaro.app",
   "name": "CarpoolKaro",
   "short_name": "CarpoolKaro",
-  "description": "Hyderabad IT Carpool — Share rides with colleagues, save money and reduce traffic",
+  "description": "India's IT Carpool App — Share rides with colleagues in Hyderabad, Bangalore, Pune, Mumbai, Delhi NCR & Chennai. Save money, reduce traffic.",
   "start_url": "/",
   "scope": "/",
-  "display": "fullscreen",
+  "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#111111",
+  "background_color": "#ffffff",
   "theme_color": "#facc15",
+  "theme_dark_color": "#111111",
+  "nav_color": "#111111",
+  "nav_dark_color": "#111111",
+  "nav_divider_color": "#111111",
+  "nav_divider_dark_color": "#111111",
   "lang": "en-IN",
   "dir": "ltr",
   "categories": ["travel", "lifestyle", "social"],
@@ -21,8 +26,8 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
+      "src": "/icon-maskable.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
@@ -31,12 +36,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ],
   "screenshots": [
