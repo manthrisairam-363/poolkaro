@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import { getCompanyFromEmail } from '../lib/companyDomains'
 import { CITIES } from '../lib/cities'
+import NotificationBell from '../components/NotificationBell'
 
 export default function Profile() {
   const { user, profile, signOut, fetchProfile } = useAuth()
@@ -161,7 +162,10 @@ export default function Profile() {
 
       {/* ── Header ── */}
       <div style={{ background: '#111', padding: '20px 16px 24px' }}>
-        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>My Profile</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ color: '#fff', fontWeight: 800, fontSize: 20 }}>My Profile</div>
+          <NotificationBell onNotificationClick={() => {}} />
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
 
           {/* Avatar — tap to view full, upload is in Personal Details */}
