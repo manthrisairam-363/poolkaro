@@ -45,18 +45,18 @@ export default function Login() {
       {/* Top section */}
       <div style={{ width: '100%', padding: '48px 28px 0', textAlign: 'center' }}>
         {/* Logo */}
-        <div onClick={handleLogoTap} style={{ cursor: 'default', marginBottom: 28 }}>
+        <div onClick={handleLogoTap} style={{ cursor: 'default', marginBottom: 32 }}>
           <img
             src="/logo.png"
             alt="CarpoolKaro"
-            style={{ width: '80%', maxWidth: 280, height: 'auto', display: 'block', margin: '0 auto' }}
+            style={{ width: '85%', maxWidth: 280, height: 'auto', display: 'block', margin: '0 auto' }}
           />
         </div>
 
         {/* Headline */}
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 32 }}>
           <div style={{
-            fontSize: 30, fontWeight: 900, color: '#0f172a',
+            fontSize: 32, fontWeight: 900, color: '#0f172a',
             letterSpacing: '-0.8px', lineHeight: 1.3,
           }}>
             Good Journeys,<br />
@@ -103,7 +103,7 @@ export default function Login() {
             cursor: loading ? 'default' : 'pointer',
             boxShadow: '0 8px 24px rgba(245,158,11,0.35)',
             letterSpacing: '-0.3px',
-            marginTop: 20,
+            marginTop: 24,
           }}
         >
           <svg width="22" height="22" viewBox="0 0 48 48">
@@ -142,4 +142,4 @@ export default function Login() {
             />
             <button
               onClick={emailLogin} disabled={loading}
-              style={{ width: '100%', padding: 12, background: '#6366f1', color: '#fff', border
+              style={{ width: '100%', padding: 12, background: '#6366f1', color: '#fff', border: 'none', borderRadius: 10, fontSize
