@@ -484,17 +484,13 @@ export default function Home() {
             ↺
           </button>
         </div>
-        {/* Logo full width */}
-        <div style={{ padding: '4px 24px 4px' }}>
+        {/* Logo full width - logo already contains CARPOOLKARO text + tagline */}
+        <div style={{ padding: '2px 20px 10px' }}>
           <img
             src="/logo.png"
             alt="CarpoolKaro"
-            style={{ width: '100%', maxWidth: 340, display: 'block', margin: '0 auto' }}
+            style={{ width: '100%', maxWidth: 320, display: 'block', margin: '0 auto' }}
           />
-        </div>
-        {/* Tagline */}
-        <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, color: '#1a2744', letterSpacing: '1.5px', paddingBottom: 10 }}>
-          RIDE TOGETHER, SAVE TOGETHER
         </div>
         {/* Search + filters on white */}
         <div style={{ padding: '0 16px 12px', borderTop: '1px solid #f0f0f0', marginTop: 2 }}>
