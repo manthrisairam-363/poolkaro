@@ -37,25 +37,31 @@ export default function Login() {
 
   return (
     <div style={{
-      height: '100vh',
+      height: '100dvh', // dynamic viewport height for iOS
       width: '100%',
       overflow: 'hidden',
       background: 'linear-gradient(180deg, #eef2ff 0%, #f0f4ff 50%, #fff 100%)',
       display: 'flex',
       flexDirection: 'column',
+      paddingTop: 'env(safe-area-inset-top)', // notch safe area
     }}>
 
       {/* Top section */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div onClick={handleLogoTap} style={{ cursor: 'pointer' }}>
+        <div onClick={handleLogoTap} style={{ cursor: 'pointer', marginBottom: 12 }}>
           <img
             src="/logo.png"
             alt="CarpoolKaro"
-            style={{ width: '75%', maxWidth: 260, height: 'auto', display: 'block', margin: '0 auto' }}
+            style={{ width: '85%', maxWidth: 300, height: 'auto', display: 'block', margin: '0 auto' }}
           />
         </div>
-        <div style={{ marginTop: 12, textAlign: 'center' }}>
-          <div style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', lineHeight: 1.3 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            fontSize: 'clamp(20px, 4.5vw, 26px)', // headline smaller than before
+            fontWeight: 900,
+            color: '#0f172a',
+            lineHeight: 1.3,
+          }}>
             Good Journeys,<br />
             <span style={{ color: '#f59e0b' }}>Start Together</span>
           </div>
