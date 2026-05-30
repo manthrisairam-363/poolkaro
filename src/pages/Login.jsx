@@ -46,20 +46,17 @@ export default function Login() {
   return (
     <div style={{ minHeight: '100vh', background: '#111', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
 
-      {/* Logo */}
-      <img
-        src="/logo.png"
-        alt="CarpoolKaro"
-        onClick={handleLogoTap}
-        style={{ width: 220, height: 'auto', marginBottom: 8, cursor: 'default' }}
-      />
-
-      <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-1px', marginBottom: 4 }}>
-        <span style={{ color: '#facc15' }}>Carpool</span>
-        <span style={{ color: '#fff' }}>Karo</span>
-      </div>
-      <div style={{ fontSize: 13, color: '#555', marginBottom: 36, textAlign: 'center' }}>
-        Hyderabad's IT Carpool Community
+      {/* Logo — full size on white background */}
+      <div style={{ width: '100%', background: '#fff', borderRadius: 20, padding: '28px 24px 20px', marginBottom: 24, textAlign: 'center' }}>
+        <img
+          src="/logo.png"
+          alt="CarpoolKaro"
+          onClick={handleLogoTap}
+          style={{ width: '100%', maxWidth: 280, height: 'auto', display: 'block', margin: '0 auto', cursor: 'default' }}
+        />
+        <div style={{ marginTop: 10, fontSize: 12, color: '#888', letterSpacing: '0.5px' }}>
+          India's IT Carpool Community
+        </div>
       </div>
 
       <div style={{ background: '#1a1a1a', borderRadius: 24, padding: 24, width: '100%', maxWidth: 400 }}>
