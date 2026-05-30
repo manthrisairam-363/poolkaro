@@ -142,6 +142,4 @@ export default function Login() {
             />
             <button
               onClick={emailLogin} disabled={loading}
-              style={{ width: '100%', padding: 12, background: '#6366f1', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-            >
-             
+              style={{ width: '100%', padding: 12, background: '#6366f1', color: '#fff', border
