@@ -40,6 +40,12 @@
       * {
         touch-action: manipulation;
       }
+      /* Prevent long-press context menu on profile photos */
+      img {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
       /* Safe area for iPhone notch */
       #root {
         padding-top: env(safe-area-inset-top);
