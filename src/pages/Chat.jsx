@@ -289,7 +289,7 @@ export default function Chat() {
 
           <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#222', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#facc15', fontSize: 16 }}>
             {info?.otherAvatar
-              ? <img src={info.otherAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+              ? <img src={info.otherAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', WebkitTouchCallout: 'none' }} alt="" />
               : info?.otherName?.[0]?.toUpperCase()}
           </div>
 
