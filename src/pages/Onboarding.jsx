@@ -124,7 +124,7 @@ export default function Onboarding() {
     fetchProfile(user.id)
   }
 
-  function next() {
+  async function next() {
     // Strict validation
     if (STEPS[step] === 'role' && !form.role) {
       setError('Please select your role to continue'); return
@@ -136,6 +136,19 @@ export default function Onboarding() {
       const digits = form.phone.replace(/\D/g, '')
       if (digits.length !== 10) { setError('Enter a valid 10-digit phone number'); return }
       if (!/^[6-9]/.test(digits)) { setError('Enter a valid Indian mobile number'); return }
+
+      // Check for duplicate phone number
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('phone', digits)
+        .neq('id', user.id)
+        .maybeSingle()
+      if (existing) {
+        setError('⚠️ This number is already registered. Please use a different number.')
+        return
+      }
+
       // Riders skip vehicle AND upi — go straight to finish (after consent)
       if (form.role === 'rider') {
         if (!form.consent_given) { setError('Please read and accept the terms to continue'); return }
