@@ -172,7 +172,7 @@ export default function Profile() {
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button onClick={() => profile?.avatar_url && setViewPhoto(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: profile?.avatar_url ? 'pointer' : 'default' }}>
               {profile?.avatar_url
-                ? <img src={profile.avatar_url} alt="avatar" style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15', display: 'block' }} />
+                ? <img src={profile.avatar_url} alt="avatar" style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '2px solid #facc15', display: 'block', pointerEvents: 'none', WebkitTouchCallout: 'none' }} />
                 : <div style={{ width: 70, height: 70, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 26 }}>{initials}</div>
               }
             </button>
