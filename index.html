@@ -49,22 +49,6 @@
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
       }
-      /* Landscape overlay — shown when phone rotates */
-      #landscape-block {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: #111;
-        z-index: 99999;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-      }
-      @media screen and (orientation: landscape) {
-        #landscape-block { display: flex; }
-        #root { display: none; }
-      }
     </style>
     <meta property="og:title" content="CarpoolKaro 🚗 — Hyderabad IT Carpool" />
     <meta property="og:description" content="Share rides with IT professionals in Hyderabad. Save money, reduce traffic." />
@@ -76,12 +60,6 @@
     <meta name="twitter:description" content="Share rides with IT professionals in Hyderabad." />
   </head>
   <body>
-    <!-- Landscape rotation block -->
-    <div id="landscape-block">
-      <div style="font-size:64px">📱</div>
-      <div style="color:#fff;font-size:18px;font-weight:800;font-family:system-ui;">Please rotate your phone</div>
-      <div style="color:#666;font-size:14px;font-family:system-ui;text-align:center;padding:0 40px;">CarpoolKaro works in portrait mode only</div>
-    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
