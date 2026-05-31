@@ -162,7 +162,7 @@ function RideCard({ ride, onBook, myUserId }) {
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         {ride.profiles?.avatar_url ? (
           <img src={ride.profiles.avatar_url} alt="avatar"
-            style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #f0f0f0' }} />
+            style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #f0f0f0', pointerEvents: 'none', WebkitTouchCallout: 'none' }} />
         ) : (
           <div style={{
             width: 42, height: 42, borderRadius: '50%', background: color,
@@ -528,7 +528,7 @@ export default function Home() {
             }}
           >
             {profile?.avatar_url
-              ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', WebkitTouchCallout: 'none' }} />
               : (profile?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?')
             }
           </div>
@@ -718,7 +718,7 @@ export default function Home() {
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
                     <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
-                      {sheetRide.profiles?.avatar_url ? <img src={sheetRide.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+                      {sheetRide.profiles?.avatar_url ? <img src={sheetRide.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', WebkitTouchCallout: 'none' }} /> : initials}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -816,7 +816,7 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
       {/* Driver row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0, overflow: 'hidden' }}>
-          {ride.profiles?.avatar_url ? <img src={ride.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+          {ride.profiles?.avatar_url ? <img src={ride.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', WebkitTouchCallout: 'none' }} /> : initials}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
