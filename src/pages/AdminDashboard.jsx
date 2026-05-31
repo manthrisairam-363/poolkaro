@@ -458,7 +458,8 @@ export default function AdminDashboard() {
           {[
             ['overview','📊'],['users','👥'],['suspicious','⚠️'],
             ['rides','🚗'],['bookings','🎫'],['broadcast','📢'],
-            ['reports','🚨'],['feedback','💡']
+            ['reports','🚨'],['feedback','💡'],
+            ['revenue','💰'],['cities','🏙️'],['ratings','⭐'],['referrals','🎁'],['notify','🔔']
           ].map(([v,l]) => (
             <button key={v} onClick={() => setTab(v)} style={tabStyle(v)}>
               {l} {v === 'suspicious' && suspiciousUsers.length > 0 ? `(${suspiciousUsers.length})` : v === 'reports' && reports.length > 0 ? `(${reports.length})` : v === 'feedback' && feedbackList.filter(f => f.status === 'open').length > 0 ? `(${feedbackList.filter(f => f.status === 'open').length})` : v.charAt(0).toUpperCase() + v.slice(1)}
@@ -930,6 +931,33 @@ export default function AdminDashboard() {
                 })}
               </div>
             )}
+            {/* ── REVENUE DASHBOARD ── */}
+            {tab === 'revenue' && (
+              <RevenueTab supabase={supabase} />
+            )}
+
+            {/* ── CITY ANALYTICS ── */}
+            {tab === 'cities' && (
+              <>
+                <FixCitiesButton supabase={supabase} onDone={fetchAll} />
+                <CityAnalyticsTab supabase={supabase} />
+              </>
+            )}
+
+            {/* ── RATINGS MONITOR ── */}
+            {tab === 'ratings' && (
+              <RatingsTab supabase={supabase} />
+            )}
+
+            {/* ── REFERRAL TRACKER ── */}
+            {tab === 'referrals' && (
+              <ReferralsTab supabase={supabase} users={users} />
+            )}
+
+            {/* ── NOTIFICATION CENTER ── */}
+            {tab === 'notify' && (
+              <NotifyTab supabase={supabase} users={users} />
+            )}
           </>
         )}
       </div>
@@ -946,5 +974,393 @@ export default function AdminDashboard() {
       </div>
     )}
   </>
+  )
+}
+
+// ── REVENUE DASHBOARD ──
+function RevenueTab({ supabase }) {
+  const [data, setData] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const now = new Date()
+    const d30 = new Date(now - 30 * 86400000).toISOString()
+    const d7  = new Date(now - 7  * 86400000).toISOString()
+    const [t30, t7, tAll, proSubs, dailyRaw] = await Promise.all([
+      supabase.from('wallet_transactions').select('amount').eq('type','debit').ilike('description','%platform%').gte('created_at', d30),
+      supabase.from('wallet_transactions').select('amount').eq('type','debit').ilike('description','%platform%').gte('created_at', d7),
+      supabase.from('wallet_transactions').select('amount').eq('type','debit').ilike('description','%platform%'),
+      supabase.from('profiles').select('id').not('subscription_expires_at','is',null).gt('subscription_expires_at', now.toISOString()),
+      supabase.from('wallet_transactions').select('amount,created_at').eq('type','debit').ilike('description','%platform%').gte('created_at', d30).order('created_at'),
+    ])
+    const byDay = {}
+    ;(dailyRaw.data || []).forEach(tx => {
+      const d = tx.created_at?.split('T')[0]
+      byDay[d] = (byDay[d] || 0) + Number(tx.amount)
+    })
+    setData({
+      rev30: (t30.data||[]).reduce((s,t)=>s+Number(t.amount),0),
+      rev7:  (t7.data ||[]).reduce((s,t)=>s+Number(t.amount),0),
+      revAll:(tAll.data||[]).reduce((s,t)=>s+Number(t.amount),0),
+      proCount: proSubs.data?.length || 0,
+      byDay,
+    })
+  }
+  if (!data) return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
+  const days = Object.entries(data.byDay).sort(([a],[b])=>a.localeCompare(b))
+  const maxRev = Math.max(...days.map(([,v])=>v), 1)
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:10,marginBottom:20}}>
+        {[['💰 All Time',`₹${data.revAll.toFixed(0)}`,'#facc15','#111'],['📅 30 Days',`₹${data.rev30.toFixed(0)}`,'#16a34a','#fff'],['📅 7 Days',`₹${data.rev7.toFixed(0)}`,'#2563eb','#fff'],['⭐ Pro Active',`${data.proCount}`,'#7c3aed','#fff']].map(([l,v,bg,c])=>(
+          <div key={l} style={{background:bg,borderRadius:12,padding:'14px 12px'}}>
+            <div style={{fontSize:10,color:c==='#111'?'#854d0e':'rgba(255,255,255,0.6)',marginBottom:4}}>{l}</div>
+            <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:'#111',borderRadius:14,padding:16}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#facc15',marginBottom:14}}>📈 Daily Revenue — Last 30 Days</div>
+        {days.length===0
+          ? <div style={{color:'#555',textAlign:'center',padding:30}}>No revenue yet</div>
+          : <div style={{display:'flex',alignItems:'flex-end',gap:3,height:120,overflowX:'auto'}}>
+              {days.map(([day,rev])=>(
+                <div key={day} style={{flex:1,minWidth:20,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                  <div style={{fontSize:8,color:'#555'}}>₹{rev}</div>
+                  <div style={{width:'100%',background:'#facc15',borderRadius:'3px 3px 0 0',height:`${(rev/maxRev)*90}px`,minHeight:4}}/>
+                  <div style={{fontSize:7,color:'#444',transform:'rotate(-45deg)',transformOrigin:'top left',whiteSpace:'nowrap',marginTop:4}}>{new Date(day).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
+                </div>
+              ))}
+            </div>
+        }
+      </div>
+      <div style={{marginTop:12,padding:12,background:'#111',borderRadius:12,fontSize:12,color:'#555'}}>
+        💡 Revenue = ₹2 platform fee per booking. Pro subscribers pay no fees.
+      </div>
+    </div>
+  )
+}
+
+// ── CITY ANALYTICS ──
+function CityAnalyticsTab({ supabase }) {
+  const [data, setData] = useState(null)
+  useEffect(()=>{load()},[])
+  async function load() {
+    const [ridesRes, usersRes, bookRes] = await Promise.all([
+      supabase.from('rides').select('city,from_location,to_location,ride_time'),
+      supabase.from('profiles').select('city'),
+      supabase.from('bookings').select('status,rides(city)'),
+    ])
+    const cities = ['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai']
+    const cs = {}
+    cities.forEach(c=>{cs[c]={rides:0,users:0,bookings:0,corridors:{},hours:{}}})
+    ;(ridesRes.data||[]).forEach(r=>{
+      const c=r.city||'Hyderabad'
+      if(!cs[c])return
+      cs[c].rides++
+      const corr=`${r.from_location?.split(' ').slice(0,2).join(' ')} → ${r.to_location?.split(' ').slice(0,2).join(' ')}`
+      cs[c].corridors[corr]=(cs[c].corridors[corr]||0)+1
+      const hr=parseInt(r.ride_time?.split(':')[0]||0)
+      cs[c].hours[hr]=(cs[c].hours[hr]||0)+1
+    })
+    ;(usersRes.data||[]).forEach(u=>{const c=u.city||'Hyderabad';if(cs[c])cs[c].users++})
+    ;(bookRes.data||[]).forEach(b=>{const c=b.rides?.city||'Hyderabad';if(cs[c])cs[c].bookings++})
+    setData(cs)
+  }
+  if(!data)return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+        {Object.entries(data).map(([city,stats])=>{
+          const topC=Object.entries(stats.corridors).sort(([,a],[,b])=>b-a).slice(0,3)
+          const peak=Object.entries(stats.hours).sort(([,a],[,b])=>b-a)[0]
+          const warn=stats.rides===0||(stats.users>3&&stats.rides<2)
+          return (
+            <div key={city} style={{background:'#111',borderRadius:14,padding:14,border:warn?'1px solid #ef4444':'1px solid #222'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <div style={{fontWeight:800,fontSize:14,color:'#fff'}}>{city}</div>
+                {warn&&<span style={{background:'#7f1d1d',color:'#fca5a5',fontSize:9,padding:'2px 8px',borderRadius:10,fontWeight:700}}>⚠️ Low Rides</span>}
+              </div>
+              <div style={{display:'flex',gap:6,marginBottom:10}}>
+                {[['🚗',stats.rides,'Rides'],['👥',stats.users,'Users'],['🎫',stats.bookings,'Bookings']].map(([icon,val,label])=>(
+                  <div key={label} style={{flex:1,background:'#1a1a1a',borderRadius:8,padding:'8px 4px',textAlign:'center'}}>
+                    <div style={{fontSize:14,fontWeight:800,color:'#facc15'}}>{val}</div>
+                    <div style={{fontSize:9,color:'#555',marginTop:2}}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              {topC.length>0&&<div style={{marginBottom:8}}>{topC.map(([c,n])=>(
+                <div key={c} style={{fontSize:10,color:'#666',marginBottom:2,display:'flex',justifyContent:'space-between'}}>
+                  <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{c}</span>
+                  <span style={{color:'#facc15',flexShrink:0,marginLeft:6}}>{n}x</span>
+                </div>
+              ))}</div>}
+              {peak&&<div style={{fontSize:10,color:'#555'}}>⏰ Peak: {peak[0]}:00–{parseInt(peak[0])+1}:00</div>}
+            </div>
+          )
+        })}
+      </div>
+      <div style={{background:'#111',borderRadius:12,padding:12,fontSize:12,color:'#555'}}>
+        💡 Cities marked ⚠️ have users but low ride supply. Consider targeting drivers there.
+      </div>
+    </div>
+  )
+}
+
+// ── RATINGS MONITOR ──
+function RatingsTab({ supabase }) {
+  const [ratings, setRatings] = useState([])
+  const [lowUsers, setLowUsers] = useState([])
+  useEffect(()=>{load()},[])
+  async function load() {
+    const [r1,r2] = await Promise.all([
+      supabase.from('ratings').select('*').order('created_at',{ascending:false}).limit(40),
+      supabase.from('profiles').select('id,full_name,avg_rating,email').lt('avg_rating',3.5).gt('avg_rating',0).order('avg_rating'),
+    ])
+    setRatings(r1.data||[])
+    setLowUsers(r2.data||[])
+  }
+  return (
+    <div>
+      {lowUsers.length>0&&(
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:11,fontWeight:800,color:'#ef4444',marginBottom:10,letterSpacing:1}}>⚠️ LOW RATED USERS (below 3.5 ⭐)</div>
+          {lowUsers.map(u=>(
+            <div key={u.id} style={{background:'#1a0a0a',border:'1px solid #7f1d1d',borderRadius:12,padding:14,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:13,color:'#fff'}}>{u.full_name}</div>
+                <div style={{fontSize:10,color:'#555',marginTop:2}}>{u.email}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:20,fontWeight:900,color:'#ef4444'}}>⭐ {Number(u.avg_rating).toFixed(1)}</div>
+                <button onClick={async()=>{
+                  await supabase.from('notifications').insert({user_id:u.id,type:'system',title:'⚠️ Rating Notice',message:'Your rating has dropped. Please maintain good conduct to continue using CarpoolKaro.',is_read:false})
+                  alert(`Warning sent to ${u.full_name}`)
+                }} style={{marginTop:6,background:'#7f1d1d',color:'#fca5a5',border:'none',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}}>⚠️ Warn</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {lowUsers.length===0&&<div style={{background:'#0d1f0d',border:'1px solid #166534',borderRadius:12,padding:16,marginBottom:16,textAlign:'center',color:'#4ade80',fontWeight:700}}>✅ All users have good ratings!</div>}
+      <div style={{fontSize:11,fontWeight:800,color:'#888',marginBottom:10,letterSpacing:1}}>RECENT RATINGS</div>
+      {ratings.length===0
+        ? <div style={{color:'#555',textAlign:'center',padding:30}}>No ratings yet</div>
+        : ratings.map(r=>(
+          <div key={r.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,color:'#fff',fontWeight:600}}>{r.rated_by?.slice?.(0,8)||'?'} → {r.rated_user_id?.slice?.(0,8)||'?'}</div>
+              {r.comment&&<div style={{fontSize:11,color:'#666',marginTop:4,fontStyle:'italic'}}>"{r.comment}"</div>}
+              <div style={{fontSize:10,color:'#555',marginTop:3}}>{new Date(r.created_at).toLocaleDateString('en-IN')}</div>
+            </div>
+            <div style={{fontSize:18,fontWeight:900,color:r.rating>=4?'#facc15':r.rating>=3?'#f97316':'#ef4444',marginLeft:12}}>{'⭐'.repeat(Math.min(r.rating||0,5))}</div>
+          </div>
+        ))
+      }
+    </div>
+  )
+}
+
+// ── REFERRAL TRACKER ──
+function ReferralsTab({ supabase, users }) {
+  const [txns, setTxns] = useState([])
+  const [profiles, setProfiles] = useState([])
+  useEffect(()=>{load()},[])
+  async function load() {
+    const [t,p] = await Promise.all([
+      supabase.from('wallet_transactions').select('user_id,amount,description,created_at').ilike('description','%referral%').order('created_at',{ascending:false}).limit(50),
+      supabase.from('profiles').select('id,full_name,referral_code,referral_count,email').order('referral_count',{ascending:false}),
+    ])
+    setTxns(t.data||[])
+    setProfiles(p.data||[])
+  }
+  const totalPaid = txns.reduce((s,t)=>s+Number(t.amount),0)
+  const topReferrers = profiles.filter(p=>p.referral_count>0).slice(0,10)
+  const profileMap = {}
+  profiles.forEach(p=>{ profileMap[p.id]=p })
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:20}}>
+        {[['🎁 Bonuses Paid',`₹${totalPaid}`,'#facc15'],['👥 Total Signups',profiles.filter(p=>p.referred_by).length,'#22c55e'],['🏆 Top Referrer',topReferrers[0]?`${topReferrers[0].full_name?.split(' ')[0]} (${topReferrers[0].referral_count})`:'None','#a855f7']].map(([l,v,c])=>(
+          <div key={l} style={{background:'#111',borderRadius:12,padding:14}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:6}}>{l}</div>
+            <div style={{fontSize:18,fontWeight:800,color:c}}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{fontSize:11,fontWeight:800,color:'#888',marginBottom:10,letterSpacing:1}}>🏆 LEADERBOARD</div>
+      {topReferrers.length===0
+        ? <div style={{color:'#555',textAlign:'center',padding:30}}>No referrals yet</div>
+        : topReferrers.map((p,i)=>(
+          <div key={p.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:28,height:28,borderRadius:'50%',background:i===0?'#facc15':i===1?'#9ca3af':i===2?'#b45309':'#222',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,color:i<3?'#111':'#555',flexShrink:0}}>{i+1}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:13,color:'#fff'}}>{p.full_name}</div>
+              <div style={{fontSize:10,color:'#555'}}>Code: <span style={{color:'#facc15',fontFamily:'monospace'}}>{p.referral_code}</span></div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:16,fontWeight:900,color:'#facc15'}}>{p.referral_count}</div>
+              <div style={{fontSize:9,color:'#555'}}>referrals</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:14,fontWeight:700,color:'#22c55e'}}>₹{(p.referral_count||0)*10}</div>
+              <div style={{fontSize:9,color:'#555'}}>earned</div>
+            </div>
+          </div>
+        ))
+      }
+      {txns.length>0&&<>
+        <div style={{fontSize:11,fontWeight:800,color:'#888',margin:'16px 0 10px',letterSpacing:1}}>RECENT TRANSACTIONS</div>
+        {txns.slice(0,15).map((t,i)=>(
+          <div key={i} style={{background:'#111',borderRadius:10,padding:'10px 12px',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontSize:12,color:'#fff'}}>{profileMap[t.user_id]?.full_name||t.user_id?.slice(0,8)||'?'}</div>
+              <div style={{fontSize:10,color:'#555',marginTop:2}}>{new Date(t.created_at).toLocaleDateString('en-IN')}</div>
+            </div>
+            <div style={{fontSize:14,fontWeight:700,color:'#22c55e'}}>+₹{t.amount}</div>
+          </div>
+        ))}
+      </>}
+    </div>
+  )
+}
+
+// ── NOTIFICATION CENTER ──
+function NotifyTab({ supabase, users }) {
+  const [title, setTitle] = useState('')
+  const [message, setMessage] = useState('')
+  const [targetType, setTargetType] = useState('all')
+  const [targetCity, setTargetCity] = useState('Hyderabad')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(null)
+  const [history, setHistory] = useState([])
+  useEffect(()=>{loadHistory()},[])
+  async function loadHistory() {
+    const {data} = await supabase.from('notifications').select('title,message,created_at').eq('type','admin_broadcast').order('created_at',{ascending:false}).limit(15)
+    setHistory(data||[])
+  }
+  const getTargets = () => {
+    if(targetType==='city') return users.filter(u=>u.city===targetCity)
+    if(targetType==='pro') return users.filter(u=>u.subscription_expires_at&&new Date(u.subscription_expires_at)>new Date())
+    if(targetType==='drivers') return users.filter(u=>u.role==='driver'||u.role==='both')
+    if(targetType==='riders') return users.filter(u=>u.role==='rider'||u.role==='both')
+    return users
+  }
+  async function send() {
+    if(!title.trim()||!message.trim()){alert('Title and message required');return}
+    setSending(true)
+    const targets = getTargets()
+    if(targets.length>0) {
+      await supabase.from('notifications').insert(targets.map(u=>({user_id:u.id,title,message,type:'admin_broadcast',is_read:false})))
+    }
+    setSending(false)
+    setSent(targets.length)
+    setTitle('');setMessage('')
+    loadHistory()
+    setTimeout(()=>setSent(null),4000)
+  }
+  const targetCount = getTargets().length
+  return (
+    <div>
+      <div style={{background:'#111',borderRadius:14,padding:16,marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:800,color:'#fff',marginBottom:14}}>🔔 Send Notification</div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>SEND TO</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[['all','🌐 All'],['city','🏙️ City'],['pro','⭐ Pro'],['drivers','🚗 Drivers'],['riders','🙋 Riders']].map(([v,l])=>(
+              <button key={v} onClick={()=>setTargetType(v)} style={{padding:'6px 12px',borderRadius:20,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:targetType===v?'#facc15':'#1a1a1a',color:targetType===v?'#111':'#888'}}>{l}</button>
+            ))}
+          </div>
+          {targetType==='city'&&(
+            <select value={targetCity} onChange={e=>setTargetCity(e.target.value)} style={{marginTop:8,padding:'8px 12px',background:'#1a1a1a',color:'#fff',border:'1px solid #333',borderRadius:8,fontSize:12,width:'100%'}}>
+              {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c=><option key={c}>{c}</option>)}
+            </select>
+          )}
+          <div style={{marginTop:8,fontSize:11,color:'#facc15'}}>→ Will notify <strong>{targetCount}</strong> user{targetCount!==1?'s':''}</div>
+        </div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>TITLE</div>
+          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. 🎉 New Feature!" maxLength={60} style={{width:'100%',padding:'10px 12px',background:'#1a1a1a',color:'#fff',border:'1px solid #333',borderRadius:8,fontSize:13,boxSizing:'border-box'}}/>
+        </div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>MESSAGE</div>
+          <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Write your message..." rows={3} maxLength={300} style={{width:'100%',padding:'10px 12px',background:'#1a1a1a',color:'#fff',border:'1px solid #333',borderRadius:8,fontSize:13,resize:'vertical',boxSizing:'border-box'}}/>
+          <div style={{fontSize:10,color:'#555',textAlign:'right'}}>{message.length}/300</div>
+        </div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>QUICK TEMPLATES</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {[['🎉 Feature Update','We just launched a new feature! Open the app to check it out.'],['🏙️ New City','CarpoolKaro is now in your city! Start sharing rides today.'],['💰 Offer','Recharge ₹100 and get ₹20 bonus this week only!'],['🚗 Post a Ride','Driving tomorrow? Post your ride and earn on your commute!']].map(([t,m])=>(
+              <button key={t} onClick={()=>{setTitle(t);setMessage(m)}} style={{padding:'5px 10px',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,color:'#888',fontSize:10,cursor:'pointer'}}>{t}</button>
+            ))}
+          </div>
+        </div>
+        {sent!==null&&<div style={{background:'#0d1f0d',border:'1px solid #166534',borderRadius:8,padding:'10px 14px',marginBottom:12,color:'#4ade80',fontSize:13,fontWeight:700}}>✅ Sent to {sent} users!</div>}
+        <button onClick={send} disabled={sending||!title||!message} style={{width:'100%',padding:14,background:sending||!title||!message?'#333':'#facc15',color:'#111',border:'none',borderRadius:10,fontSize:14,fontWeight:800,cursor:sending?'default':'pointer'}}>
+          {sending?'⏳ Sending...':`🔔 Send to ${targetCount} User${targetCount!==1?'s':''}`}
+        </button>
+      </div>
+      {history.length>0&&<>
+        <div style={{fontSize:11,fontWeight:800,color:'#888',marginBottom:10,letterSpacing:1}}>SENT HISTORY</div>
+        {history.map((n,i)=>(
+          <div key={i} style={{background:'#111',borderRadius:10,padding:'10px 12px',marginBottom:6}}>
+            <div style={{display:'flex',justifyContent:'space-between'}}>
+              <div style={{fontWeight:700,fontSize:12,color:'#fff'}}>{n.title}</div>
+              <div style={{fontSize:10,color:'#555'}}>{new Date(n.created_at).toLocaleDateString('en-IN')}</div>
+            </div>
+            <div style={{fontSize:11,color:'#666',marginTop:4}}>{n.message}</div>
+          </div>
+        ))}
+      </>}
+    </div>
+  )
+}
+
+// ── FIX CITIES BUTTON ──
+function FixCitiesButton({ supabase, onDone }) {
+  const [fixing, setFixing] = useState(false)
+  const [result, setResult] = useState(null)
+
+  async function fixCities() {
+    if (!window.confirm('This will normalise all user & ride city names to proper case (e.g. hyderabad → Hyderabad). Continue?')) return
+    setFixing(true)
+    const cityMap = [
+      ['Hyderabad', ['hyderabad']],
+      ['Bangalore', ['bangalore', 'bengaluru']],
+      ['Pune',      ['pune']],
+      ['Mumbai',    ['mumbai']],
+      ['Delhi NCR', ['delhi ncr', 'delhi', 'ncr', 'gurgaon', 'noida']],
+      ['Chennai',   ['chennai']],
+    ]
+    let totalFixed = 0
+    for (const [proper, variants] of cityMap) {
+      for (const v of variants) {
+        const { count: c1 } = await supabase.from('profiles').update({ city: proper }).ilike('city', v).select('id', { count: 'exact', head: true })
+        const { count: c2 } = await supabase.from('rides').update({ city: proper }).ilike('city', v).select('id', { count: 'exact', head: true })
+        totalFixed += (c1 || 0) + (c2 || 0)
+      }
+    }
+    // Fix nulls → Hyderabad
+    await supabase.from('profiles').update({ city: 'Hyderabad' }).is('city', null)
+    await supabase.from('profiles').update({ city: 'Hyderabad' }).eq('city', '')
+    await supabase.from('rides').update({ city: 'Hyderabad' }).is('city', null)
+    setFixing(false)
+    setResult(totalFixed)
+    if (onDone) onDone()
+    setTimeout(() => setResult(null), 5000)
+  }
+
+  return (
+    <div style={{ background: '#111', borderRadius: 12, padding: 14, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>🔧 Fix City Names</div>
+        <div style={{ fontSize: 11, color: '#555', marginTop: 3 }}>
+          Normalises "hyderabad" → "Hyderabad" for all users & rides
+        </div>
+        {result !== null && <div style={{ fontSize: 11, color: '#4ade80', marginTop: 4 }}>✅ Fixed {result} records!</div>}
+      </div>
+      <button onClick={fixCities} disabled={fixing} style={{ background: fixing ? '#333' : '#facc15', color: '#111', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 12, fontWeight: 800, cursor: fixing ? 'default' : 'pointer', flexShrink: 0, marginLeft: 12 }}>
+        {fixing ? '⏳ Fixing...' : '🔧 Fix Now'}
+      </button>
+    </div>
   )
 }
