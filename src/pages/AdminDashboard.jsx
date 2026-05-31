@@ -455,16 +455,16 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-          {[
-            ['overview','📊'],['users','👥'],['suspicious','⚠️'],
-            ['rides','🚗'],['bookings','🎫'],['broadcast','📢'],
-            ['reports','🚨'],['feedback','💡'],
-            ['revenue','💰'],['cities','🏙️'],['ratings','⭐'],['referrals','🎁'],['notify','🔔']
-          ].map(([v,l]) => (
-            <button key={v} onClick={() => setTab(v)} style={tabStyle(v)}>
-              {l} {v === 'suspicious' && suspiciousUsers.length > 0 ? `(${suspiciousUsers.length})` : v === 'reports' && reports.length > 0 ? `(${reports.length})` : v === 'feedback' && feedbackList.filter(f => f.status === 'open').length > 0 ? `(${feedbackList.filter(f => f.status === 'open').length})` : v.charAt(0).toUpperCase() + v.slice(1)}
+          {tab !== 'overview' && (
+            <button onClick={() => setTab('overview')} style={{ padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', background: '#333', color: '#fff', fontWeight: 600, fontSize: 12, flexShrink: 0 }}>
+              ← Dashboard
             </button>
-          ))}
+          )}
+          {tab !== 'overview' && (
+            <span style={{ padding: '6px 14px', borderRadius: 20, background: '#facc15', color: '#111', fontWeight: 800, fontSize: 12, flexShrink: 0 }}>
+              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify'}[tab] || tab}
+            </span>
+          )}
         </div>
       </div>
 
@@ -544,6 +544,38 @@ export default function AdminDashboard() {
                       <span style={{ background: '#222', padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 700, color: '#facc15' }}>{count} rides</span>
                     </div>
                   ))}
+                </div>
+
+                {/* FEATURE GRID */}
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#555', letterSpacing: 2, marginBottom: 12 }}>ALL FEATURES</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    {[
+                      ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
+                      ['suspicious','⚠️', 'Fraud',     suspiciousUsers.length > 0 ? `${suspiciousUsers.length} flagged` : 'Clean', '#ef4444'],
+                      ['rides',     '🚗', 'Rides',     'All rides',                '#d97706'],
+                      ['bookings',  '🎫', 'Bookings',  'History',                  '#0891b2'],
+                      ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
+                      ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
+                      ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
+                      ['revenue',   '💰', 'Revenue',   'Earnings',                 '#facc15'],
+                      ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
+                      ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
+                      ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
+                      ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
+                    ].map(([v, icon, label, sub, color]) => (
+                      <button key={v} onClick={() => setTab(v)} style={{
+                        background: '#1a1a1a', border: `1px solid ${color}44`,
+                        borderRadius: 12, padding: '14px 8px',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                        cursor: 'pointer',
+                      }}>
+                        <span style={{ fontSize: 24 }}>{icon}</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>{label}</span>
+                        <span style={{ fontSize: 9, color: '#666', textAlign: 'center' }}>{sub}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </>
             )}
