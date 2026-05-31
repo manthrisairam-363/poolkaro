@@ -391,11 +391,15 @@ export default function Home() {
     const istNow = new Date(now.getTime() + istOffset)
     const today = istNow.toISOString().split('T')[0]
 
+    // Only show today and tomorrow — no future clutter
+    const tomorrow = new Date(istNow.getTime() + 86400000).toISOString().split('T')[0]
+
     const { data, error } = await supabase
       .from('rides')
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
       .in('status', ['active'])
       .gte('ride_date', today)
+      .lte('ride_date', tomorrow)
       .eq('city', profile?.city || 'Hyderabad')
       .order('ride_date', { ascending: true })
       .order('ride_time', { ascending: true })
