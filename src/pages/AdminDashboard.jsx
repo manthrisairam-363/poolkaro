@@ -14,6 +14,11 @@ export default function AdminDashboard() {
   const [wallets, setWallets] = useState({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('overview')
+  function switchTab(v) {
+    setTab(v)
+    // Refresh data when opening rides, bookings or overview
+    if (['rides','bookings','overview','users'].includes(v)) fetchAll()
+  }
   const [selectedUser, setSelectedUser] = useState(null)
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
   const [search, setSearch] = useState('')
@@ -569,7 +574,7 @@ export default function AdminDashboard() {
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
                   ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
                 ].map(([v, icon, label, sub, color]) => (
-                  <button key={v} onClick={() => setTab(v)} style={{
+                  <button key={v} onClick={() => switchTab(v)} style={{
                     background: '#1a1a1a', border: `1px solid ${color}44`,
                     borderRadius: 12, padding: '16px 8px',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
