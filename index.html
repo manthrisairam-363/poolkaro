@@ -46,6 +46,21 @@
         -webkit-user-select: none;
         user-select: none;
       }
+      /* Lock to portrait — prevents rotation on iOS PWA */
+      html {
+        transform-origin: top left;
+      }
+      @media screen and (orientation: landscape) and (display-mode: standalone) {
+        html {
+          transform: rotate(-90deg);
+          width: 100vh;
+          height: 100vw;
+          overflow-x: hidden;
+          position: fixed;
+          top: 0;
+          left: 100%;
+        }
+      }
       /* Safe area for iPhone notch */
       #root {
         padding-top: env(safe-area-inset-top);
