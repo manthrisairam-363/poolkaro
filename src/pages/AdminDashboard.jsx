@@ -454,15 +454,19 @@ export default function AdminDashboard() {
             </button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-          {tab !== 'overview' && (
-            <button onClick={() => setTab('overview')} style={{ padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', background: '#333', color: '#fff', fontWeight: 600, fontSize: 12, flexShrink: 0 }}>
-              ← Dashboard
-            </button>
-          )}
-          {tab !== 'overview' && (
-            <span style={{ padding: '6px 14px', borderRadius: 20, background: '#facc15', color: '#111', fontWeight: 800, fontSize: 12, flexShrink: 0 }}>
-              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify'}[tab] || tab}
+        <div style={{ display: 'flex', gap: 8, paddingBottom: 4 }}>
+          <button onClick={() => setTab('overview')} style={{
+            padding: '7px 20px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+            background: tab === 'overview' ? '#facc15' : '#222', color: tab === 'overview' ? '#111' : '#888',
+          }}>📊 Overview</button>
+          <button onClick={() => setTab('apps')} style={{
+            padding: '7px 20px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+            background: tab === 'apps' || !['overview','apps'].includes(tab) ? '#facc15' : '#222',
+            color: tab === 'apps' || !['overview','apps'].includes(tab) ? '#111' : '#888',
+          }}>⚙️ Apps</button>
+          {!['overview','apps'].includes(tab) && (
+            <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
+              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify'}[tab]}
             </span>
           )}
         </div>
@@ -545,39 +549,38 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
-
-                {/* FEATURE GRID */}
-                <div style={{ marginTop: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: '#555', letterSpacing: 2, marginBottom: 12 }}>ALL FEATURES</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                    {[
-                      ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
-                      ['suspicious','⚠️', 'Fraud',     suspiciousUsers.length > 0 ? `${suspiciousUsers.length} flagged` : 'Clean', '#ef4444'],
-                      ['rides',     '🚗', 'Rides',     'All rides',                '#d97706'],
-                      ['bookings',  '🎫', 'Bookings',  'History',                  '#0891b2'],
-                      ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
-                      ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
-                      ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
-                      ['revenue',   '💰', 'Revenue',   'Earnings',                 '#facc15'],
-                      ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
-                      ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
-                      ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
-                      ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
-                    ].map(([v, icon, label, sub, color]) => (
-                      <button key={v} onClick={() => setTab(v)} style={{
-                        background: '#1a1a1a', border: `1px solid ${color}44`,
-                        borderRadius: 12, padding: '14px 8px',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                        cursor: 'pointer',
-                      }}>
-                        <span style={{ fontSize: 24 }}>{icon}</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>{label}</span>
-                        <span style={{ fontSize: 9, color: '#666', textAlign: 'center' }}>{sub}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </>
+            )}
+
+            {/* APPS TAB — feature grid */}
+            {(tab === 'apps') && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[
+                  ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
+                  ['suspicious','⚠️', 'Fraud',     suspiciousUsers.length > 0 ? `${suspiciousUsers.length} flagged` : 'Clean', '#ef4444'],
+                  ['rides',     '🚗', 'Rides',     'All rides',                '#d97706'],
+                  ['bookings',  '🎫', 'Bookings',  'History',                  '#0891b2'],
+                  ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
+                  ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
+                  ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
+                  ['revenue',   '💰', 'Revenue',   'Earnings',                 '#facc15'],
+                  ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
+                  ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
+                  ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
+                  ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
+                ].map(([v, icon, label, sub, color]) => (
+                  <button key={v} onClick={() => setTab(v)} style={{
+                    background: '#1a1a1a', border: `1px solid ${color}44`,
+                    borderRadius: 12, padding: '16px 8px',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    cursor: 'pointer',
+                  }}>
+                    <span style={{ fontSize: 26 }}>{icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>{label}</span>
+                    <span style={{ fontSize: 9, color: '#666', textAlign: 'center' }}>{sub}</span>
+                  </button>
+                ))}
+              </div>
             )}
 
             {/* USERS */}
@@ -970,10 +973,7 @@ export default function AdminDashboard() {
 
             {/* ── CITY ANALYTICS ── */}
             {tab === 'cities' && (
-              <>
-                <FixCitiesButton supabase={supabase} onDone={fetchAll} />
-                <CityAnalyticsTab supabase={supabase} />
-              </>
+              <CityAnalyticsTab supabase={supabase} />
             )}
 
             {/* ── RATINGS MONITOR ── */}
@@ -1144,11 +1144,21 @@ function RatingsTab({ supabase }) {
   const [lowUsers, setLowUsers] = useState([])
   useEffect(()=>{load()},[])
   async function load() {
-    const [r1,r2] = await Promise.all([
+    const [r1, r2, r3] = await Promise.all([
       supabase.from('ratings').select('*').order('created_at',{ascending:false}).limit(40),
       supabase.from('profiles').select('id,full_name,avg_rating,email').lt('avg_rating',3.5).gt('avg_rating',0).order('avg_rating'),
+      supabase.from('profiles').select('id,full_name'),
     ])
-    setRatings(r1.data||[])
+    // Build name lookup
+    const nameMap = {}
+    ;(r3.data||[]).forEach(p => { nameMap[p.id] = p.full_name })
+    // Attach names to ratings
+    const ratedWithNames = (r1.data||[]).map(r => ({
+      ...r,
+      raterName: nameMap[r.rated_by] || r.rated_by?.slice(0,8) || '?',
+      rateeName: nameMap[r.rated_user_id] || r.rated_user_id?.slice(0,8) || '?',
+    }))
+    setRatings(ratedWithNames)
     setLowUsers(r2.data||[])
   }
   return (
@@ -1180,7 +1190,11 @@ function RatingsTab({ supabase }) {
         : ratings.map(r=>(
           <div key={r.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div style={{flex:1}}>
-              <div style={{fontSize:12,color:'#fff',fontWeight:600}}>{r.rated_by?.slice?.(0,8)||'?'} → {r.rated_user_id?.slice?.(0,8)||'?'}</div>
+              <div style={{fontSize:12,color:'#fff',fontWeight:600}}>
+                <span style={{color:'#94a3b8'}}>{r.raterName}</span>
+                <span style={{color:'#555',margin:'0 6px'}}>→</span>
+                <span>{r.rateeName}</span>
+              </div>
               {r.comment&&<div style={{fontSize:11,color:'#666',marginTop:4,fontStyle:'italic'}}>"{r.comment}"</div>}
               <div style={{fontSize:10,color:'#555',marginTop:3}}>{new Date(r.created_at).toLocaleDateString('en-IN')}</div>
             </div>
