@@ -145,7 +145,7 @@ export default function Onboarding() {
         .neq('id', user.id)
         .maybeSingle()
       if (existing) {
-        setError('⚠️ This number is already registered. Please use a different number.')
+        setError('⚠️ This number is already registered. Please use a different number or contact support@carpoolkaro.com')
         return
       }
 
@@ -222,7 +222,7 @@ export default function Onboarding() {
             <input style={{ ...s.input, textTransform: 'uppercase', letterSpacing: 3 }}
               placeholder="Friend's code — get ₹10 bonus!"
               value={form.referral_code}
-              onChange={e => set('referral_code', e.target.value.toUpperCase().slice(0, 6))}
+              onChange={e => set('referral_code', e.target.value.toUpperCase().slice(0, 15))}
             />
             {/* Consent on personal step for RIDERS (their last step) */}
             {isRider && (
