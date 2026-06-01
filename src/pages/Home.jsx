@@ -316,11 +316,16 @@ export default function Home() {
     return (loc || '').toLowerCase().split(/[\s,]+/).find(w => w.length > 2) || ''
   }
 
-  function matchScore(fromA, toA, fromB, toB) {
+  // matchScore: checks from/to AND via (route_description)
+  // rideVia = the driver's via/route_description field
+  function matchScore(fromA, toA, fromB, toB, rideVia = '') {
     const fk = keyWord(fromA), tk = keyWord(toA)
-    const fromMatch = fk && (fromB || '').toLowerCase().includes(fk)
+    const searchText = `${fromB} ${toB} ${rideVia}`.toLowerCase()
+    const fromMatch = fk && searchText.includes(fk)
     const toMatch = tk && (toB || '').toLowerCase().includes(tk)
-    return (fromMatch ? 2 : 0) + (toMatch ? 2 : 0)
+    // Via match: rider's FROM is along driver's route
+    const viaMatch = fk && rideVia?.toLowerCase().includes(fk)
+    return (fromMatch ? 2 : 0) + (toMatch ? 2 : 0) + (viaMatch ? 1 : 0)
   }
 
   useEffect(() => {
@@ -431,8 +436,10 @@ export default function Home() {
     const ef = !hasActiveFilters && myRequest
     const fromFilter = filterFrom || (ef ? keyWord(myRequest.from_location) : '')
     const toFilter = filterTo || (ef ? keyWord(myRequest.to_location) : '')
-    if (fromFilter && !r.from_location?.toLowerCase().includes(fromFilter.toLowerCase())) return false
-    if (toFilter && !r.to_location?.toLowerCase().includes(toFilter.toLowerCase())) return false
+    if (fromFilter && !r.from_location?.toLowerCase().includes(fromFilter.toLowerCase())
+      && !r.route_description?.toLowerCase().includes(fromFilter.toLowerCase())) return false
+    if (toFilter && !r.to_location?.toLowerCase().includes(toFilter.toLowerCase())
+      && !r.route_description?.toLowerCase().includes(toFilter.toLowerCase())) return false
     if (filterDate === 'today' && r.ride_date !== today) return false
     if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
     if (filterTime === 'morning') {
@@ -451,8 +458,8 @@ export default function Home() {
   }).sort((a, b) => {
     // Sort by match score with rider's request (best matches first)
     if (myRequest) {
-      const sa = matchScore(myRequest.from_location, myRequest.to_location, a.from_location, a.to_location)
-      const sb = matchScore(myRequest.from_location, myRequest.to_location, b.from_location, b.to_location)
+      const sa = matchScore(myRequest.from_location, myRequest.to_location, a.from_location, a.to_location, a.route_description)
+      const sb = matchScore(myRequest.from_location, myRequest.to_location, b.from_location, b.to_location, b.route_description)
       if (sb !== sa) return sb - sa
     }
     return 0
@@ -757,6 +764,15 @@ export default function Home() {
                         <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{sheetRide.to_location}</div>
                       </div>
                     </div>
+                    {sheetRide.route_description && (
+                      <div style={{ background: '#f0f9ff', borderRadius: 10, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <span style={{ fontSize: 13 }}>🛣️</span>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#0284c7', fontWeight: 700 }}>VIA</div>
+                          <div style={{ fontSize: 13, color: '#0369a1', fontWeight: 600 }}>{sheetRide.route_description}</div>
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <div style={{ flex: 1, background: '#f8fafc', borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
                         <div style={{ fontSize: 10, color: '#94a3b8' }}>Time</div>
@@ -839,12 +855,20 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
         </div>
       </div>
       {/* Route */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 8, padding: '7px 10px' }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ride.from_location}</span>
-        <span style={{ fontSize: 10, color: '#94a3b8' }}>→</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{ride.to_location}</span>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
+      <div style={{ background: '#f8fafc', borderRadius: 8, padding: '7px 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ride.from_location}</span>
+          <span style={{ fontSize: 10, color: '#94a3b8' }}>→</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{ride.to_location}</span>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
+        </div>
+        {ride.route_description && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, paddingTop: 4, borderTop: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: 9, color: '#94a3b8', flexShrink: 0 }}>via</span>
+            <span style={{ fontSize: 10, color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ride.route_description}</span>
+          </div>
+        )}
       </div>
     </div>
   )
