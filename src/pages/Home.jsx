@@ -378,12 +378,23 @@ export default function Home() {
       .select('*, profiles(full_name, is_verified, work_email, work_email_verified, email)')
       .eq('status', 'active')
       .gte('ride_date', today)
-      .order('created_at', { ascending: false })
+      .order('ride_date', { ascending: true })
+      .order('ride_time', { ascending: true })
 
-    setRequests(data || [])
+    // Hide today's requests that passed 2+ hours ago
+    const now = new Date()
+    const filtered = (data || []).filter(req => {
+      if (req.ride_date !== today) return true
+      if (!req.ride_time) return true // no time = keep showing
+      const [h, m] = req.ride_time.split(':')
+      const reqTime = new Date()
+      reqTime.setHours(parseInt(h), parseInt(m), 0, 0)
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+      return reqTime > twoHoursAgo
+    })
 
-    // Check if current user has an active request
-    const mine = (data || []).find(r => r.rider_id === user?.id)
+    setRequests(filtered)
+    const mine = filtered.find(r => r.rider_id === user?.id)
     setMyRequest(mine || null)
   }
 
@@ -628,7 +639,7 @@ export default function Home() {
             </div>
             {requests.filter(r => r.rider_id !== user?.id).slice(0,2).map(req => (
               <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderTop: '1px solid #dbeafe' }}>
-                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
+                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}{req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}</div>
                 <button onClick={async () => {
                   await supabase.from('notifications').insert({ user_id: req.rider_id, type: 'booking', title: '🚗 A car owner can offer you a ride!', message: `Available for ${req.from_location} → ${req.to_location}.`, is_read: false })
                   alert('✅ Rider notified!')
@@ -657,7 +668,11 @@ export default function Home() {
                         {req.rider_id === user?.id && <span style={{ background: '#facc15', borderRadius: 5, padding: '1px 6px', fontSize: 9, fontWeight: 700, color: '#111' }}>YOURS</span>}
                         {co && <span style={{ background: '#f8fafc', color: '#334155', fontSize: 9, padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>{co.name}</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: '#888' }}>Needs {req.seats_needed} seat · {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>
+                        Needs {req.seats_needed} seat
+                        {req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}
+                        {` · ${new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                      </div>
                     </div>
                     {req.rider_id !== user?.id && (
                       <button onClick={async () => {
