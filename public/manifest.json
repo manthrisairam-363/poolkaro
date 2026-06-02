@@ -9,9 +9,15 @@
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#facc15",
+  "theme_dark_color": "#111111",
+  "nav_color": "#111111",
+  "nav_dark_color": "#111111",
+  "nav_divider_color": "#111111",
+  "nav_divider_dark_color": "#111111",
   "lang": "en-IN",
   "dir": "ltr",
   "categories": ["travel", "lifestyle", "social"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -30,6 +36,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-home.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Home — Browse available rides"
+    },
+    {
+      "src": "/screenshot-book.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Book a ride with one tap"
+    },
+    {
+      "src": "/screenshot-wallet.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Wallet — Track your savings"
     }
   ],
   "shortcuts": [
