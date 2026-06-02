@@ -54,6 +54,10 @@ export default function RequestRide() {
       setError('Please fill From, To and Date')
       return
     }
+    if (!form.ride_time) {
+      setError('Please enter the time you need the ride')
+      return
+    }
     if (form.ride_date < today) {
       setError('Cannot request rides for past dates')
       return
@@ -163,7 +167,7 @@ export default function RequestRide() {
               onChange={e => set('ride_date', e.target.value)} />
           </div>
           <div>
-            <span style={label}>Time (optional)</span>
+            <span style={label}>Time *</span>
             <input style={inp} type="time" value={form.ride_time}
               onChange={e => set('ride_time', e.target.value)} />
           </div>
