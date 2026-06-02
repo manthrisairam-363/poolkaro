@@ -5,7 +5,7 @@
   "description": "India's IT Carpool App — Share rides with colleagues in Hyderabad, Bangalore, Pune, Mumbai, Delhi NCR & Chennai. Save money, reduce traffic.",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#facc15",
