@@ -38,29 +38,6 @@
       "purpose": "any"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshot-home.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Home — Browse available rides"
-    },
-    {
-      "src": "/screenshot-book.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Book a ride with one tap"
-    },
-    {
-      "src": "/screenshot-wallet.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Wallet — Track your savings"
-    }
-  ],
   "shortcuts": [
     {
       "name": "Post a Ride",
