@@ -664,7 +664,14 @@ export default function Home() {
             </div>
             {requests.filter(r => r.rider_id !== user?.id).slice(0,2).map(req => (
               <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderTop: '1px solid #dbeafe' }}>
-                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}{req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}</div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
+                  <div style={{ fontSize: 10, color: '#3b82f6' }}>
+                    {req.ride_time ? `${formatTime(req.ride_time)} · ` : ''}
+                    {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    {` · ${req.seats_needed} seat needed`}
+                  </div>
+                </div>
                 <button onClick={async () => {
                   await supabase.from('notifications').insert({ user_id: req.rider_id, type: 'booking', title: '🚗 A car owner can offer you a ride!', message: `Available for ${req.from_location} → ${req.to_location}.`, is_read: false })
                   alert('✅ Rider notified!')
@@ -962,5 +969,3 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail }) {
     </div>
   )
 }
-
-
