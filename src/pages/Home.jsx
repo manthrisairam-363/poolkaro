@@ -962,3 +962,5 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail }) {
     </div>
   )
 }
+
+
