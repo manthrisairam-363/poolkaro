@@ -385,7 +385,7 @@ export default function Home() {
     const now = new Date()
     const filtered = (data || []).filter(req => {
       if (req.ride_date !== today) return true
-      if (!req.ride_time) return true // no time = keep showing
+      if (!req.ride_time) return true
       const [h, m] = req.ride_time.split(':')
       const reqTime = new Date()
       reqTime.setHours(parseInt(h), parseInt(m), 0, 0)
@@ -631,6 +631,31 @@ export default function Home() {
           </div>
         )}
 
+        {/* My active request banner — shown on ALL tabs except requests */}
+        {myRequest && filter !== 'requests' && (
+          <div style={{ background: '#fffbeb', border: '1.5px solid #facc15', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: '#92400e', marginBottom: 5 }}>🙋 YOUR ACTIVE REQUEST</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{myRequest.from_location} → {myRequest.to_location}</div>
+                <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>
+                  {myRequest.ride_time ? `${formatTime(myRequest.ride_time)} · ` : ''}
+                  {new Date(myRequest.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  {' · Needs '}{myRequest.seats_needed} seat
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => navigate('/request')} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>✏️</button>
+                <button onClick={async () => {
+                  if (!window.confirm('Cancel your ride request?')) return
+                  await supabase.from('ride_requests').update({ status: 'cancelled' }).eq('id', myRequest.id)
+                  fetchRequests()
+                }} style={{ background: '#fef2f2', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#ef4444', cursor: 'pointer' }}>✕</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Rider requests for drivers */}
         {filter !== 'requests' && requests.filter(r => r.rider_id !== user?.id).length > 0 && (
           <div style={{ background: '#eff6ff', borderRadius: 12, padding: '10px 12px', marginBottom: 10, border: '1px solid #bfdbfe' }}>
@@ -674,11 +699,20 @@ export default function Home() {
                         {` · ${new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
                       </div>
                     </div>
-                    {req.rider_id !== user?.id && (
+                    {req.rider_id !== user?.id ? (
                       <button onClick={async () => {
                         await supabase.from('notifications').insert({ user_id: req.rider_id, type: 'booking', title: '🚗 Someone can offer you a ride!', message: `A car owner is available for ${req.from_location} → ${req.to_location}.`, is_read: false })
                         alert('✅ Rider notified!')
                       }} style={{ background: '#0f172a', color: '#facc15', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>🔔</button>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => navigate('/request')} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✏️ Edit</button>
+                        <button onClick={async () => {
+                          if (!window.confirm('Cancel your ride request?')) return
+                          await supabase.from('ride_requests').update({ status: 'cancelled' }).eq('id', req.id)
+                          fetchRequests()
+                        }} style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✕</button>
+                      </div>
                     )}
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{req.from_location} → {req.to_location}</div>
