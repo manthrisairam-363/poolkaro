@@ -235,7 +235,7 @@ export default function Onboarding() {
             <label style={s.label}>Phone Number *</label>
             <input style={s.input} placeholder="10-digit mobile number" value={form.phone} onChange={e => set('phone', e.target.value)} readOnly={!!user?.phone} />
             <label style={s.label}>Your City *</label>
-            <select style={{ ...s.input, background: '#fff' }} value={form.city || 'Hyderabad'} onChange={e => set('city', e.target.value)}>
+            <select style={{ ...s.input, background: '#1a1a1a', color: '#fff' }} value={form.city || 'Hyderabad'} onChange={e => set('city', e.target.value)}>
               {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
