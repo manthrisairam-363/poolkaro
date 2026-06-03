@@ -375,8 +375,9 @@ export default function Home() {
 
     const { data } = await supabase
       .from('ride_requests')
-      .select('*, profiles(full_name, is_verified, work_email, work_email_verified, email)')
+      .select('*, profiles(full_name, is_verified, work_email, work_email_verified, email, city)')
       .eq('status', 'active')
+      .eq('city', profile?.city || 'Hyderabad')
       .gte('ride_date', today)
       .order('ride_date', { ascending: true })
       .order('ride_time', { ascending: true })
