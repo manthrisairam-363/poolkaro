@@ -162,13 +162,22 @@ export default function AdminDashboard() {
   }
 
   async function deleteUser(u) {
-    if (!confirm(`⚠️ DELETE ${u.full_name || u.email}?\n\nThis permanently removes their account. Cannot be undone.`)) return
-    await supabase.from('bookings').delete().eq('rider_id', u.id)
-    await supabase.from('rides').delete().eq('driver_id', u.id)
-    await supabase.from('wallets').delete().eq('user_id', u.id)
-    await supabase.from('profiles').delete().eq('id', u.id)
+    if (!confirm(`⚠️ DELETE ${u.full_name || u.email}?\n\nThis permanently removes their account and ALL related data. Cannot be undone.`)) return
+    const id = u.id
+    // Delete all related data in correct order
+    await supabase.from('messages').delete().eq('sender_id', id)
+    await supabase.from('ratings').delete().eq('rated_by', id)
+    await supabase.from('ratings').delete().eq('rated_user_id', id)
+    await supabase.from('notifications').delete().eq('user_id', id)
+    await supabase.from('ride_requests').delete().eq('rider_id', id)
+    await supabase.from('wallet_transactions').delete().eq('user_id', id)
+    await supabase.from('bookings').delete().eq('rider_id', id)
+    await supabase.from('rides').delete().eq('driver_id', id)
+    await supabase.from('wallets').delete().eq('user_id', id)
+    await supabase.from('profiles').delete().eq('id', id)
     setSelectedUser(null)
     fetchAll()
+    alert(`✅ ${u.full_name || u.email} deleted completely.`)
   }
 
   async function cancelRideAdmin(rideId) {
