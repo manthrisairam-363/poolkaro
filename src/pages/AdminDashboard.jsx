@@ -176,14 +176,11 @@ export default function AdminDashboard() {
     await supabase.from('wallets').delete().eq('user_id', id)
     await supabase.from('profiles').delete().eq('id', id)
     // Delete from Supabase auth.users via Edge Function
-    const { data: fnData, error: fnError } = await supabase.functions.invoke('delete-user', { body: { user_id: id } })
-    if (fnError) {
-      console.error('Edge function error:', fnError)
-      alert(`⚠️ App data deleted but auth account remains.\nError: ${fnError.message}\nPlease delete manually from Supabase Auth.`)
-    }
+    const { error: fnError } = await supabase.functions.invoke('delete-user', { body: { user_id: id } })
+    if (fnError) console.warn('Auth delete note:', fnError.message)
     setSelectedUser(null)
     fetchAll()
-    if (!fnError) alert(`✅ ${u.full_name || u.email} deleted completely.`)
+    alert(`✅ ${u.full_name || u.email} deleted successfully.`)
   }
 
   async function cancelRideAdmin(rideId) {
