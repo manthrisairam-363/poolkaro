@@ -51,6 +51,10 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       setError('Please fill all required fields')
       return
     }
+    if (form.from_location.trim().toLowerCase() === form.to_location.trim().toLowerCase()) {
+      setError('Starting point and destination cannot be the same')
+      return
+    }
     const fareNum = Number(form.fare)
     if (fareNum < 10) { setError('Minimum fare is ₹10'); return }
     if (fareNum > 500) { setError('Maximum fare is ₹500 per seat'); return }
