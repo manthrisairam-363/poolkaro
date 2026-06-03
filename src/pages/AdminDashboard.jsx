@@ -175,6 +175,8 @@ export default function AdminDashboard() {
     await supabase.from('rides').delete().eq('driver_id', id)
     await supabase.from('wallets').delete().eq('user_id', id)
     await supabase.from('profiles').delete().eq('id', id)
+    // Delete from Supabase auth.users via Edge Function
+    await supabase.functions.invoke('delete-user', { body: { user_id: id } })
     setSelectedUser(null)
     fetchAll()
     alert(`✅ ${u.full_name || u.email} deleted completely.`)
