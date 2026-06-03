@@ -394,7 +394,7 @@ export default function Profile() {
                 <span style={{ fontSize: 16 }}>⭐</span>
                 <span style={{ fontWeight: 800, fontSize: 14, color: '#854d0e' }}>Upgrade to Pro</span>
               </div>
-              <div style={{ fontSize: 11, color: '#92400e' }}>Zero platform fees · From ₹99/month</div>
+              <div style={{ fontSize: 11, color: '#92400e' }}>Zero platform fees · From ₹79/month</div>
             </div>
             <span style={{ color: '#854d0e', fontSize: 20 }}>›</span>
           </button>
@@ -424,7 +424,7 @@ export default function Profile() {
       </div>
       {/* Photo fullscreen viewer */}
       {viewPhoto && profile?.avatar_url && (
-        <div onClick={() => setViewPhoto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div onClick={() => setViewPhoto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <img src={profile.avatar_url} alt="avatar" style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 16, objectFit: 'contain' }} />
           <button onClick={() => setViewPhoto(false)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, width: 44, height: 44, borderRadius: '50%', cursor: 'pointer' }}>✕</button>
         </div>
