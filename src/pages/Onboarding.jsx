@@ -79,14 +79,22 @@ export default function Onboarding() {
       if (referrer) referrerId = referrer.id
     }
 
-    // Small delay to ensure auth session is fully ready
-    await new Promise(r => setTimeout(r, 500))
+    // Wait for auth session to fully establish
+    await new Promise(r => setTimeout(r, 1500))
 
-    const { error } = await supabase.from('profiles').upsert({
-      id: user.id,
+    // Make sure we have a valid user session
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      setError('Session expired. Please sign in again.')
+      setLoading(false)
+      return
+    }
+
+    const profileData = {
+      id: session.user.id,
       full_name: form.full_name,
       phone: form.phone,
-      email: user.email || form.email,
+      email: session.user.email,
       role: form.role,
       vehicle_model: form.vehicle_model || null,
       vehicle_number: form.vehicle_number?.toUpperCase() || null,
@@ -95,25 +103,15 @@ export default function Onboarding() {
       consent_given: form.consent_given || false,
       city: form.city || 'Hyderabad',
       referred_by: referrerId ? referralCode : null,
-    })
+    }
+
+    const { error } = await supabase.from('profiles').upsert(profileData)
     if (error) {
-      // Retry once after a short delay (handles race conditions)
-      await new Promise(r => setTimeout(r, 1500))
-      const { error: error2 } = await supabase.from('profiles').upsert({
-        id: user.id,
-        full_name: form.full_name,
-        phone: form.phone,
-        email: user.email || form.email,
-        role: form.role,
-        vehicle_model: form.vehicle_model || null,
-        vehicle_number: form.vehicle_number?.toUpperCase() || null,
-        upi_id: form.upi_id || null,
-        onboarding_complete: true,
-        consent_given: form.consent_given || false,
-        city: form.city || 'Hyderabad',
-        referred_by: referrerId ? referralCode : null,
-      })
+      // Retry after longer delay
+      await new Promise(r => setTimeout(r, 2000))
+      const { error: error2 } = await supabase.from('profiles').upsert(profileData)
       if (error2) {
+        console.error('Profile creation error:', error2)
         setError('Something went wrong. Please try again or contact support@carpoolkaro.com')
         setLoading(false)
         return
