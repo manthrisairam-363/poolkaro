@@ -183,6 +183,29 @@ export default function AdminDashboard() {
     alert(`✅ ${u.full_name || u.email} deleted successfully.`)
   }
 
+  async function cleanGhostUsers() {
+    if (!confirm('Delete all ghost users (signed up but never completed onboarding)?')) return
+    const ghostIds = [
+      'ea5f8ef9-2664-4d30-a988-c40bd81d7ce5',
+      'fca62624-773a-409d-a9a5-dd1cc53ebe84',
+      '24d1cf7d-8ff6-4177-9594-afd640481bee',
+      'c06a9023-d6d2-42b4-a19a-752caeafe5bf',
+      '50be6e8c-a540-4d92-8a39-26b1c8f1a75d',
+      '0f167530-36f5-44fd-a5cd-4aec94875e88',
+      '4260ac85-c36f-4afe-aff5-7ef199371d6b',
+      '90146f23-8833-4777-aa07-5d7674c8cb21',
+      'd3ecd24f-6039-4512-8174-6427cef7abd9',
+      'a2a38884-76a0-4de1-8973-9ea1d59d47f4',
+    ]
+    let deleted = 0
+    for (const id of ghostIds) {
+      const { error } = await supabase.functions.invoke('delete-user', { body: { user_id: id } })
+      if (!error) deleted++
+    }
+    alert(`✅ Cleaned ${deleted}/${ghostIds.length} ghost accounts`)
+    fetchAll()
+  }
+
   async function cancelRideAdmin(rideId) {
     if (!confirm('Cancel this ride?')) return
     await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
@@ -571,6 +594,10 @@ export default function AdminDashboard() {
 
             {/* APPS TAB — feature grid */}
             {(tab === 'apps') && (
+              <div>
+                <button onClick={cleanGhostUsers} style={{ width: '100%', background: '#1a0a0a', border: '1px solid #7f1d1d', color: '#fca5a5', borderRadius: 10, padding: '10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
+                  🧹 Clean Ghost Users (signed up but never completed onboarding)
+                </button>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
                   ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
@@ -597,6 +624,7 @@ export default function AdminDashboard() {
                     <span style={{ fontSize: 9, color: '#666', textAlign: 'center' }}>{sub}</span>
                   </button>
                 ))}
+              </div>
               </div>
             )}
 
