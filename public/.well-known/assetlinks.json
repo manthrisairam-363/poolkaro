@@ -4,7 +4,10 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.carpoolkaro.app",
-      "sha256_cert_fingerprints": ["2F:DC:C4:8E:F3:AE:27:30:77:A3:39:80:28:0C:D7:E2:CF:3B:6C:83:38:22:D9:7E:08:1E:5C:6C:44:4F:48:78"]
+      "sha256_cert_fingerprints": [
+        "92:FF:A4:88:1B:0C:E2:CA:81:BC:0B:67:B5:B2:22:FA:54:80:2B:8F:29:C9:63:88:61:AE:50:B8:55:F7:14:71",
+        "2F:DC:C4:8E:F3:AE:27:30:77:A3:39:80:28:0C:D7:E2:CF:3B:6C:83:38:22:D9:7E:08:1E:5C:6C:44:4F:48:78"
+      ]
     }
   }
 ]
