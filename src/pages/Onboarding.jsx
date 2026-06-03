@@ -79,11 +79,14 @@ export default function Onboarding() {
       if (referrer) referrerId = referrer.id
     }
 
+    // Small delay to ensure auth session is fully ready
+    await new Promise(r => setTimeout(r, 500))
+
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       full_name: form.full_name,
       phone: form.phone,
-      email: form.email,
+      email: user.email || form.email,
       role: form.role,
       vehicle_model: form.vehicle_model || null,
       vehicle_number: form.vehicle_number?.toUpperCase() || null,
@@ -93,7 +96,29 @@ export default function Onboarding() {
       city: form.city || 'Hyderabad',
       referred_by: referrerId ? referralCode : null,
     })
-    if (error) { setError(error.message); setLoading(false); return }
+    if (error) {
+      // Retry once after a short delay (handles race conditions)
+      await new Promise(r => setTimeout(r, 1500))
+      const { error: error2 } = await supabase.from('profiles').upsert({
+        id: user.id,
+        full_name: form.full_name,
+        phone: form.phone,
+        email: user.email || form.email,
+        role: form.role,
+        vehicle_model: form.vehicle_model || null,
+        vehicle_number: form.vehicle_number?.toUpperCase() || null,
+        upi_id: form.upi_id || null,
+        onboarding_complete: true,
+        consent_given: form.consent_given || false,
+        city: form.city || 'Hyderabad',
+        referred_by: referrerId ? referralCode : null,
+      })
+      if (error2) {
+        setError('Something went wrong. Please try again or contact support@carpoolkaro.com')
+        setLoading(false)
+        return
+      }
+    }
 
     // Give new user ₹10 signup bonus — upsert so it always works
     await supabase.from('wallets').upsert(
@@ -110,9 +135,8 @@ export default function Onboarding() {
       })
     }
 
-    // Handle referral atomically via SQL function (handles everything: new user bonus,
-    // referrer bonus, count increment, notification, duplicate check)
-    if (referralCode) {
+    // Handle referral atomically via SQL function
+    if (referralCode && referrerId) {
       await supabase.rpc('complete_onboarding_referral', {
         p_new_user_id: user.id,
         p_referral_code: referralCode,
@@ -216,8 +240,6 @@ export default function Onboarding() {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-            <label style={s.label}>Email (optional)</label>
-            <input style={s.input} type="email" placeholder="your@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
             <label style={s.label}>Referral Code (optional)</label>
             <input style={{ ...s.input, textTransform: 'uppercase', letterSpacing: 3 }}
               placeholder="Friend's code — get ₹10 bonus!"
