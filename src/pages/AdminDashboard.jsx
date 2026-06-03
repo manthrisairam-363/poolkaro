@@ -595,9 +595,6 @@ export default function AdminDashboard() {
             {/* APPS TAB — feature grid */}
             {(tab === 'apps') && (
               <div>
-                <button onClick={cleanGhostUsers} style={{ width: '100%', background: '#1a0a0a', border: '1px solid #7f1d1d', color: '#fca5a5', borderRadius: 10, padding: '10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
-                  🧹 Clean Ghost Users (signed up but never completed onboarding)
-                </button>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
                   ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
@@ -625,6 +622,9 @@ export default function AdminDashboard() {
                   </button>
                 ))}
               </div>
+              <button onClick={cleanGhostUsers} style={{ width: '100%', background: '#1a0a0a', border: '1px solid #333', color: '#666', borderRadius: 10, padding: '10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginTop: 12 }}>
+                🧹 Clean Ghost Users (signed up but never completed onboarding)
+              </button>
               </div>
             )}
 
