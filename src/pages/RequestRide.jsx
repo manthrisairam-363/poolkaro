@@ -54,6 +54,10 @@ export default function RequestRide() {
       setError('Please fill From, To and Date')
       return
     }
+    if (form.from_location.trim().toLowerCase() === form.to_location.trim().toLowerCase()) {
+      setError('Starting point and destination cannot be the same')
+      return
+    }
     if (!form.ride_time) {
       setError('Please enter the time you need the ride')
       return
