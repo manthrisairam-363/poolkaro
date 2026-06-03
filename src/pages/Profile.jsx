@@ -217,6 +217,14 @@ export default function Profile() {
       <div style={{ padding: '14px 16px' }}>
         {success && <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 12, fontWeight: 600 }}>{success}</div>}
 
+        {/* ── Admin Dashboard — top for easy access ── */}
+        {profile?.is_admin && (
+          <button onClick={() => navigate('/admin')} style={{ width: '100%', padding: '14px', background: '#111', color: '#facc15', border: '2px solid #facc15', borderRadius: 14, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>⚙️</span> Admin Dashboard</span>
+            <span>→</span>
+          </button>
+        )}
+
         {/* ── Group 1: Main sections ── */}
         <div style={card}>
 
@@ -407,14 +415,6 @@ export default function Profile() {
             <span style={{ fontSize: 12, color: '#aaa' }}>support@carpoolkaro.com</span>
           </a>
         </div>
-
-        {/* ── Admin Dashboard (admin only) ── */}
-        {profile?.is_admin && (
-          <button onClick={() => navigate('/admin')} style={{ width: '100%', padding: '16px', background: '#111', color: '#facc15', border: 'none', borderRadius: 14, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>⚙️</span> Admin Dashboard</span>
-            <span style={{ fontSize: 20 }}>›</span>
-          </button>
-        )}
 
         {/* Logout */}
         <button onClick={async () => { await signOut(); navigate('/') }} style={{ width: '100%', padding: 14, background: '#fff', color: '#dc2626', border: '2px solid #fecaca', borderRadius: 12, fontSize: 15, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
