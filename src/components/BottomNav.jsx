@@ -57,7 +57,7 @@ export default function BottomNav() {
       {tabs.map(tab => {
         const active = pathname === tab.path
         return (
-          <button key={tab.path} onClick={() => navigate(tab.path)} style={{
+          <button key={tab.path} id={tab.path === '/post' ? 'tour-post' : tab.path === '/wallet' ? 'tour-wallet' : tab.path === '/profile' ? 'tour-profile' : undefined} onClick={() => navigate(tab.path)} style={{
             flex: 1, background: 'none', border: 'none',
             padding: '10px 0 6px', cursor: 'pointer',
             display: 'flex', flexDirection: 'column',
