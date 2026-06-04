@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { formatTime, formatDate } from '../lib/utils'
 import { getCompanyFromEmail } from '../lib/companyDomains'
 import DriverProfileModal from '../components/DriverProfileModal'
+import GuidedTour from '../components/GuidedTour'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -526,7 +527,7 @@ export default function Home() {
       {/* ── HEADER ── */}
       <div style={{ background: '#fff', position: 'sticky', top: 0, zIndex: 40, boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         {/* Top bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px 8px' }}>
+        <div id="tour-header" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px 8px' }}>
           {/* Small logo */}
           <img src="/logo.png" alt="CarpoolKaro" style={{ height: 32, width: 'auto', flexShrink: 0 }} />
           {/* Location + greeting */}
@@ -575,7 +576,7 @@ export default function Home() {
           </button>
         </div>
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 6, padding: '0 16px 10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        <div id="tour-tabs" style={{ display: 'flex', gap: 6, padding: '0 16px 10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {[['all','All Rides'],['to_office','🏢 Office'],['to_home','🏠 Home'],['requests','🙋 Requests']].map(([v,l]) => (
             <button key={v} onClick={() => setFilter(v)} style={{
               padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
@@ -755,8 +756,10 @@ export default function Home() {
               <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} />
             ))}
             {/* ALL OTHER RIDES — compact */}
-            {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} />
+            {filtered.filter(r => r.driver_id !== user?.id).map((ride, idx) => (
+              <div key={ride.id} id={idx === 0 ? 'tour-ridecard' : undefined}>
+                <CompactRideCard ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} />
+              </div>
             ))}
           </div>
         )}
@@ -872,6 +875,7 @@ export default function Home() {
       )}
 
       <BottomNav />
+      <GuidedTour />
       {selectedDriver && <DriverProfileModal driverId={selectedDriver} onClose={() => setSelectedDriver(null)} />}
     </div>
   )
