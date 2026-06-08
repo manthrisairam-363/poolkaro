@@ -382,7 +382,8 @@ export default function MyRides() {
     } catch (err) { alert('Something went wrong: ' + err.message) }
   }
 
-  const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed')
+  const activeBookings = bookings.filter(b => b.status === 'confirmed')
+  const completedBookings = bookings.filter(b => b.status === 'completed')
   const cancelledBookings = bookings.filter(b => b.status === 'cancelled')
 
   const tabStyle = (active) => ({
@@ -399,7 +400,7 @@ export default function MyRides() {
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>📋 My Rides</div>
         <div style={{ display: 'flex', borderBottom: '1px solid #222' }}>
           <button style={tabStyle(tab === 'posted')} onClick={() => setTab('posted')}>🚗 I Posted ({rides.length})</button>
-          <button style={tabStyle(tab === 'booked')} onClick={() => setTab('booked')}>🎫 I Booked ({activeBookings.length})</button>
+          <button style={tabStyle(tab === 'booked')} onClick={() => setTab('booked')}>🎫 I Booked ({activeBookings.length + completedBookings.length})</button>
         </div>
       </div>
 
@@ -415,7 +416,7 @@ export default function MyRides() {
             </div>
           ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} />)
         ) : (
-          activeBookings.length === 0 && cancelledBookings.length === 0 ? (
+          activeBookings.length === 0 && completedBookings.length === 0 && cancelledBookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 40 }}>🎫</div>
               <div style={{ color: '#aaa', marginTop: 8 }}>No bookings yet</div>
@@ -471,6 +472,24 @@ export default function MyRides() {
                     <div key={b.id} style={{ background: '#fafafa', borderRadius: 12, padding: 12, marginTop: 8, border: '1px solid #f0f0f0', opacity: 0.7 }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: '#888' }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
                       <div style={{ color: '#bbb', fontSize: 12, marginTop: 2 }}>{b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ❌ Cancelled</div>
+                    </div>
+                  ))}
+                </details>
+              )}
+
+              {/* Completed bookings - collapsed past rides */}
+              {completedBookings.length > 0 && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', padding: '8px 0', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>▶</span> {completedBookings.length} completed ride{completedBookings.length > 1 ? 's' : ''} (tap to show)
+                  </summary>
+                  {completedBookings.map(b => (
+                    <div key={b.id} style={{ background: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 8, border: '1px solid #e2e8f0', opacity: 0.8 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#64748b' }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
+                      <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
+                        {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ✅ Completed
+                      </div>
+                      <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{ marginTop: 8, padding: '7px 14px', background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⭐ Rate</button>
                     </div>
                   ))}
                 </details>
