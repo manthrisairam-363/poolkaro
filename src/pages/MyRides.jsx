@@ -539,8 +539,8 @@ export default function MyRides() {
                   💰 ₹2 platform fee paid
                 </span>
               </div>
-              {/* Pay driver button */}
-              {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && (
+              {/* Pay driver button - only for active/confirmed bookings */}
+              {b.rides?.profiles?.upi_id && b.status === 'confirmed' && (
                 <button onClick={() => {
                   const upi = b.rides.profiles.upi_id
                   const fare = b.ride_fare || b.rides?.fare || 150
@@ -616,17 +616,49 @@ export default function MyRides() {
             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 12, textAlign: 'center' }}>SELECT PAYMENT APP</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
               {[
-                { name: 'PhonePe',    emoji: '💜', color: '#5f259f', bg: '#f3e8ff', url: `phonepe://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare` },
-                { name: 'Google Pay', emoji: '🔵', color: '#1a73e8', bg: '#e8f0fe', url: `gpay://upi/pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
-                { name: 'Paytm',      emoji: '🔷', color: '#00BAF2', bg: '#e0f7fd', url: `paytmmp://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
-                { name: 'BHIM',       emoji: '🟠', color: '#FF6B00', bg: '#fff3e0', url: `upi://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare` },
-                { name: 'Amazon Pay', emoji: '🟡', color: '#FF9900', bg: '#fff8e1', url: `amzn://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
-                { name: 'WhatsApp',   emoji: '💚', color: '#25D366', bg: '#e8f8f0', url: `whatsapp://send?pa=${upiSheet.upi}&am=${upiSheet.fare}` },
-                { name: 'Cred',       emoji: '⚫', color: '#1C1C1C', bg: '#f1f5f9', url: `credpay://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
-                { name: 'Any UPI',    emoji: '📱', color: '#0f172a', bg: '#f8fafc', url: `upi://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare` },
+                {
+                  name: 'PhonePe', color: '#5f259f', bg: '#f3e8ff',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="#5f259f"/><text x="20" y="26" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" fontFamily="Arial">Pe</text></svg>,
+                  url: `phonepe://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare`
+                },
+                {
+                  name: 'Google Pay', color: '#1a73e8', bg: '#e8f0fe',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="white" stroke="#e2e8f0" strokeWidth="1"/><text x="9" y="27" fill="#4285F4" fontSize="16" fontWeight="900" fontFamily="Arial">G</text><text x="20" y="27" fill="#EA4335" fontSize="16" fontWeight="900" fontFamily="Arial">P</text><text x="30" y="27" fill="#FBBC05" fontSize="16" fontWeight="900" fontFamily="Arial">a</text></svg>,
+                  url: `gpay://upi/pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR`
+                },
+                {
+                  name: 'Paytm', color: '#00BAF2', bg: '#e0f7fd',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="#00BAF2"/><text x="20" y="26" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold" fontFamily="Arial">PAYTM</text></svg>,
+                  url: `paytmmp://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR`
+                },
+                {
+                  name: 'BHIM', color: '#FF6B00', bg: '#fff3e0',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="#FF6B00"/><text x="20" y="27" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial">BHIM</text></svg>,
+                  url: `upi://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare`
+                },
+                {
+                  name: 'Amazon Pay', color: '#FF9900', bg: '#fff8e1',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="#1A1919"/><text x="20" y="22" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold" fontFamily="Arial">amazon</text><text x="20" y="31" textAnchor="middle" fill="#FF9900" fontSize="7" fontWeight="bold" fontFamily="Arial">pay</text></svg>,
+                  url: `amzn://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR`
+                },
+                {
+                  name: 'WhatsApp', color: '#25D366', bg: '#e8f8f0',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="#25D366"/><path d="M20 8C13.37 8 8 13.37 8 20c0 2.09.55 4.04 1.51 5.73L8 32l6.44-1.69A11.93 11.93 0 0020 32c6.63 0 12-5.37 12-12S26.63 8 20 8zm5.89 16.05c-.25.7-1.47 1.34-2.01 1.38-.54.04-1.05.26-3.54-.74-2.99-1.19-4.9-4.24-5.05-4.44-.15-.2-1.22-1.63-1.22-3.11s.77-2.2 1.05-2.5c.28-.3.61-.38.81-.38h.58c.19 0 .44-.07.69.53.25.6.84 2.05.91 2.2.07.15.12.32.02.52-.09.2-.14.32-.28.49-.14.17-.3.38-.42.51-.14.14-.28.29-.12.57.16.28.72 1.19 1.55 1.92 1.06.94 1.96 1.24 2.24 1.38.28.14.44.12.6-.07.16-.19.7-.82.89-1.1.19-.28.38-.23.64-.14.26.09 1.65.78 1.93.92.28.14.47.21.54.33.07.12.07.69-.18 1.4z" fill="white"/></svg>,
+                  url: `whatsapp://send?pa=${upiSheet.upi}&am=${upiSheet.fare}`
+                },
+                {
+                  name: 'Cred', color: '#1C1C1C', bg: '#f1f5f9',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="#1C1C1C"/><text x="20" y="27" textAnchor="middle" fill="#FFD700" fontSize="11" fontWeight="bold" fontFamily="Arial">CRED</text></svg>,
+                  url: `credpay://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR`
+                },
+                {
+                  name: 'Any UPI', color: '#0f172a', bg: '#f8fafc',
+                  logo: <svg viewBox="0 0 40 40" width="32" height="32"><rect width="40" height="40" rx="10" fill="#0f172a"/><text x="20" y="22" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold" fontFamily="Arial">ANY</text><text x="20" y="32" textAnchor="middle" fill="#facc15" fontSize="8" fontWeight="bold" fontFamily="Arial">UPI</text></svg>,
+                  url: `upi://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare`
+                },
               ].map(app => (
                 <button key={app.name} onClick={() => { window.open(app.url, '_blank'); setUpiSheet(null) }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: app.bg, border: `1.5px solid ${app.color}22`, borderRadius: 14, padding: '11px 4px', cursor: 'pointer' }}>
-                  <span style={{ fontSize: 22 }}>{app.emoji}</span>
+                  {app.logo}
                   <span style={{ fontSize: 9, fontWeight: 700, color: app.color, textAlign: 'center', lineHeight: 1.2 }}>{app.name}</span>
                 </button>
               ))}
