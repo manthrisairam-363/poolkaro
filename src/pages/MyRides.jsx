@@ -336,11 +336,15 @@ export default function MyRides() {
       supabase.from('bookings')
         .select('*, rides(from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))') 
         .eq('rider_id', user.id)
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: false }),
     ])
     if (!ridesRes.error) setRides(ridesRes.data || [])
     if (!bookingsRes.error) {
-      const allBookings = bookingsRes.data || []
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const recentBookings = (bookingsRes.data || []).filter(b => {
+        const rideDate = b.rides?.ride_date
+        return !rideDate || rideDate >= cutoff
+      })
       // Group confirmed + completed bookings by ride_id
       const grouped = {}
       allBookings.filter(b => b.status === 'confirmed' || b.status === 'completed').forEach(b => {
@@ -446,7 +450,10 @@ export default function MyRides() {
     }
   }
 
-  const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed')
+  const today = new Date().toISOString().split('T')[0]
+  const upcomingBookings = bookings.filter(b => b.status === 'confirmed' && b.rides?.ride_date >= today)
+  const pastBookings = bookings.filter(b => b.status === 'completed' || (b.status === 'confirmed' && b.rides?.ride_date < today))
+  const activeBookings = [...upcomingBookings, ...pastBookings]
   const cancelledBookings = bookings.filter(b => b.status === 'cancelled')
 
   const tabStyle = (active) => ({
@@ -499,8 +506,17 @@ export default function MyRides() {
                 ⚠️ Cancellation policy: Frequent cancellations will restrict your account. Platform fees are non-refundable for repeated cancellations.
               </div>
 
+              {/* Upcoming bookings */}
+              {upcomingBookings.length > 0 && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 8, marginTop: 4 }}>UPCOMING</div>
+              )}
               {/* Active bookings */}
-              {activeBookings.map(b => (
+              {activeBookings.map((b, idx) => (
+                <>
+                  {/* Past rides label - show before first past booking */}
+                  {idx === upcomingBookings.length && pastBookings.length > 0 && (
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 8, marginTop: 12 }}>PAST RIDES</div>
+                  )}
             <div key={b.id} style={{
               background: '#fff', borderRadius: 14, padding: 14,
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10,
@@ -569,6 +585,7 @@ export default function MyRides() {
                 )}
               </div>
             </div>
+                </>
           ))}
 
               {/* Cancelled bookings - collapsed section */}
