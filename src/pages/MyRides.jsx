@@ -343,14 +343,14 @@ export default function MyRides() {
   }
 
   async function cancelRide(rideId) {
-    if (!confirm('Cancel this ride?\n\nAll co-riders will be refunded ₹2 to their wallets.')) return
+    if (!confirm('Cancel this ride?\n\nRiders will get ₹2 refund. You will not be refunded.')) return
     try {
       const { data: bookingsData } = await supabase.from('bookings').select('id, rider_id, seats_booked').eq('ride_id', rideId).eq('status', 'confirmed')
       await supabase.from('bookings').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('ride_id', rideId)
       await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
       for (const b of (bookingsData || [])) {
         await supabase.rpc('refund_cancellation', { p_rider_id: b.rider_id, p_driver_id: user.id, p_amount: 200 })
-        await sendNotification(b.rider_id, '❌ Ride Cancelled', 'Your ride has been cancelled by the car owner. ₹2 refunded to your wallet.')
+        await sendNotification(b.rider_id, '❌ Ride Cancelled', 'Your ride was cancelled by the driver. ₹2 refunded to your wallet.')
       }
       await fetchData()
     } catch (err) { alert('Something went wrong. Please try again.') }
@@ -371,13 +371,13 @@ export default function MyRides() {
   }
 
   async function cancelBooking(bookingId, rideId, seatsBooked) {
-    if (!confirm('Cancel your booking?\n\nYour ₹2 platform fee will be refunded to your wallet.')) return
+    if (!confirm('Cancel your booking?\n\nYour ₹2 platform fee will NOT be refunded.\nThe driver will receive ₹2 as compensation.')) return
     try {
       const { data, error } = await supabase.rpc('cancel_booking_atomic', { p_booking_id: bookingId, p_rider_id: user.id })
       if (error) throw error
       if (!data?.success) throw new Error(data?.error || 'Cancel failed')
-      await sendNotification(data.driver_id, '❌ Booking Cancelled', `A co-rider cancelled their booking for ${data.from_location} → ${data.to_location}. ₹2 refunded to your wallet.`)
-      alert('✅ Booking cancelled. ₹2 refunded to your wallet.')
+      await sendNotification(data.driver_id, '❌ Booking Cancelled', `A rider cancelled their booking for ${data.from_location} → ${data.to_location}. ₹2 compensation added to your wallet.`)
+      alert('✅ Booking cancelled. ₹2 compensation sent to driver.')
       await fetchData()
     } catch (err) { alert('Something went wrong: ' + err.message) }
   }
