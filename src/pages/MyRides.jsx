@@ -297,7 +297,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
 export default function MyRides() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('posted')
+  const [upiSheet, setUpiSheet] = useState(null)
   const [rides, setRides] = useState([])
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -539,12 +539,13 @@ export default function MyRides() {
                 </span>
               </div>
               {/* Pay driver button */}
-              {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && b.status !== 'completed' && (
+              {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && (
                 <button onClick={() => {
                   const upi = b.rides.profiles.upi_id
                   const fare = b.ride_fare || b.rides?.fare || 150
-                  const name = b.rides.profiles.full_name || 'Car Owner'
-                  window.open(`upi://pay?pa=${upi}&pn=${encodeURIComponent(name)}&am=${fare}&cu=INR&tn=${encodeURIComponent('CarpoolKaro ride fare')}`, '_blank')
+                  const name = encodeURIComponent(b.rides.profiles.full_name || 'Car Owner')
+                  const note = encodeURIComponent('CarpoolKaro ride fare')
+                  setUpiSheet({ upi, fare, name: b.rides.profiles.full_name?.split(' ')[0], note })
                 }} style={{
                   width: '100%', marginTop: 8, padding: '11px',
                   background: '#111', color: '#facc15',
@@ -599,6 +600,48 @@ export default function MyRides() {
         )}
       </div>
       <BottomNav />
+
+      {/* UPI Picker Bottom Sheet */}
+      {upiSheet && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
+          <div onClick={() => setUpiSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: '#fff', borderRadius: '24px 24px 0 0', padding: '20px 20px 40px', animation: 'slideUp 0.3s ease' }}>
+            <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 100, margin: '0 auto 20px' }} />
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>PAY DRIVER</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>₹{upiSheet.fare}</div>
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>to {upiSheet.name} · {upiSheet.upi}</div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 12, textAlign: 'center' }}>SELECT PAYMENT APP</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
+              {[
+                { name: 'PhonePe',    emoji: '💜', color: '#5f259f', bg: '#f3e8ff', url: `phonepe://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare` },
+                { name: 'Google Pay', emoji: '🔵', color: '#1a73e8', bg: '#e8f0fe', url: `gpay://upi/pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
+                { name: 'Paytm',      emoji: '🔷', color: '#00BAF2', bg: '#e0f7fd', url: `paytmmp://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
+                { name: 'BHIM',       emoji: '🟠', color: '#FF6B00', bg: '#fff3e0', url: `upi://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare` },
+                { name: 'Amazon Pay', emoji: '🟡', color: '#FF9900', bg: '#fff8e1', url: `amzn://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
+                { name: 'WhatsApp',   emoji: '💚', color: '#25D366', bg: '#e8f8f0', url: `whatsapp://send?pa=${upiSheet.upi}&am=${upiSheet.fare}` },
+                { name: 'Cred',       emoji: '⚫', color: '#1C1C1C', bg: '#f1f5f9', url: `credpay://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR` },
+                { name: 'Any UPI',    emoji: '📱', color: '#0f172a', bg: '#f8fafc', url: `upi://pay?pa=${upiSheet.upi}&pn=${encodeURIComponent(upiSheet.name)}&am=${upiSheet.fare}&cu=INR&tn=CarpoolKaro+ride+fare` },
+              ].map(app => (
+                <button key={app.name} onClick={() => { window.open(app.url, '_blank'); setUpiSheet(null) }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: app.bg, border: `1.5px solid ${app.color}22`, borderRadius: 14, padding: '11px 4px', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 22 }}>{app.emoji}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: app.color, textAlign: 'center', lineHeight: 1.2 }}>{app.name}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, letterSpacing: 0.5 }}>DRIVER'S UPI ID</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{upiSheet.upi}</div>
+              </div>
+              <button onClick={() => { navigator.clipboard?.writeText(upiSheet.upi); alert('UPI ID copied!') }} style={{ background: '#0f172a', color: '#facc15', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Copy</button>
+            </div>
+            <button onClick={() => setUpiSheet(null)} style={{ width: '100%', padding: 12, background: 'none', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
     </div>
   )
 }
