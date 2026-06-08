@@ -298,6 +298,7 @@ export default function MyRides() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [upiSheet, setUpiSheet] = useState(null)
+  const [tab, setTab] = useState('posted')
   const [rides, setRides] = useState([])
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
