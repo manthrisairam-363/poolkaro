@@ -451,9 +451,9 @@ export default function MyRides() {
   }
 
   const today = new Date().toISOString().split('T')[0]
-  const upcomingBookings = bookings.filter(b => b.status === 'confirmed' && b.rides?.ride_date >= today)
-  const pastBookings = bookings.filter(b => b.status === 'completed' || (b.status === 'confirmed' && b.rides?.ride_date < today))
-  const activeBookings = [...upcomingBookings, ...pastBookings]
+  const upcomingBookings = bookings.filter(b => (b.status === 'confirmed' || b.status === 'completed') && b.rides?.ride_date >= today)
+  const pastBookings = bookings.filter(b => (b.status === 'confirmed' || b.status === 'completed') && b.rides?.ride_date < today)
+  const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'completed')
   const cancelledBookings = bookings.filter(b => b.status === 'cancelled')
 
   const tabStyle = (active) => ({
