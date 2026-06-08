@@ -506,17 +506,13 @@ export default function MyRides() {
                 ⚠️ Cancellation policy: Frequent cancellations will restrict your account. Platform fees are non-refundable for repeated cancellations.
               </div>
 
-              {/* Upcoming bookings */}
-              {upcomingBookings.length > 0 && (
+              {/* Upcoming label */}
+              {upcomingBookings.length > 0 && pastBookings.length > 0 && (
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 8, marginTop: 4 }}>UPCOMING</div>
               )}
-              {/* Active bookings */}
-              {activeBookings.map((b, idx) => (
-                <>
-                  {/* Past rides label - show before first past booking */}
-                  {idx === upcomingBookings.length && pastBookings.length > 0 && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 8, marginTop: 12 }}>PAST RIDES</div>
-                  )}
+
+              {/* Upcoming bookings */}
+              {upcomingBookings.map(b => (
             <div key={b.id} style={{
               background: '#fff', borderRadius: 14, padding: 14,
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10,
@@ -528,7 +524,6 @@ export default function MyRides() {
               <div style={{ color: '#888', fontSize: 12, marginTop: 3 }}>
                 {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {formatTime(b.rides?.ride_time)}
               </div>
-              {/* Driver contact */}
               {b.rides?.profiles && (
                 <div style={{ marginTop: 8, background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
                   <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>🚗 Car Owner</div>
@@ -536,57 +531,61 @@ export default function MyRides() {
                   <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} bookingId={b.id} navigate={navigate} />
                 </div>
               )}
-              {/* Unread message badge + chat CTA */}
               {unreadCounts[b.id] > 0 && (
-                <button onClick={() => navigate(`/chat/${b.id}`)} style={{
-                  width: '100%', marginTop: 10, padding: '10px', background: '#fefce8',
-                  border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  fontWeight: 700, fontSize: 13, color: '#854d0e',
-                }}>
+                <button onClick={() => navigate(`/chat/${b.id}`)} style={{ width: '100%', marginTop: 10, padding: '10px', background: '#fefce8', border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 700, fontSize: 13, color: '#854d0e' }}>
                   💬 {unreadCounts[b.id]} new message{unreadCounts[b.id] > 1 ? 's' : ''} from car owner
                 </button>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                  ✅ {b.seats_booked} seat{b.seats_booked > 1 ? 's' : ''} confirmed
-                </span>
-                <span style={{ background: '#f8f9fa', color: '#555', borderRadius: 20, padding: '3px 10px', fontSize: 12 }}>
-                  💰 ₹2 platform fee paid
-                </span>
+                <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>✅ {b.seats_booked} seat{b.seats_booked > 1 ? 's' : ''} confirmed</span>
+                <span style={{ background: '#f8f9fa', color: '#555', borderRadius: 20, padding: '3px 10px', fontSize: 12 }}>💰 ₹2 platform fee paid</span>
               </div>
-              {/* Pay driver button - only for active/confirmed bookings */}
               {b.rides?.profiles?.upi_id && b.status === 'confirmed' && (
-                <button onClick={() => {
-                  const upi = b.rides.profiles.upi_id
-                  const fare = b.ride_fare || b.rides?.fare || 150
-                  const name = encodeURIComponent(b.rides.profiles.full_name || 'Car Owner')
-                  const note = encodeURIComponent('CarpoolKaro ride fare')
-                  setUpiSheet({ upi, fare, name: b.rides.profiles.full_name?.split(' ')[0], note })
-                }} style={{
-                  width: '100%', marginTop: 8, padding: '11px',
-                  background: '#111', color: '#facc15',
-                  border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}>
+                <button onClick={() => { const upi = b.rides.profiles.upi_id; const fare = b.ride_fare || b.rides?.fare || 150; setUpiSheet({ upi, fare, name: b.rides.profiles.full_name?.split(' ')[0] }) }} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
                 </button>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{
-                  flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed',
-                  border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                }}>⭐ Rate</button>
+                <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{ flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⭐ Rate</button>
                 {b.status !== 'cancelled' && b.status !== 'completed' && (
-                  <button onClick={() => cancelBooking(b.id, b.ride_id, b.seats_booked)} style={{
-                    flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626',
-                    border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  }}>🚫 Cancel</button>
+                  <button onClick={() => cancelBooking(b.id, b.ride_id, b.seats_booked)} style={{ flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🚫 Cancel</button>
                 )}
               </div>
             </div>
-                </>
-          ))}
+              ))}
+
+              {/* Past rides label */}
+              {pastBookings.length > 0 && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 8, marginTop: 12 }}>PAST RIDES</div>
+              )}
+
+              {/* Past bookings */}
+              {pastBookings.map(b => (
+            <div key={b.id} style={{
+              background: '#fff', borderRadius: 14, padding: 14,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10,
+              borderLeft: `4px solid #e2e8f0`, opacity: 0.8,
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#64748b' }}>
+                {b.rides?.from_location} → {b.rides?.to_location}
+              </div>
+              <div style={{ color: '#aaa', fontSize: 12, marginTop: 3 }}>
+                {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {formatTime(b.rides?.ride_time)}
+              </div>
+              {b.rides?.profiles && (
+                <div style={{ marginTop: 8, background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>🚗 Car Owner</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: '#64748b' }}>{b.rides.profiles.full_name}</div>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ background: '#f1f5f9', color: '#94a3b8', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>✓ Completed</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{ flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⭐ Rate</button>
+              </div>
+            </div>
+              ))}
 
               {/* Cancelled bookings - collapsed section */}
               {cancelledBookings.length > 0 && (
