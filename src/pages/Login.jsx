@@ -32,19 +32,17 @@ export default function Login() {
     }, 1000)
   }
 
-  async function setupRecaptcha() {
-    if (!recaptchaRef.current) return null
-    try {
-      const verifier = new RecaptchaVerifier(firebaseAuth, recaptchaRef.current, {
-        size: 'invisible',
-        callback: () => {},
-      })
-      await verifier.verify()
-      return verifier
-    } catch (e) {
-      console.error('Recaptcha error:', e)
-      return null
+  const recaptchaVerifierRef = useRef(null)
+
+  function getRecaptchaVerifier() {
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(
+        firebaseAuth,
+        'recaptcha-container',
+        { size: 'invisible' }
+      )
     }
+    return recaptchaVerifierRef.current
   }
 
   async function sendOTP() {
@@ -55,14 +53,18 @@ export default function Login() {
 
     setLoading(true)
     try {
-      const verifier = await setupRecaptcha()
-      if (!verifier) throw new Error('reCAPTCHA failed. Please refresh and try again.')
+      const verifier = getRecaptchaVerifier()
       const result = await signInWithPhoneNumber(firebaseAuth, phoneWithCode, verifier)
       setConfirmation(result)
       setStep('otp')
       startResendTimer()
     } catch (err) {
       console.error('OTP send error:', err)
+      // Clear verifier on error so it can be recreated
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear()
+        recaptchaVerifierRef.current = null
+      }
       if (err.code === 'auth/too-many-requests') {
         setError('Too many attempts. Please try again later.')
       } else if (err.code === 'auth/invalid-phone-number') {
