@@ -118,6 +118,15 @@ export default function Onboarding() {
       }
     }
 
+    // Fix referral code — generate from name+phone now that we have both
+    const firstName = form.full_name.trim().split(' ')[0].slice(0, 8).toUpperCase()
+    const last3 = form.phone.replace(/\D/g, '').slice(-3)
+    const newCode = firstName + last3
+    const { data: currentProfile } = await supabase.from('profiles').select('referral_code').eq('id', session.user.id).single()
+    if (!currentProfile?.referral_code || /^[0-9A-F]{6}$/i.test(currentProfile.referral_code) || currentProfile.referral_code.startsWith('USER')) {
+      await supabase.from('profiles').update({ referral_code: newCode }).eq('id', session.user.id)
+    }
+
     // Give new user ₹10 signup bonus — upsert so it always works
     await supabase.from('wallets').upsert(
       { user_id: user.id, balance: 1000 },
