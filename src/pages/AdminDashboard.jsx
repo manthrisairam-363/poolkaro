@@ -1781,6 +1781,21 @@ function AppVersionTab({ supabase }) {
       <div style={{background:'#111',borderRadius:14,padding:16,marginBottom:12}}>
         <div style={{fontWeight:800,fontSize:14,color:'#fff',marginBottom:4}}>📢 Announcement Banner</div>
         <div style={{fontSize:11,color:'#555',marginBottom:12}}>Shows at top of app for all users. Leave empty to hide.</div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+          {[
+            '🔧 Scheduled maintenance tonight 11 PM – 1 AM IST. Please plan accordingly.',
+            '🎉 New feature launched! Try live location sharing in chat.',
+            '🚀 App updated! Restart the app for the latest version.',
+            '🏖️ Holiday schedule: Fewer rides on 15 Aug. Post early!',
+            '💰 Special offer: Refer a friend this week, earn ₹20 bonus!',
+            '⚠️ Server maintenance on Sunday 2 AM – 4 AM IST.',
+          ].map(t => (
+            <button key={t} onClick={() => setAnnouncement(t)}
+              style={{padding:'5px 10px',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,color:'#888',fontSize:10,cursor:'pointer',textAlign:'left'}}>
+              {t.slice(0,40)}...
+            </button>
+          ))}
+        </div>
         <textarea value={announcement} onChange={e=>setAnnouncement(e.target.value)} rows={3}
           placeholder="e.g. 🎉 New feature: Live location sharing is now available!"
           style={{width:'100%',padding:'10px 12px',background:'#1a1a1a',color:'#fff',border:'1px solid #333',borderRadius:8,fontSize:13,resize:'vertical',boxSizing:'border-box',marginBottom:10}} />
