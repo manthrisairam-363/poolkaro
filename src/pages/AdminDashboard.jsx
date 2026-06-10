@@ -63,7 +63,10 @@ export default function AdminDashboard() {
 
       const confirmedBookings = bookingsData.filter(b => b.status === 'confirmed')
       const cancelledBookings = bookingsData.filter(b => b.status === 'cancelled')
-      const totalRevenue = confirmedBookings.length * 4
+      // Real revenue from wallet transactions (platform fees collected)
+      const totalRevenue = txnData.filter(t => 
+        t.description?.includes('platform') || t.description?.includes('Compensation')
+      ).reduce((s, t) => s + Number(t.amount || 0), 0)
 
       const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
       const todayIST = istNow.toISOString().split('T')[0]
@@ -112,7 +115,7 @@ export default function AdminDashboard() {
         totalRevenue,
         totalWalletBalance: Math.round(totalWalletBalance / 100),
         todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
-        todayRevenue: confirmedBookings.filter(b => b.created_at?.startsWith(todayIST)).length * 4,
+        todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.description?.includes('platform') || t.description?.includes('Compensation'))).reduce((s,t) => s + Number(t.amount||0), 0),
         verifiedUsers: usersData.filter(u => u.is_verified).length,
         workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
         totalReferrals: usersData.filter(u => u.referred_by).length,
@@ -262,6 +265,29 @@ export default function AdminDashboard() {
     const blob = new Blob([csv], { type: 'text/csv' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
     a.download = `carpoolkaro_users_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+  }
+
+  async function exportBookingsCSV() {
+    const { data } = await supabase.from('bookings')
+      .select('*, rides(from_location,to_location,ride_date,fare), profiles(full_name,phone,email)')
+      .order('created_at', { ascending: false })
+    const rows = [['Rider Name','Rider Phone','From','To','Date','Fare','Seats','Status','Booked On']]
+    ;(data || []).forEach(b => rows.push([
+      b.profiles?.full_name || '',
+      b.profiles?.phone || '',
+      b.rides?.from_location || '',
+      b.rides?.to_location || '',
+      b.rides?.ride_date || '',
+      b.rides?.fare || '',
+      b.seats_booked || 1,
+      b.status || '',
+      new Date(b.created_at).toLocaleDateString('en-IN'),
+    ]))
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = `carpoolkaro_bookings_${new Date().toISOString().split('T')[0]}.csv`
     a.click()
   }
 
@@ -487,7 +513,10 @@ export default function AdminDashboard() {
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <button onClick={exportCSV} style={{ background: '#222', border: 'none', color: '#4ade80', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
-              📥 CSV
+              📥 Users CSV
+            </button>
+            <button onClick={exportBookingsCSV} style={{ background: '#222', border: 'none', color: '#60a5fa', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+              📥 Bookings CSV
             </button>
             <button onClick={fetchAll} style={{ background: '#222', border: 'none', color: '#facc15', padding: '8px 12px', borderRadius: 8, cursor: 'pointer' }}>
               ↺
@@ -506,7 +535,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify'}[tab]}
+              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -609,6 +638,10 @@ export default function AdminDashboard() {
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
                   ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
+                  ['subs',      '⭐', 'Subs',      'Pro members',              '#f59e0b'],
+                  ['live',      '🔴', 'Live',      'Active rides',             '#16a34a'],
+                  ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
+                  ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
                 ].map(([v, icon, label, sub, color]) => (
                   <button key={v} onClick={() => switchTab(v)} style={{
                     background: '#1a1a1a', border: `1px solid ${color}44`,
@@ -1035,6 +1068,26 @@ export default function AdminDashboard() {
             {tab === 'notify' && (
               <NotifyTab supabase={supabase} users={users} />
             )}
+
+            {/* ── SUBSCRIPTIONS ── */}
+            {tab === 'subs' && (
+              <SubscriptionsTab supabase={supabase} />
+            )}
+
+            {/* ── LIVE RIDES ── */}
+            {tab === 'live' && (
+              <LiveRidesTab supabase={supabase} />
+            )}
+
+            {/* ── PAYOUTS ── */}
+            {tab === 'payouts' && (
+              <PayoutsTab supabase={supabase} />
+            )}
+
+            {/* ── APP VERSION ── */}
+            {tab === 'version' && (
+              <AppVersionTab supabase={supabase} />
+            )}
           </>
         )}
       </div>
@@ -1452,6 +1505,305 @@ function FixCitiesButton({ supabase, onDone }) {
       <button onClick={fixCities} disabled={fixing} style={{ background: fixing ? '#333' : '#facc15', color: '#111', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 12, fontWeight: 800, cursor: fixing ? 'default' : 'pointer', flexShrink: 0, marginLeft: 12 }}>
         {fixing ? '⏳ Fixing...' : '🔧 Fix Now'}
       </button>
+    </div>
+  )
+}
+
+// ── SUBSCRIPTIONS MANAGEMENT ──
+function SubscriptionsTab({ supabase }) {
+  const [subs, setSubs] = useState([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { load() }, [])
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('profiles')
+      .select('id,full_name,email,phone,subscription_expires_at,created_at')
+      .not('subscription_expires_at', 'is', null)
+      .order('subscription_expires_at', { ascending: false })
+    setSubs(data || [])
+    setLoading(false)
+  }
+  async function grantPro(userId) {
+    const expires = new Date(Date.now() + 30 * 86400000).toISOString()
+    await supabase.from('profiles').update({ subscription_expires_at: expires }).eq('id', userId)
+    load()
+  }
+  async function revokePro(userId) {
+    if (!confirm('Revoke Pro access?')) return
+    await supabase.from('profiles').update({ subscription_expires_at: null }).eq('id', userId)
+    load()
+  }
+  const now = new Date()
+  const active = subs.filter(s => new Date(s.subscription_expires_at) > now)
+  const expired = subs.filter(s => new Date(s.subscription_expires_at) <= now)
+  if (loading) return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:20}}>
+        {[['⭐ Active Pro',active.length,'#facc15'],['💀 Expired',expired.length,'#ef4444'],['💰 Revenue',`₹${active.length * 79}`,'#22c55e']].map(([l,v,c])=>(
+          <div key={l} style={{background:'#111',borderRadius:12,padding:14}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:6}}>{l}</div>
+            <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{fontSize:11,fontWeight:800,color:'#facc15',marginBottom:10,letterSpacing:1}}>⭐ ACTIVE PRO MEMBERS</div>
+      {active.length === 0 ? <div style={{color:'#555',textAlign:'center',padding:20}}>No active subscriptions</div> :
+        active.map(s => (
+          <div key={s.id} style={{background:'#111',borderRadius:12,padding:14,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:13,color:'#fff'}}>{s.full_name}</div>
+              <div style={{fontSize:10,color:'#555',marginTop:2}}>{s.phone} · {s.email}</div>
+              <div style={{fontSize:10,color:'#facc15',marginTop:4}}>
+                Expires: {new Date(s.subscription_expires_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
+                &nbsp;({Math.ceil((new Date(s.subscription_expires_at)-now)/86400000)} days left)
+              </div>
+            </div>
+            <button onClick={() => revokePro(s.id)} style={{background:'#7f1d1d',color:'#fca5a5',border:'none',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>Revoke</button>
+          </div>
+        ))
+      }
+      {expired.length > 0 && <>
+        <div style={{fontSize:11,fontWeight:800,color:'#555',margin:'16px 0 10px',letterSpacing:1}}>💀 EXPIRED</div>
+        {expired.slice(0,10).map(s => (
+          <div key={s.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center',opacity:0.6}}>
+            <div>
+              <div style={{fontWeight:600,fontSize:13,color:'#888'}}>{s.full_name}</div>
+              <div style={{fontSize:10,color:'#555',marginTop:2}}>Expired: {new Date(s.subscription_expires_at).toLocaleDateString('en-IN')}</div>
+            </div>
+            <button onClick={() => grantPro(s.id)} style={{background:'#111',color:'#facc15',border:'1px solid #facc15',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>Grant 30d</button>
+          </div>
+        ))}
+      </>}
+    </div>
+  )
+}
+
+// ── LIVE RIDES MONITOR ──
+function LiveRidesTab({ supabase }) {
+  const [rides, setRides] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [lastRefresh, setLastRefresh] = useState(new Date())
+  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [])
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('rides')
+      .select('*, profiles(full_name,phone,avg_rating)')
+      .in('status', ['active','full'])
+      .order('ride_date').order('ride_time')
+    setRides(data || [])
+    setLastRefresh(new Date())
+    setLoading(false)
+  }
+  const istNow = new Date(Date.now() + 5.5*3600000)
+  const todayIST = istNow.toISOString().split('T')[0]
+  const todayRides = rides.filter(r => r.ride_date === todayIST)
+  const upcomingRides = rides.filter(r => r.ride_date > todayIST)
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,flex:1}}>
+          {[['🔴 Live Today',todayRides.length,'#ef4444'],['📅 Upcoming',upcomingRides.length,'#facc15'],['🚗 Total Active',rides.length,'#22c55e']].map(([l,v,c])=>(
+            <div key={l} style={{background:'#111',borderRadius:12,padding:14}}>
+              <div style={{fontSize:9,color:'#555',marginBottom:4}}>{l}</div>
+              <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{fontSize:10,color:'#555',marginBottom:12,textAlign:'right'}}>
+        🔄 Auto-refreshes every 30s · Last: {lastRefresh.toLocaleTimeString('en-IN')}
+      </div>
+      {todayRides.length > 0 && <>
+        <div style={{fontSize:11,fontWeight:800,color:'#ef4444',marginBottom:10,letterSpacing:1}}>🔴 TODAY'S RIDES</div>
+        {todayRides.map(r => (
+          <div key={r.id} style={{background:'#111',borderRadius:12,padding:14,marginBottom:8,borderLeft:`3px solid ${r.status==='full'?'#2563eb':'#16a34a'}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:13,color:'#fff'}}>{r.from_location} → {r.to_location}</div>
+                <div style={{fontSize:11,color:'#888',marginTop:3}}>{r.profiles?.full_name} · {r.ride_time?.slice(0,5)}</div>
+              </div>
+              <span style={{background:r.status==='full'?'#1d4ed8':'#166534',color:r.status==='full'?'#93c5fd':'#4ade80',fontSize:9,padding:'3px 8px',borderRadius:100,fontWeight:700}}>
+                {r.status==='full'?'🔵 FULL':'🟢 OPEN'}
+              </span>
+            </div>
+            <div style={{display:'flex',gap:8,marginTop:10}}>
+              {[['💺',`${r.seats_available}/${r.seats_total} seats`],['💰',`₹${r.fare}`],[r.ride_type==='to_office'?'🏢':'🏠',r.ride_type==='to_office'?'To Office':'To Home']].map(([icon,val])=>(
+                <span key={val} style={{background:'#1a1a1a',borderRadius:20,padding:'3px 10px',fontSize:11,color:'#888'}}>{icon} {val}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </>}
+      {upcomingRides.length > 0 && <>
+        <div style={{fontSize:11,fontWeight:800,color:'#facc15',margin:'16px 0 10px',letterSpacing:1}}>📅 UPCOMING RIDES</div>
+        {upcomingRides.slice(0,20).map(r => (
+          <div key={r.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:6,opacity:0.8}}>
+            <div style={{fontWeight:600,fontSize:13,color:'#fff'}}>{r.from_location} → {r.to_location}</div>
+            <div style={{fontSize:11,color:'#555',marginTop:3}}>{new Date(r.ride_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} · {r.ride_time?.slice(0,5)} · {r.profiles?.full_name}</div>
+          </div>
+        ))}
+      </>}
+      {rides.length === 0 && !loading && (
+        <div style={{color:'#555',textAlign:'center',padding:40}}>No active rides right now</div>
+      )}
+    </div>
+  )
+}
+
+// ── PAYOUT TRACKER ──
+function PayoutsTab({ supabase }) {
+  const [data, setData] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const [completedRides, profiles] = await Promise.all([
+      supabase.from('bookings').select('rider_id,seats_booked,ride_fare,rides(driver_id,fare,from_location,to_location,ride_date)').eq('status','completed'),
+      supabase.from('profiles').select('id,full_name,phone,upi_id,total_rides_given,avg_rating'),
+    ])
+    const profileMap = {}
+    ;(profiles.data||[]).forEach(p => { profileMap[p.id] = p })
+    const driverMap = {}
+    ;(completedRides.data||[]).forEach(b => {
+      const dId = b.rides?.driver_id
+      if (!dId) return
+      if (!driverMap[dId]) driverMap[dId] = { rides: 0, earned: 0, profile: profileMap[dId] }
+      driverMap[dId].rides++
+      driverMap[dId].earned += Number(b.ride_fare || b.rides?.fare || 0) - 2
+    })
+    const sorted = Object.values(driverMap).sort((a,b) => b.earned - a.earned)
+    setData({ drivers: sorted, totalPaid: sorted.reduce((s,d)=>s+d.earned,0) })
+  }
+  if (!data) return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+        {[['🚗 Active Drivers',data.drivers.length,'#facc15'],['💰 Total Earned',`₹${data.totalPaid}`,'#22c55e']].map(([l,v,c])=>(
+          <div key={l} style={{background:'#111',borderRadius:12,padding:14}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:6}}>{l}</div>
+            <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{fontSize:11,color:'#555',background:'#111',borderRadius:10,padding:'10px 14px',marginBottom:16}}>
+        💡 Earnings = fare collected via UPI directly from riders. CarpoolKaro only takes ₹2 platform fee per booking.
+      </div>
+      <div style={{fontSize:11,fontWeight:800,color:'#888',marginBottom:10,letterSpacing:1}}>🏆 TOP EARNERS</div>
+      {data.drivers.length === 0 ? <div style={{color:'#555',textAlign:'center',padding:30}}>No completed rides yet</div> :
+        data.drivers.map((d,i) => (
+          <div key={i} style={{background:'#111',borderRadius:12,padding:14,marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:28,height:28,borderRadius:'50%',background:i===0?'#facc15':i===1?'#9ca3af':i===2?'#b45309':'#222',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:12,color:i<3?'#111':'#555',flexShrink:0}}>{i+1}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:13,color:'#fff'}}>{d.profile?.full_name||'Unknown'}</div>
+              <div style={{fontSize:10,color:'#555',marginTop:2}}>
+                {d.profile?.phone} · UPI: {d.profile?.upi_id||'Not set'}
+              </div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:18,fontWeight:900,color:'#22c55e'}}>₹{d.earned}</div>
+              <div style={{fontSize:9,color:'#555'}}>{d.rides} rides</div>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  )
+}
+
+// ── APP VERSION CONTROL ──
+function AppVersionTab({ supabase }) {
+  const [settings, setSettings] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [announcement, setAnnouncement] = useState('')
+  const [version, setVersion] = useState('2.0.0')
+  useEffect(() => { load() }, [])
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('app_settings').select('key,value')
+    const map = {}
+    ;(data||[]).forEach(s => { map[s.key] = s.value })
+    setSettings(map)
+    setAnnouncement(map.announcement || '')
+    setVersion(map.min_version || '2.0.0')
+    setLoading(false)
+  }
+  async function saveSetting(key, value) {
+    setSaving(true)
+    await supabase.from('app_settings').upsert({ key, value, updated_at: new Date().toISOString() })
+    await load()
+    setSaving(false)
+  }
+  if (loading) return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
+  const isMaintenance = settings.maintenance_mode === 'true'
+  const isForceUpdate = settings.force_update === 'true'
+  return (
+    <div>
+      {/* Maintenance Mode */}
+      <div style={{background:isMaintenance?'#1a0a0a':'#111',border:`1px solid ${isMaintenance?'#ef4444':'#222'}`,borderRadius:14,padding:16,marginBottom:12}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontWeight:800,fontSize:14,color:isMaintenance?'#ef4444':'#fff'}}>
+              🔧 Maintenance Mode {isMaintenance?'(ON)':'(OFF)'}
+            </div>
+            <div style={{fontSize:11,color:'#555',marginTop:4}}>
+              When ON → users see maintenance screen, cannot use app
+            </div>
+          </div>
+          <button onClick={() => saveSetting('maintenance_mode', isMaintenance?'false':'true')} disabled={saving}
+            style={{background:isMaintenance?'#16a34a':'#dc2626',color:'#fff',border:'none',borderRadius:10,padding:'10px 16px',fontSize:12,fontWeight:800,cursor:'pointer',flexShrink:0,marginLeft:12}}>
+            {isMaintenance?'Turn OFF':'Turn ON'}
+          </button>
+        </div>
+      </div>
+
+      {/* Force Update */}
+      <div style={{background:'#111',borderRadius:14,padding:16,marginBottom:12}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <div>
+            <div style={{fontWeight:800,fontSize:14,color:'#fff'}}>🔄 Force Update</div>
+            <div style={{fontSize:11,color:'#555',marginTop:4}}>Show update prompt to all users</div>
+          </div>
+          <button onClick={() => saveSetting('force_update', isForceUpdate?'false':'true')} disabled={saving}
+            style={{background:isForceUpdate?'#16a34a':'#f59e0b',color:isForceUpdate?'#fff':'#111',border:'none',borderRadius:10,padding:'10px 14px',fontSize:12,fontWeight:800,cursor:'pointer',flexShrink:0,marginLeft:12}}>
+            {isForceUpdate?'Disable':'Enable'}
+          </button>
+        </div>
+        <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>MIN VERSION</div>
+        <div style={{display:'flex',gap:8}}>
+          <input value={version} onChange={e=>setVersion(e.target.value)} placeholder="e.g. 2.1.0"
+            style={{flex:1,padding:'8px 12px',background:'#1a1a1a',color:'#fff',border:'1px solid #333',borderRadius:8,fontSize:13}} />
+          <button onClick={() => saveSetting('min_version', version)} disabled={saving}
+            style={{background:'#facc15',color:'#111',border:'none',borderRadius:8,padding:'8px 14px',fontSize:12,fontWeight:800,cursor:'pointer'}}>Save</button>
+        </div>
+      </div>
+
+      {/* Announcement Banner */}
+      <div style={{background:'#111',borderRadius:14,padding:16,marginBottom:12}}>
+        <div style={{fontWeight:800,fontSize:14,color:'#fff',marginBottom:4}}>📢 Announcement Banner</div>
+        <div style={{fontSize:11,color:'#555',marginBottom:12}}>Shows at top of app for all users. Leave empty to hide.</div>
+        <textarea value={announcement} onChange={e=>setAnnouncement(e.target.value)} rows={3}
+          placeholder="e.g. 🎉 New feature: Live location sharing is now available!"
+          style={{width:'100%',padding:'10px 12px',background:'#1a1a1a',color:'#fff',border:'1px solid #333',borderRadius:8,fontSize:13,resize:'vertical',boxSizing:'border-box',marginBottom:10}} />
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={() => saveSetting('announcement', announcement)} disabled={saving}
+            style={{flex:1,background:'#facc15',color:'#111',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>
+            💾 Save Announcement
+          </button>
+          {announcement && <button onClick={() => { setAnnouncement(''); saveSetting('announcement', '') }}
+            style={{background:'#333',color:'#888',border:'none',borderRadius:10,padding:12,fontSize:12,cursor:'pointer'}}>Clear</button>}
+        </div>
+      </div>
+
+      {/* Current Status */}
+      <div style={{background:'#0a0a0a',borderRadius:12,padding:14,fontSize:11,color:'#555'}}>
+        <div style={{fontWeight:700,color:'#888',marginBottom:8}}>CURRENT STATUS</div>
+        {Object.entries(settings).map(([k,v]) => (
+          <div key={k} style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+            <span style={{color:'#555'}}>{k}</span>
+            <span style={{color:'#facc15',fontFamily:'monospace'}}>{v||'(empty)'}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
