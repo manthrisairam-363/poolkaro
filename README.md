@@ -1,4 +1,4 @@
-# 🚗 PoolKaro — Hyderabad IT Carpool App
+# 🚗 PoolKaro — India's IT Carpool App
 
 > Built for Hyderabad's IT corridor commuters. Post rides, book seats, pay via UPI.
 
