@@ -72,6 +72,10 @@ export default function Chat() {
   const [sending, setSending] = useState(false)
   const [warn, setWarn] = useState('')
   const [senderName, setSenderName] = useState('')
+  const [isLive, setIsLive] = useState(false)
+  const [liveLocations, setLiveLocations] = useState({})
+  const liveWatchRef = useRef(null)
+  const liveIntervalRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const latestMsgId = useRef(null)
@@ -214,6 +218,144 @@ export default function Chat() {
 
   useEffect(() => { scrollBottom() }, [msgs.length])
 
+  // ── LOCATION SHARING ──
+  async function sendLocation() {
+    if (!navigator.geolocation) { alert('Location not supported on this device'); return }
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude: lat, longitude: lng } = pos.coords
+      const { data: saved } = await supabase.from('messages').insert({
+        booking_id: bookingId, sender_id: user.id,
+        text: `📍LOC:${lat.toFixed(6)},${lng.toFixed(6)}`, read: false,
+      }).select().single()
+      if (saved) { setMsgs(prev => [...prev, saved]); scrollBottom() }
+      if (info?.otherId) await supabase.from('notifications').insert({
+        user_id: info.otherId, title: `📍 ${senderName} shared location`,
+        message: 'Tap to see pickup point', type: 'booking', is_read: false,
+      })
+    }, () => alert('Could not get location. Please enable GPS.'))
+  }
+
+  async function startLiveLocation() {
+    if (!navigator.geolocation) { alert('Location not supported'); return }
+    setIsLive(true)
+    const { data: saved } = await supabase.from('messages').insert({
+      booking_id: bookingId, sender_id: user.id, text: `📡LIVE:${user.id}`, read: false,
+    }).select().single()
+    if (saved) { setMsgs(prev => [...prev, saved]); scrollBottom() }
+    let lastLat = null, lastLng = null
+    liveWatchRef.current = navigator.geolocation.watchPosition(pos => {
+      lastLat = pos.coords.latitude; lastLng = pos.coords.longitude
+    })
+    liveIntervalRef.current = setInterval(async () => {
+      if (lastLat && lastLng) await supabase.from('live_locations').upsert({
+        booking_id: bookingId, user_id: user.id,
+        lat: lastLat, lng: lastLng, is_active: true, updated_at: new Date().toISOString(),
+      }, { onConflict: 'booking_id,user_id' })
+    }, 10000)
+    if (info?.otherId) await supabase.from('notifications').insert({
+      user_id: info.otherId, title: `📡 ${senderName} is sharing live location`,
+      message: 'Tap to track in real time', type: 'booking', is_read: false,
+    })
+  }
+
+  async function stopLiveLocation() {
+    setIsLive(false)
+    if (liveWatchRef.current) navigator.geolocation.clearWatch(liveWatchRef.current)
+    if (liveIntervalRef.current) clearInterval(liveIntervalRef.current)
+    await supabase.from('live_locations').update({ is_active: false })
+      .eq('booking_id', bookingId).eq('user_id', user.id)
+    const { data: saved } = await supabase.from('messages').insert({
+      booking_id: bookingId, sender_id: user.id, text: '📡STOP:ended', read: false,
+    }).select().single()
+    if (saved) setMsgs(prev => [...prev, saved])
+  }
+
+  // Poll live locations every 8s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const { data } = await supabase.from('live_locations')
+        .select('user_id,lat,lng,updated_at,is_active')
+        .eq('booking_id', bookingId).eq('is_active', true)
+      if (data) { const m = {}; data.forEach(l => { m[l.user_id] = l }); setLiveLocations(m) }
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [bookingId])
+
+  function renderMsg(item) {
+    const mine = item.sender_id === user.id
+    const txt = item.text || ''
+
+    if (txt.startsWith('📍LOC:')) {
+      const [lat, lng] = txt.replace('📍LOC:', '').split(',')
+      const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`
+      return (
+        <div style={{ background: mine ? '#facc15' : '#1e1e1e', borderRadius: 14, overflow: 'hidden', width: 230 }}>
+          <div style={{ background: mine ? '#f59e0b' : '#333', padding: '8px 12px', display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span>📍</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: mine ? '#111' : '#fff' }}>Shared Location</span>
+          </div>
+          <div style={{ padding: 10 }}>
+            <div style={{ background: mine ? 'rgba(0,0,0,0.08)' : '#2a2a2a', borderRadius: 8, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 36 }}>🗺️</span>
+            </div>
+            <a href={mapsUrl} target="_blank" rel="noreferrer"
+              style={{ display: 'block', textAlign: 'center', background: mine ? '#111' : '#facc15', color: mine ? '#facc15' : '#111', borderRadius: 8, padding: '8px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+              Open in Google Maps →
+            </a>
+          </div>
+          <div style={{ fontSize: 10, color: mine ? '#78350f' : '#555', padding: '0 12px 8px', textAlign: 'right' }}>{fmtTime(item.created_at)}</div>
+        </div>
+      )
+    }
+
+    if (txt.startsWith('📡LIVE:')) {
+      const senderId = txt.replace('📡LIVE:', '')
+      const live = liveLocations[senderId]
+      const mapsUrl = live ? `https://www.google.com/maps?q=${live.lat},${live.lng}` : null
+      const secAgo = live ? Math.round((Date.now() - new Date(live.updated_at)) / 1000) : null
+      return (
+        <div style={{ background: mine ? '#facc15' : '#1e1e1e', borderRadius: 14, overflow: 'hidden', width: 230 }}>
+          <div style={{ background: mine ? '#f59e0b' : '#333', padding: '8px 12px', display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span>📡</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: mine ? '#111' : '#fff' }}>Live Location</span>
+            {live && <span style={{ marginLeft: 'auto', fontSize: 9, background: '#16a34a', color: '#fff', padding: '2px 6px', borderRadius: 100 }}>● LIVE</span>}
+          </div>
+          <div style={{ padding: 10 }}>
+            {live ? (
+              <>
+                <div style={{ fontSize: 11, color: mine ? '#78350f' : '#888', marginBottom: 8 }}>Updated {secAgo}s ago</div>
+                <a href={mapsUrl} target="_blank" rel="noreferrer"
+                  style={{ display: 'block', textAlign: 'center', background: mine ? '#111' : '#facc15', color: mine ? '#facc15' : '#111', borderRadius: 8, padding: '8px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                  📍 Track Live in Maps →
+                </a>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', fontSize: 12, color: mine ? '#78350f' : '#888', padding: '6px 0' }}>Waiting for location...</div>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: mine ? '#78350f' : '#555', padding: '0 12px 8px', textAlign: 'right' }}>{fmtTime(item.created_at)}</div>
+        </div>
+      )
+    }
+
+    if (txt.startsWith('📡STOP:')) return (
+      <div style={{ background: mine ? '#fef9c3' : '#1a1a1a', borderRadius: 12, padding: '8px 14px', fontSize: 12, color: mine ? '#78350f' : '#666', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>📡</span> Live location ended
+        <div style={{ fontSize: 10, marginLeft: 'auto' }}>{fmtTime(item.created_at)}</div>
+      </div>
+    )
+
+    return (
+      <div style={{ maxWidth: '78%', background: mine ? '#facc15' : '#1e1e1e', color: mine ? '#111' : '#fff', borderRadius: mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px', padding: '10px 14px', fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word' }}>
+        {item.text}
+        <div style={{ fontSize: 10, color: mine ? '#78350f' : '#555', marginTop: 4, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+          {fmtTime(item.created_at)}
+          {mine && <span style={{ color: item.read ? '#16a34a' : '#777' }}>{item.read ? '✓✓' : '✓'}</span>}
+        </div>
+      </div>
+    )
+  }
+
   async function send(e) {
     e?.preventDefault()
     if (!text.trim() || sending) return
@@ -331,30 +473,14 @@ export default function Chat() {
           )
           const mine = item.sender_id === user.id
           return (
-            <div key={item.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 2, alignItems: 'flex-end', gap: 4 }}>
-              <div style={{
-                maxWidth: '78%',
-                background: mine ? '#facc15' : '#1e1e1e',
-                color: mine ? '#111' : '#fff',
-                borderRadius: mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                padding: '10px 14px', fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word',
-              }}>
-                {item.text}
-                <div style={{ fontSize: 10, color: mine ? '#78350f' : '#555', marginTop: 4, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
-                  {fmtTime(item.created_at)}
-                  {mine && <span style={{ color: item.read ? '#16a34a' : '#777' }}>{item.read ? '✓✓' : '✓'}</span>}
-                </div>
-              </div>
-              {!mine && (
+            <div key={item.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 4, alignItems: 'flex-end', gap: 4 }}>
+              {renderMsg(item)}
+              {!mine && !item.text?.startsWith('📍') && !item.text?.startsWith('📡') && (
                 <button onClick={async () => {
                   if (!confirm('Report this message for sharing personal contact info?')) return
-                  await supabase.from('reported_messages').insert({
-                    booking_id: bookingId,
-                    reported_by: user.id,
-                    message_text: item.text,
-                  })
-                  alert('✅ Reported. We will review and take action within 24 hours.')
-                }} style={{ background: 'none', border: 'none', color: '#333', fontSize: 14, cursor: 'pointer', padding: 2, flexShrink: 0, opacity: 0.5 }} title="Report">⚑</button>
+                  await supabase.from('reported_messages').insert({ booking_id: bookingId, reported_by: user.id, message_text: item.text })
+                  alert('✅ Reported. We will review within 24 hours.')
+                }} style={{ background: 'none', border: 'none', color: '#333', fontSize: 14, cursor: 'pointer', padding: 2, flexShrink: 0, opacity: 0.5 }}>⚑</button>
               )}
             </div>
           )
@@ -381,21 +507,38 @@ export default function Chat() {
       )}
 
       {!info?.isCancelled ? (
-        <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', padding: '10px 12px', paddingBottom: 'max(10px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-          <textarea
-            ref={inputRef}
-            value={text}
-            onChange={e => { setText(e.target.value); if (warn) setWarn('') }}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            placeholder="Type a message..."
-            rows={1}
-            style={{ flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: 22, padding: '10px 16px', fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120 }}
-            onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
-          />
-          <button onClick={send} disabled={!text.trim() || sending}
-            style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: text.trim() ? 'pointer' : 'default', background: text.trim() ? '#facc15' : '#1a1a1a', color: text.trim() ? '#111' : '#444', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: '0.2s' }}>
-            {sending ? '⏳' : '➤'}
-          </button>
+        <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', paddingBottom: 'max(10px, env(safe-area-inset-bottom))', flexShrink: 0 }}>
+          {/* Location buttons */}
+          <div style={{ display: 'flex', gap: 8, padding: '8px 12px 4px' }}>
+            <button onClick={sendLocation} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#facc15', borderRadius: 20, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              📍 Location
+            </button>
+            {isLive ? (
+              <button onClick={stopLiveLocation} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#dc2626', border: 'none', color: '#fff', borderRadius: 20, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ⏹ Stop Live
+              </button>
+            ) : (
+              <button onClick={startLiveLocation} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#4ade80', borderRadius: 20, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                📡 Live Location
+              </button>
+            )}
+          </div>
+          {/* Message input */}
+          <div style={{ padding: '0 12px 10px', display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <textarea
+              ref={inputRef} value={text}
+              onChange={e => { setText(e.target.value); if (warn) setWarn('') }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              placeholder="Type a message..."
+              rows={1}
+              style={{ flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: 22, padding: '10px 16px', fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120 }}
+              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
+            />
+            <button onClick={send} disabled={!text.trim() || sending}
+              style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: text.trim() ? 'pointer' : 'default', background: text.trim() ? '#facc15' : '#1a1a1a', color: text.trim() ? '#111' : '#444', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: '0.2s' }}>
+              {sending ? '⏳' : '➤'}
+            </button>
+          </div>
         </div>
       ) : (
         <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', padding: '14px', textAlign: 'center', color: '#555', fontSize: 13, flexShrink: 0 }}>
