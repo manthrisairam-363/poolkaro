@@ -301,12 +301,26 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false)
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
-  const [filterDate, setFilterDate] = useState('all') // all | today | tomorrow
-  const [filterTime, setFilterTime] = useState('all') // all | morning | evening
+  const [filterDate, setFilterDate] = useState('all')
+  const [filterTime, setFilterTime] = useState('all')
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [showFromSug, setShowFromSug] = useState(false)
   const [showToSug, setShowToSug] = useState(false)
   const [suggestedRoutes, setSuggestedRoutes] = useState([])
+  const [announcement, setAnnouncement] = useState('')
+  const [maintenance, setMaintenance] = useState(false)
+
+  // Fetch app settings
+  useEffect(() => {
+    async function fetchSettings() {
+      const { data } = await supabase.from('app_settings').select('key,value')
+      const map = {}
+      ;(data||[]).forEach(s => { map[s.key] = s.value })
+      setAnnouncement(map.announcement || '')
+      setMaintenance(map.maintenance_mode === 'true')
+    }
+    fetchSettings()
+  }, [])
 
   useEffect(() => { fetchSuggestedRoutes() }, [])
 
@@ -376,27 +390,15 @@ export default function Home() {
 
     const { data } = await supabase
       .from('ride_requests')
-      .select('*, profiles(full_name, is_verified, work_email, work_email_verified, email, city)')
+      .select('*, profiles(full_name, is_verified, work_email, work_email_verified, email)')
       .eq('status', 'active')
-      .eq('city', profile?.city || 'Hyderabad')
       .gte('ride_date', today)
-      .order('ride_date', { ascending: true })
-      .order('ride_time', { ascending: true })
+      .order('created_at', { ascending: false })
 
-    // Hide today's requests that passed 2+ hours ago
-    const now = new Date()
-    const filtered = (data || []).filter(req => {
-      if (req.ride_date !== today) return true
-      if (!req.ride_time) return true
-      const [h, m] = req.ride_time.split(':')
-      const reqTime = new Date()
-      reqTime.setHours(parseInt(h), parseInt(m), 0, 0)
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
-      return reqTime > twoHoursAgo
-    })
+    setRequests(data || [])
 
-    setRequests(filtered)
-    const mine = filtered.find(r => r.rider_id === user?.id)
+    // Check if current user has an active request
+    const mine = (data || []).find(r => r.rider_id === user?.id)
     setMyRequest(mine || null)
   }
 
@@ -524,10 +526,30 @@ export default function Home() {
       onTouchEnd={onTouchEnd}
       style={{ background: '#f1f5f9', minHeight: '100vh', paddingBottom: 90, overflowY: 'auto' }}
     >
+      {/* Maintenance Mode Screen — admin bypasses */}
+      {maintenance && !profile?.is_admin && (
+        <div style={{ position: 'fixed', inset: 0, background: '#0a0a0a', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <div style={{ fontSize: 64, marginBottom: 24 }}>🔧</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', marginBottom: 12, textAlign: 'center' }}>Under Maintenance</div>
+          <div style={{ fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 1.6 }}>
+            CarpoolKaro is undergoing scheduled maintenance. We'll be back shortly!
+          </div>
+          <div style={{ marginTop: 32, fontSize: 12, color: '#555' }}>support@carpoolkaro.com</div>
+        </div>
+      )}
+
+      {/* Announcement Banner */}
+      {announcement && (
+        <div style={{ background: 'linear-gradient(135deg,#f59e0b,#facc15)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>📢</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#111', flex: 1 }}>{announcement}</span>
+        </div>
+      )}
+
       {/* ── HEADER ── */}
       <div style={{ background: '#fff', position: 'sticky', top: 0, zIndex: 40, boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         {/* Top bar */}
-        <div id="tour-header" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px 8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px 8px' }}>
           {/* Small logo */}
           <img src="/logo.png" alt="CarpoolKaro" style={{ height: 32, width: 'auto', flexShrink: 0 }} />
           {/* Location + greeting */}
@@ -576,7 +598,7 @@ export default function Home() {
           </button>
         </div>
         {/* Tabs */}
-        <div id="tour-tabs" style={{ display: 'flex', gap: 6, padding: '0 16px 10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        <div style={{ display: 'flex', gap: 6, padding: '0 16px 10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {[['all','All Rides'],['to_office','🏢 Office'],['to_home','🏠 Home'],['requests','🙋 Requests']].map(([v,l]) => (
             <button key={v} onClick={() => setFilter(v)} style={{
               padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
@@ -633,31 +655,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* My active request banner — shown on ALL tabs except requests */}
-        {myRequest && filter !== 'requests' && (
-          <div style={{ background: '#fffbeb', border: '1.5px solid #facc15', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: '#92400e', marginBottom: 5 }}>🙋 YOUR ACTIVE REQUEST</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{myRequest.from_location} → {myRequest.to_location}</div>
-                <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>
-                  {myRequest.ride_time ? `${formatTime(myRequest.ride_time)} · ` : ''}
-                  {new Date(myRequest.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                  {' · Needs '}{myRequest.seats_needed} seat
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => navigate('/request')} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>✏️</button>
-                <button onClick={async () => {
-                  if (!window.confirm('Cancel your ride request?')) return
-                  await supabase.from('ride_requests').update({ status: 'cancelled' }).eq('id', myRequest.id)
-                  fetchRequests()
-                }} style={{ background: '#fef2f2', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#ef4444', cursor: 'pointer' }}>✕</button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Rider requests for drivers */}
         {filter !== 'requests' && requests.filter(r => r.rider_id !== user?.id).length > 0 && (
           <div style={{ background: '#eff6ff', borderRadius: 12, padding: '10px 12px', marginBottom: 10, border: '1px solid #bfdbfe' }}>
@@ -666,14 +663,7 @@ export default function Home() {
             </div>
             {requests.filter(r => r.rider_id !== user?.id).slice(0,2).map(req => (
               <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderTop: '1px solid #dbeafe' }}>
-                <div>
-                  <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
-                  <div style={{ fontSize: 10, color: '#3b82f6' }}>
-                    {req.ride_time ? `${formatTime(req.ride_time)} · ` : ''}
-                    {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                    {` · ${req.seats_needed} seat needed`}
-                  </div>
-                </div>
+                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
                 <button onClick={async () => {
                   await supabase.from('notifications').insert({ user_id: req.rider_id, type: 'booking', title: '🚗 A car owner can offer you a ride!', message: `Available for ${req.from_location} → ${req.to_location}.`, is_read: false })
                   alert('✅ Rider notified!')
@@ -702,26 +692,13 @@ export default function Home() {
                         {req.rider_id === user?.id && <span style={{ background: '#facc15', borderRadius: 5, padding: '1px 6px', fontSize: 9, fontWeight: 700, color: '#111' }}>YOURS</span>}
                         {co && <span style={{ background: '#f8fafc', color: '#334155', fontSize: 9, padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>{co.name}</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: '#888' }}>
-                        Needs {req.seats_needed} seat
-                        {req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''}
-                        {` · ${new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
-                      </div>
+                      <div style={{ fontSize: 11, color: '#888' }}>Needs {req.seats_needed} seat · {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
                     </div>
-                    {req.rider_id !== user?.id ? (
+                    {req.rider_id !== user?.id && (
                       <button onClick={async () => {
                         await supabase.from('notifications').insert({ user_id: req.rider_id, type: 'booking', title: '🚗 Someone can offer you a ride!', message: `A car owner is available for ${req.from_location} → ${req.to_location}.`, is_read: false })
                         alert('✅ Rider notified!')
                       }} style={{ background: '#0f172a', color: '#facc15', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>🔔</button>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button onClick={() => navigate('/request')} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✏️ Edit</button>
-                        <button onClick={async () => {
-                          if (!window.confirm('Cancel your ride request?')) return
-                          await supabase.from('ride_requests').update({ status: 'cancelled' }).eq('id', req.id)
-                          fetchRequests()
-                        }} style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✕</button>
-                      </div>
                     )}
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{req.from_location} → {req.to_location}</div>
@@ -756,10 +733,8 @@ export default function Home() {
               <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} />
             ))}
             {/* ALL OTHER RIDES — compact */}
-            {filtered.filter(r => r.driver_id !== user?.id).map((ride, idx) => (
-              <div key={ride.id} id={idx === 0 ? 'tour-ridecard' : undefined}>
-                <CompactRideCard ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} />
-              </div>
+            {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
+              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} />
             ))}
           </div>
         )}
