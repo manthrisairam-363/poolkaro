@@ -399,7 +399,7 @@ export default function MyRides() {
       <div style={{ background: '#111', padding: '20px 16px 0' }}>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>📋 My Rides</div>
         <div style={{ display: 'flex', borderBottom: '1px solid #222' }}>
-          <button style={tabStyle(tab === 'posted')} onClick={() => setTab('posted')}>🚗 I Posted ({rides.length})</button>
+          <button style={tabStyle(tab === 'posted')} onClick={() => setTab('posted')}>🚗 I Posted ({rides.filter(r => ['active','full'].includes(r.status)).length})</button>
           <button style={tabStyle(tab === 'booked')} onClick={() => setTab('booked')}>🎫 I Booked ({activeBookings.length + completedBookings.length})</button>
         </div>
       </div>
@@ -414,7 +414,32 @@ export default function MyRides() {
               <div style={{ color: '#aaa', marginTop: 8 }}>No rides posted yet</div>
               <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Tap + below to post your first ride</div>
             </div>
-          ) : rides.map(r => <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} />)
+          ) : (
+            <>
+              {/* Active rides — full colour */}
+              {rides.filter(r => ['active','full'].includes(r.status)).map(r => (
+                <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} />
+              ))}
+
+              {/* Cancelled/expired rides — collapsed */}
+              {rides.filter(r => !['active','full'].includes(r.status)).length > 0 && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ fontSize: 12, color: '#aaa', cursor: 'pointer', padding: '8px 0', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>▶</span> {rides.filter(r => !['active','full'].includes(r.status)).length} cancelled/expired ride{rides.filter(r => !['active','full'].includes(r.status)).length > 1 ? 's' : ''} (tap to show)
+                  </summary>
+                  {rides.filter(r => !['active','full'].includes(r.status)).map(r => (
+                    <div key={r.id} style={{ background: '#fafafa', borderRadius: 12, padding: 12, marginTop: 8, border: '1px solid #f0f0f0', opacity: 0.7 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#888' }}>{r.from_location} → {r.to_location}</div>
+                      <div style={{ color: '#bbb', fontSize: 12, marginTop: 2 }}>
+                        {new Date(r.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {r.ride_time?.slice(0,5)} ·{' '}
+                        {r.status === 'cancelled' ? '❌ Cancelled' : r.status === 'completed' ? '✅ Completed' : '⏰ Expired'}
+                      </div>
+                    </div>
+                  ))}
+                </details>
+              )}
+            </>
+          )
         ) : (
           activeBookings.length === 0 && completedBookings.length === 0 && cancelledBookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
