@@ -574,7 +574,10 @@ export default function Home() {
             </div>
             {requests.filter(r => r.rider_id !== user?.id).slice(0,2).map(req => (
               <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderTop: '1px solid #dbeafe' }}>
-                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
+                  <div style={{ fontSize: 10, color: '#60a5fa' }}>{req.ride_time ? `${formatTime(req.ride_time)} · ` : ''}{new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                </div>
                 <button onClick={async () => {
                   await supabase.from('notifications').insert({ user_id: req.rider_id, type: 'booking', title: '🚗 A car owner can offer you a ride!', message: `Available for ${req.from_location} → ${req.to_location}.`, is_read: false })
                   alert('✅ Rider notified!')
@@ -603,7 +606,7 @@ export default function Home() {
                         {req.rider_id === user?.id && <span style={{ background: '#facc15', borderRadius: 5, padding: '1px 6px', fontSize: 9, fontWeight: 700, color: '#111' }}>YOURS</span>}
                         {co && <span style={{ background: '#f8fafc', color: '#334155', fontSize: 9, padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>{co.name}</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: '#888' }}>Needs {req.seats_needed} seat · {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>Needs {req.seats_needed} seat{req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''} · {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
                     </div>
                     {req.rider_id !== user?.id && (
                       <button onClick={async () => {
