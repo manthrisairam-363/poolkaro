@@ -135,7 +135,7 @@ export default function Subscription() {
     await supabase.from('wallet_transactions').insert({
       user_id: user.id,
       amount: -(plan.price * 100),
-      type: 'recharge',
+      type: 'subscription',
       description: `CarpoolKaro Pro ${plan.label} subscription`,
     })
 
