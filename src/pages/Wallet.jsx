@@ -15,6 +15,7 @@ function TransactionItem({ txn }) {
     posting_fee: '🚗',
     refund_cancel: '↩️',
     razorpay: '💳',
+    subscription: '⭐',
   }
   const labels = {
     signup_bonus: 'Welcome Bonus',
@@ -23,6 +24,7 @@ function TransactionItem({ txn }) {
     posting_fee: 'Ride Posting Fee',
     refund_cancel: 'Cancellation Refund',
     razorpay: 'Recharge via Razorpay',
+    subscription: 'Pro Subscription',
   }
 
   return (

@@ -53,7 +53,7 @@ export default function AdminDashboard() {
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('rides').select('*, profiles(full_name, phone)').order('created_at', { ascending: false }).limit(200),
         supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(200),
-        supabase.from('wallet_transactions').select('created_at').eq('type', 'booking_fee').gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()),
+        supabase.from('wallet_transactions').select('created_at, type, amount').in('type', ['booking_fee', 'posting_fee']),
       ])
 
       const usersData = usersRes.data || []
@@ -63,10 +63,11 @@ export default function AdminDashboard() {
 
       const confirmedBookings = bookingsData.filter(b => b.status === 'confirmed')
       const cancelledBookings = bookingsData.filter(b => b.status === 'cancelled')
-      // Real revenue from wallet transactions (platform fees collected)
-      const totalRevenue = txnData.filter(t => 
-        t.description?.includes('platform') || t.description?.includes('Compensation')
-      ).reduce((s, t) => s + Number(t.amount || 0), 0)
+      // Real revenue = platform fees collected (booking_fee + posting_fee)
+      // These are stored as negative amounts (deducted from wallets), so use absolute value
+      const totalRevenue = txnData.filter(t =>
+        t.type === 'booking_fee' || t.type === 'posting_fee'
+      ).reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) / 100
 
       const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
       const todayIST = istNow.toISOString().split('T')[0]
@@ -115,7 +116,7 @@ export default function AdminDashboard() {
         totalRevenue,
         totalWalletBalance: Math.round(totalWalletBalance / 100),
         todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
-        todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.description?.includes('platform') || t.description?.includes('Compensation'))).reduce((s,t) => s + Number(t.amount||0), 0),
+        todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.type === 'booking_fee' || t.type === 'posting_fee')).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100,
         verifiedUsers: usersData.filter(u => u.is_verified).length,
         workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
         totalReferrals: usersData.filter(u => u.referred_by).length,

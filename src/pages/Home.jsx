@@ -51,95 +51,6 @@ function getLocationsForCity(city) {
   return CITY_LOCATIONS[city] || CITY_LOCATIONS['Hyderabad']
 }
 
-// Hyderabad IT corridor locations — IT parks, offices, residential areas
-const HYD_LOCATIONS = [
-  // ── IT HUBS & OFFICES ──────────────────────────────
-  'HITEC City', 'Hitech City', 'Madhapur', 'Raheja Mindspace', 'Mindspace Madhapur',
-  'Financial District', 'Nanakramguda', 'WaveRock SEZ', 'DLF Cyber City',
-  'Gachibowli', 'Divyasree Orion', 'Salarpuria Knowledge City',
-  'Kokapet', 'GAR Kokapet', 'Raidurgam', 'Khajaguda',
-  'Manikonda', 'Narsingi', 'Puppalaguda',
-  'Kondapur', 'Kothaguda', 'Whitefield Kondapur',
-  'Mindspace Pocharam', 'Pocharam', 'Nacharam',
-  'Mindspace Shamshabad', 'Shamshabad', 'Aerospace SEZ',
-  'TCS Synergy Park', 'ISB Campus', 'University of Hyderabad',
-  'Cyberabad', 'L&T Infocity', 'Vanenburg IT Park',
-
-  // ── MAJOR COMPANY CAMPUSES ─────────────────────────
-  'Amazon Hyderabad', 'Amazon Campus', 'Microsoft Campus',
-  'Google Hyderabad', 'Oracle Hyderabad', 'Facebook Hyderabad',
-  'Infosys Pocharam', 'TCS Gachibowli', 'Wipro Gachibowli',
-  'Accenture Gachibowli', 'Capgemini Gachibowli',
-  'Cognizant Gachibowli', 'HCL Uppal',
-  'Tech Mahindra Gachibowli', 'IBM Gachibowli',
-  'Deloitte Hyderabad', 'JP Morgan Madhapur',
-
-  // ── WESTERN RESIDENTIAL (near IT) ─────────────────
-  'Kondapur', 'Miyapur', 'Chanda Nagar', 'Lingampally',
-  'KPHB', 'Kukatpally', 'Bachupally', 'Nizampet',
-  'Pragathi Nagar', 'Sri Nagar Colony', 'Aminpur',
-  'Hafeezpet', 'Vattinagulapally', 'Tellapur',
-
-  // ── GACHIBOWLI BELT ────────────────────────────────
-  'Gachibowli', 'Attapur', 'Rajendra Nagar',
-  'Puppalaguda', 'Kismatpur', 'Gandipet',
-  'Nallagandla', 'Serilingampally',
-
-  // ── MADHAPUR / JUBILEE HILLS ────────────────────────
-  'Madhapur', 'Jubilee Hills', 'Banjara Hills',
-  'Panjagutta', 'Film Nagar', 'Kavuri Hills',
-  'Durgam Cheruvu', 'Road No 36', 'Ayyappa Society',
-
-  // ── CENTRAL & AMEERPET ────────────────────────────
-  'Ameerpet', 'SR Nagar', 'Punjagutta', 'Somajiguda',
-  'Khairatabad', 'Lakdikapul', 'Mehdipatnam',
-  'Tolichowki', 'Masab Tank', 'Himayatnagar',
-  'Narayanguda', 'Koti', 'Abids', 'Nampally',
-
-  // ── SECUNDERABAD & NORTH ───────────────────────────
-  'Secunderabad', 'Begumpet', 'Old Bowenpally', 'Bowenpally',
-  'Jeedimetla', 'IDA Jeedimetla', 'Balanagar',
-  'Alwal', 'Malkajgiri', 'Sainikpuri', 'AS Rao Nagar',
-  'Yapral', 'Kapra', 'Ecil', 'Kushaiguda', 'Neredmet',
-  'Kompally', 'Medchal', 'Shamirpet',
-
-  // ── EAST HYDERABAD ─────────────────────────────────
-  'Uppal', 'Uppal Ring Road', 'Uppal Metro', 'Nagole', 'Nagole Metro',
-  'LB Nagar', 'Dilsukhnagar', 'Kothapet',
-  'Mallapur', 'Habsiguda', 'Tarnaka', 'Mettuguda',
-  'Boduppal', 'Peerzadiguda', 'Ghatkesar',
-  'Hayathnagar', 'Vanasthalipuram', 'Saroornagar',
-  'Nacharam', 'Ramanthapur', 'Amberpet',
-  'Moulali', 'Chilkalguda',
-
-  // ── SOUTH & OUTSKIRTS ─────────────────────────────
-  'Attapur', 'Bandlaguda', 'Kothur', 'Chevella',
-  'Patancheru', 'Sangareddy', 'Isnapur',
-  'Shadnagar', 'Maheshwaram', 'Adibatla',
-  'Fab City', 'Genome Valley', 'IKP Knowledge Park',
-
-  // ── METRO STATIONS ────────────────────────────────
-  'Miyapur Metro', 'JNTU Metro', 'KPHB Metro',
-  'Kukatpally Metro', 'Balanagar Metro', 'Moosapet Metro',
-  'Bharat Nagar Metro', 'Erragadda Metro', 'ESI Metro',
-  'SR Nagar Metro', 'Ameerpet Metro', 'Punjagutta Metro',
-  'Irrum Manzil Metro', 'Khairatabad Metro', 'Lakdikapul Metro',
-  'Assembly Metro', 'Nampally Metro', 'Gandhi Bhavan Metro',
-  'Osmania Medical Metro', 'MJ Market Metro', 'Museerambagh Metro',
-  'Dilsukhnagar Metro', 'Chaitanyapuri Metro', 'LB Nagar Metro',
-  'Nagole Metro', 'Uppal Metro', 'Stadium Metro',
-  'NGRI Metro', 'Habsiguda Metro', 'Tarnaka Metro',
-  'Mettuguda Metro', 'Secunderabad East Metro', 'Secunderabad Metro',
-  'Paradise Metro', 'Rasoolpura Metro', 'Prakash Nagar Metro',
-  'Begumpet Metro', 'Ameerpet Metro', 'Yusufguda Metro',
-  'Madhura Nagar Metro', 'Vittal Rao Nagar Metro',
-  'Madhapur Metro', 'Durgam Cheruvu Metro',
-  'Hitec City Metro', 'Raidurg Metro',
-
-  // ── AIRPORT & OUTSKIRTS ───────────────────────────
-  'Rajiv Gandhi International Airport', 'Shamshabad Airport',
-  'ORR Gachibowli', 'ORR Patancheru', 'ORR Shamshabad',
-]
 
 function RideCard({ ride, onBook, myUserId }) {
   const [expanded, setExpanded] = useState(false)
@@ -425,15 +336,17 @@ export default function Home() {
       .order('ride_time', { ascending: true })
 
     if (!error) {
-      // Hide today's rides that departed more than 1 hour ago
-      const cutoff = new Date(now.getTime() - 60 * 60 * 1000)
+      // Hide today's rides that departed more than 1 hour ago (IST-consistent)
+      // Current time in IST minutes-since-midnight
+      const istNowTime = new Date(now.getTime() + istOffset)
+      const nowMinutes = istNowTime.getUTCHours() * 60 + istNowTime.getUTCMinutes()
       const fresh = (data || []).filter(ride => {
         if (ride.ride_date !== today) return true
         if (!ride.ride_time) return true
         const [h, m] = ride.ride_time.split(':')
-        const rideTime = new Date()
-        rideTime.setHours(parseInt(h), parseInt(m), 0, 0)
-        return rideTime >= cutoff
+        const rideMinutes = parseInt(h) * 60 + parseInt(m)
+        // Show if ride departs in future OR within last 60 min
+        return rideMinutes >= (nowMinutes - 60)
       })
       setRides(fresh)
     }
@@ -663,7 +576,10 @@ export default function Home() {
             </div>
             {requests.filter(r => r.rider_id !== user?.id).slice(0,2).map(req => (
               <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderTop: '1px solid #dbeafe' }}>
-                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>{req.from_location} → {req.to_location}</div>
+                  <div style={{ fontSize: 10, color: '#60a5fa' }}>{req.ride_time ? `${formatTime(req.ride_time)} · ` : ''}{new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                </div>
                 <button onClick={async () => {
                   await supabase.from('notifications').insert({ user_id: req.rider_id, type: 'booking', title: '🚗 A car owner can offer you a ride!', message: `Available for ${req.from_location} → ${req.to_location}.`, is_read: false })
                   alert('✅ Rider notified!')
@@ -692,7 +608,7 @@ export default function Home() {
                         {req.rider_id === user?.id && <span style={{ background: '#facc15', borderRadius: 5, padding: '1px 6px', fontSize: 9, fontWeight: 700, color: '#111' }}>YOURS</span>}
                         {co && <span style={{ background: '#f8fafc', color: '#334155', fontSize: 9, padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>{co.name}</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: '#888' }}>Needs {req.seats_needed} seat · {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>Needs {req.seats_needed} seat{req.ride_time ? ` · ${formatTime(req.ride_time)}` : ''} · {new Date(req.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
                     </div>
                     {req.rider_id !== user?.id && (
                       <button onClick={async () => {
