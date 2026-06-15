@@ -336,15 +336,17 @@ export default function Home() {
       .order('ride_time', { ascending: true })
 
     if (!error) {
-      // Hide today's rides that departed more than 1 hour ago
-      const cutoff = new Date(now.getTime() - 60 * 60 * 1000)
+      // Hide today's rides that departed more than 1 hour ago (IST-consistent)
+      // Current time in IST minutes-since-midnight
+      const istNowTime = new Date(now.getTime() + istOffset)
+      const nowMinutes = istNowTime.getUTCHours() * 60 + istNowTime.getUTCMinutes()
       const fresh = (data || []).filter(ride => {
         if (ride.ride_date !== today) return true
         if (!ride.ride_time) return true
         const [h, m] = ride.ride_time.split(':')
-        const rideTime = new Date()
-        rideTime.setHours(parseInt(h), parseInt(m), 0, 0)
-        return rideTime >= cutoff
+        const rideMinutes = parseInt(h) * 60 + parseInt(m)
+        // Show if ride departs in future OR within last 60 min
+        return rideMinutes >= (nowMinutes - 60)
       })
       setRides(fresh)
     }
