@@ -360,14 +360,11 @@ export default function Home() {
   const filtered = rides.filter(r => {
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
-    // Auto-filter from rider's active request (if no manual filter set)
-    const ef = !hasActiveFilters && myRequest
-    const fromFilter = filterFrom || (ef ? keyWord(myRequest.from_location) : '')
-    const toFilter = filterTo || (ef ? keyWord(myRequest.to_location) : '')
-    if (fromFilter && !r.from_location?.toLowerCase().includes(fromFilter.toLowerCase())
-      && !r.route_description?.toLowerCase().includes(fromFilter.toLowerCase())) return false
-    if (toFilter && !r.to_location?.toLowerCase().includes(toFilter.toLowerCase())
-      && !r.route_description?.toLowerCase().includes(toFilter.toLowerCase())) return false
+    // Only apply MANUAL filters (from the filter panel) — never auto-hide based on request
+    if (filterFrom && !r.from_location?.toLowerCase().includes(filterFrom.toLowerCase())
+      && !r.route_description?.toLowerCase().includes(filterFrom.toLowerCase())) return false
+    if (filterTo && !r.to_location?.toLowerCase().includes(filterTo.toLowerCase())
+      && !r.route_description?.toLowerCase().includes(filterTo.toLowerCase())) return false
     if (filterDate === 'today' && r.ride_date !== today) return false
     if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
     if (filterTime === 'morning') {
