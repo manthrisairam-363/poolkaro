@@ -242,16 +242,33 @@ export default function Chat() {
       booking_id: bookingId, sender_id: user.id, text: `📡LIVE:${user.id}`, read: false,
     }).select().single()
     if (saved) { setMsgs(prev => [...prev, saved]); scrollBottom() }
-    let lastLat = null, lastLng = null
-    liveWatchRef.current = navigator.geolocation.watchPosition(pos => {
-      lastLat = pos.coords.latitude; lastLng = pos.coords.longitude
-    })
-    liveIntervalRef.current = setInterval(async () => {
-      if (lastLat && lastLng) await supabase.from('live_locations').upsert({
+
+    // Helper to push current coords to DB
+    async function pushLocation(lat, lng) {
+      await supabase.from('live_locations').upsert({
         booking_id: bookingId, user_id: user.id,
-        lat: lastLat, lng: lastLng, is_active: true, updated_at: new Date().toISOString(),
+        lat, lng, is_active: true, updated_at: new Date().toISOString(),
       }, { onConflict: 'booking_id,user_id' })
+    }
+
+    // Get location ONCE immediately so the other person sees it right away
+    navigator.geolocation.getCurrentPosition(
+      pos => pushLocation(pos.coords.latitude, pos.coords.longitude),
+      err => console.warn('Initial location error:', err.message),
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+
+    // Then watch + update every 10s
+    let lastLat = null, lastLng = null
+    liveWatchRef.current = navigator.geolocation.watchPosition(
+      pos => { lastLat = pos.coords.latitude; lastLng = pos.coords.longitude },
+      err => console.warn('Watch error:', err.message),
+      { enableHighAccuracy: true }
+    )
+    liveIntervalRef.current = setInterval(() => {
+      if (lastLat && lastLng) pushLocation(lastLat, lastLng)
     }, 10000)
+
     if (info?.otherId) await supabase.from('notifications').insert({
       user_id: info.otherId, title: `📡 ${senderName} is sharing live location`,
       message: 'Tap to track in real time', type: 'booking', is_read: false,
@@ -270,14 +287,16 @@ export default function Chat() {
     if (saved) setMsgs(prev => [...prev, saved])
   }
 
-  // Poll live locations every 8s
+  // Poll live locations — runs immediately then every 5s
   useEffect(() => {
-    const interval = setInterval(async () => {
+    async function pollLive() {
       const { data } = await supabase.from('live_locations')
         .select('user_id,lat,lng,updated_at,is_active')
         .eq('booking_id', bookingId).eq('is_active', true)
       if (data) { const m = {}; data.forEach(l => { m[l.user_id] = l }); setLiveLocations(m) }
-    }, 8000)
+    }
+    pollLive() // run immediately
+    const interval = setInterval(pollLive, 5000)
     return () => clearInterval(interval)
   }, [bookingId])
 
