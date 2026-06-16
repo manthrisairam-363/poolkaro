@@ -39,8 +39,20 @@ export function RatingModal({ booking, rideOwner, onClose }) {
       stars,
       comment: comment || null,
     })
+    if (!error) {
+      // Recalculate rated user's average
+      const { data: allRatings } = await supabase
+        .from('ratings').select('stars').eq('rated_user', rideOwner.id)
+      if (allRatings && allRatings.length > 0) {
+        const avg = allRatings.reduce((s, r) => s + r.stars, 0) / allRatings.length
+        await supabase.from('profiles').update({
+          avg_rating: Math.round(avg * 10) / 10,
+          total_ratings: allRatings.length,
+        }).eq('id', rideOwner.id)
+      }
+      setDone(true)
+    }
     setLoading(false)
-    if (!error) setDone(true)
   }
 
   if (done) return (
