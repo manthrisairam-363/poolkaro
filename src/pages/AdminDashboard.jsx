@@ -22,9 +22,6 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState(null)
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
   const [search, setSearch] = useState('')
-  const [topupAmount, setTopupAmount] = useState('')
-  const [topupNote, setTopupNote] = useState('')
-  const [topupLoading, setTopupLoading] = useState(false)
   const [broadcastTitle, setBroadcastTitle] = useState('')
   const [broadcastMsg, setBroadcastMsg] = useState('')
   const [broadcastLoading, setBroadcastLoading] = useState(false)
@@ -217,28 +214,6 @@ export default function AdminDashboard() {
     fetchAll()
   }
 
-  async function handleTopup() {
-    if (!selectedUser || !topupAmount || !topupNote) return
-    const amt = Math.round(parseFloat(topupAmount) * 100)
-    if (isNaN(amt) || amt <= 0) return alert('Enter valid amount')
-    setTopupLoading(true)
-    await supabase.rpc('admin_credit_wallet', {
-      p_user_id: selectedUser.id,
-      p_amount: amt,
-      p_description: topupNote,
-    })
-    await supabase.from('notifications').insert({
-      user_id: selectedUser.id,
-      title: '💰 Wallet Credited!',
-      message: `₹${parseFloat(topupAmount).toFixed(0)} added to your wallet. Note: ${topupNote}`,
-      type: 'booking', is_read: false,
-    })
-    setWallets(prev => ({ ...prev, [selectedUser.id]: (prev[selectedUser.id] || 0) + amt }))
-    setTopupAmount(''); setTopupNote('')
-    setTopupLoading(false)
-    alert(`✅ ₹${parseFloat(topupAmount).toFixed(0)} added to ${selectedUser.full_name}'s wallet!`)
-  }
-
   async function handleBroadcast() {
     if (!broadcastTitle || !broadcastMsg) return alert('Fill title and message')
     if (!confirm(`Send to ALL users?\n\nTitle: ${broadcastTitle}\nMessage: ${broadcastMsg}`)) return
@@ -368,6 +343,34 @@ export default function AdminDashboard() {
   ]
 
   function UserDetailPanel({ u }) {
+    // Local state — keeps input focused (was remounting when state lived in parent)
+    const [topupAmount, setTopupAmount] = useState('')
+    const [topupNote, setTopupNote] = useState('')
+    const [topupLoading, setTopupLoading] = useState(false)
+
+    async function handleTopup() {
+      if (!u || !topupAmount || !topupNote) return
+      const amt = Math.round(parseFloat(topupAmount) * 100)
+      if (isNaN(amt) || amt <= 0) return alert('Enter valid amount')
+      setTopupLoading(true)
+      await supabase.rpc('admin_credit_wallet', {
+        p_user_id: u.id,
+        p_amount: amt,
+        p_description: topupNote,
+      })
+      await supabase.from('notifications').insert({
+        user_id: u.id,
+        title: '💰 Wallet Credited!',
+        message: `₹${parseFloat(topupAmount).toFixed(0)} added to your wallet. Note: ${topupNote}`,
+        type: 'booking', is_read: false,
+      })
+      setWallets(prev => ({ ...prev, [u.id]: (prev[u.id] || 0) + amt }))
+      const addedAmt = parseFloat(topupAmount).toFixed(0)
+      setTopupAmount(''); setTopupNote('')
+      setTopupLoading(false)
+      alert(`✅ ₹${addedAmt} added to ${u.full_name}'s wallet!`)
+    }
+
     return (
       <div onClick={() => setSelectedUser(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
         <div onClick={e => e.stopPropagation()} style={{ background: '#111', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -1200,7 +1203,7 @@ function CityAnalyticsTab({ supabase }) {
   if(!data)return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
   return (
     <div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr',gap:12,marginBottom:16}}>
         {Object.entries(data).map(([city,stats])=>{
           const topC=Object.entries(stats.corridors).sort(([,a],[,b])=>b-a).slice(0,3)
           const peak=Object.entries(stats.hours).sort(([,a],[,b])=>b-a)[0]
