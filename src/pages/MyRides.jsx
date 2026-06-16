@@ -544,13 +544,6 @@ export default function MyRides() {
                 </button>
               ))}
             </div>
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, letterSpacing: 0.5 }}>DRIVER'S UPI ID</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{upiSheet.upi}</div>
-              </div>
-              <button onClick={() => { navigator.clipboard?.writeText(upiSheet.upi); alert('UPI ID copied!') }} style={{ background: '#0f172a', color: '#facc15', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Copy</button>
-            </div>
             <button onClick={() => setUpiSheet(null)} style={{ width: '100%', padding: 12, background: 'none', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
           </div>
         </div>
