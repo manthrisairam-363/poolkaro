@@ -62,7 +62,7 @@ export default function Login() {
             color: '#0f172a',
             lineHeight: 1.3,
           }}>
-            Adhvaith ,<br />
+            Good Journeys ,<br />
             <span style={{ color: '#f59e0b' }}>Start Together</span>
           </div>
           <div style={{ fontSize: 13, color: '#64748b', marginTop: 6, fontWeight: 500 }}>
