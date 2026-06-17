@@ -402,7 +402,7 @@ export default function AdminDashboard() {
               ['🙋 Rides taken', u.total_rides_taken || 0],
               ['⭐ Rating', Number(u.avg_rating || 0).toFixed(1)],
               ['🎁 Referral code', u.referral_code || '—'],
-              ['🚘 Vehicle', u.vehicle_model || '—'],
+              ['🚘 Vehicle', `${u.vehicle_model || '—'}${u.vehicle_number ? ' · ' + u.vehicle_number : ''}`],
               ['💳 UPI', u.upi_id || '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ background: '#1a1a1a', borderRadius: 8, padding: '8px 10px' }}>
