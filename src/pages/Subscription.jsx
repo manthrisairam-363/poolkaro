@@ -61,7 +61,7 @@ export default function Subscription() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-          body: JSON.stringify({ action: 'create_order', amount: plan.price })
+          body: JSON.stringify({ action: 'create_order', amount: plan.price, purpose: 'subscription' })
         }
       )
       const order = await orderRes.json()
@@ -89,6 +89,7 @@ export default function Subscription() {
                 payment_id: response.razorpay_payment_id,
                 order_id: response.razorpay_order_id,
                 signature: response.razorpay_signature,
+                purpose: 'subscription',
               })
             }
           )
