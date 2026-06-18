@@ -540,7 +540,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -588,13 +588,14 @@ export default function AdminDashboard() {
 
                 {/* Revenue Chart */}
                 <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 16, color: '#facc15' }}>📊 Revenue — Last 30 Days</div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80, overflowX: 'auto' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 16, color: '#facc15' }}>📊 Real Revenue — Last 30 Days</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, overflowX: 'auto' }}>
                     {revenueData.map((d, i) => (
-                      <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 18 }}>
+                      <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 18, gap: 2 }}>
+                        {d.revenue > 0 && <div style={{ fontSize: 8, color: '#facc15', fontWeight: 700 }}>₹{d.revenue.toFixed(0)}</div>}
                         <div style={{
-                          width: '100%', background: d.revenue > 0 ? '#16a34a' : '#222',
-                          height: Math.max(3, (d.revenue / maxRevenue) * 64), borderRadius: '3px 3px 0 0',
+                          width: '100%', background: d.revenue > 0 ? '#facc15' : '#2a2a2a',
+                          height: Math.max(4, (d.revenue / maxRevenue) * 70), borderRadius: '3px 3px 0 0',
                           transition: '0.2s',
                         }} title={`${d.label}: ₹${d.revenue}`} />
                       </div>
@@ -605,7 +606,7 @@ export default function AdminDashboard() {
                     <span style={{ fontSize: 9, color: '#444' }}>{revenueData[revenueData.length-1]?.label}</span>
                   </div>
                   <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginTop: 4 }}>
-                    Total: ₹{revenueData.reduce((s, d) => s + d.revenue, 0)} this month
+                    Total: ₹{revenueData.reduce((s, d) => s + d.revenue, 0).toFixed(0)} this month · Real revenue (recharges + Pro)
                   </div>
                 </div>
 
@@ -639,6 +640,7 @@ export default function AdminDashboard() {
                   ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
                   ['revenue',   '💰', 'Revenue',   'Earnings',                 '#facc15'],
+                  ['recharges', '💳', 'Recharges', 'Wallet top-ups',           '#22c55e'],
                   ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
@@ -1054,6 +1056,10 @@ export default function AdminDashboard() {
               <RevenueTab supabase={supabase} />
             )}
 
+            {tab === 'recharges' && (
+              <RechargesTab supabase={supabase} />
+            )}
+
             {/* ── CITY ANALYTICS ── */}
             {tab === 'cities' && (
               <CityAnalyticsTab supabase={supabase} />
@@ -1230,6 +1236,69 @@ function RevenueTab({ supabase }) {
 
       <div style={{marginTop:12,padding:12,background:'#111',borderRadius:12,fontSize:11,color:'#555',lineHeight:1.6}}>
         💡 <b style={{color:'#888'}}>Real Revenue</b> = actual cash in via Razorpay (wallet recharges + Pro subscriptions). Wallet recharges are user funds you hold; subscriptions are pure income. Net is after Razorpay's ~2.36% cut.
+      </div>
+    </div>
+  )
+}
+
+// ── RECHARGES (real wallet top-ups via Razorpay) ──
+function RechargesTab({ supabase }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const { data: txns } = await supabase
+      .from('wallet_transactions')
+      .select('user_id, amount, description, created_at')
+      .eq('type', 'razorpay')
+      .order('created_at', { ascending: false })
+    const ids = [...new Set((txns || []).map(t => t.user_id))]
+    let names = {}
+    if (ids.length) {
+      const { data: profs } = await supabase
+        .from('profiles').select('id, full_name, phone').in('id', ids)
+      ;(profs || []).forEach(p => { names[p.id] = p })
+    }
+    setRows((txns || []).map(t => ({
+      ...t,
+      name: names[t.user_id]?.full_name || 'Unknown',
+      phone: names[t.user_id]?.phone || '—',
+      rupees: Math.abs(Number(t.amount || 0)) / 100,
+    })))
+  }
+  if (!rows) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading...</div>
+  const total = rows.reduce((s, r) => s + r.rupees, 0)
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <div style={{ background: '#22c55e', borderRadius: 12, padding: '14px 12px' }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>💳 Total Recharged</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>₹{total.toFixed(0)}</div>
+        </div>
+        <div style={{ background: '#1a1a1a', borderRadius: 12, padding: '14px 12px' }}>
+          <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>🧾 Transactions</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#facc15' }}>{rows.length}</div>
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ color: '#555', textAlign: 'center', padding: 40 }}>No recharges yet</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rows.map((r, i) => (
+            <div key={i} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, color: '#fff', fontSize: 14 }}>{r.name}</div>
+                <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{r.phone}</div>
+                <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
+                  {new Date(r.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+              <div style={{ fontWeight: 900, color: '#22c55e', fontSize: 18 }}>+₹{r.rupees.toFixed(0)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ marginTop: 12, padding: 12, background: '#111', borderRadius: 12, fontSize: 11, color: '#555', lineHeight: 1.6 }}>
+        💡 Real wallet recharges via Razorpay. This is money users added (held by you). Admin top-ups/gifts are NOT shown here.
       </div>
     </div>
   )
