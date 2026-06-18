@@ -50,7 +50,7 @@ export default function AdminDashboard() {
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('rides').select('*, profiles(full_name, phone)').order('created_at', { ascending: false }).limit(200),
         supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(200),
-        supabase.from('wallet_transactions').select('created_at, type, amount').in('type', ['booking_fee', 'posting_fee']),
+        supabase.from('wallet_transactions').select('created_at, type, amount').in('type', ['booking_fee', 'posting_fee', 'razorpay', 'subscription']),
       ])
 
       const usersData = usersRes.data || []
@@ -60,10 +60,10 @@ export default function AdminDashboard() {
 
       const confirmedBookings = bookingsData.filter(b => b.status === 'confirmed')
       const cancelledBookings = bookingsData.filter(b => b.status === 'cancelled')
-      // Real revenue = platform fees collected (booking_fee + posting_fee)
-      // These are stored as negative amounts (deducted from wallets), so use absolute value
+      // REAL revenue = recharges (razorpay) + Pro subscriptions — actual cash in
+      // Platform fees are NOT counted (mostly paid from bonus money we gifted)
       const totalRevenue = txnData.filter(t =>
-        t.type === 'booking_fee' || t.type === 'posting_fee'
+        t.type === 'razorpay' || t.type === 'subscription'
       ).reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) / 100
 
       const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
@@ -76,7 +76,7 @@ export default function AdminDashboard() {
 
       const totalWalletBalance = (walletsData || []).reduce((s, w) => s + (w.balance || 0), 0)
 
-      // Revenue chart — count booking_fee txns per day (each pair = ₹4)
+      // Revenue chart — REAL revenue (recharge + subscription) per day
       const dayMap = {}
       for (let i = 29; i >= 0; i--) {
         const d = new Date(Date.now() - i * 86400000)
@@ -84,11 +84,12 @@ export default function AdminDashboard() {
         dayMap[key] = 0
       }
       txnData.forEach(t => {
+        if (t.type !== 'razorpay' && t.type !== 'subscription') return
         const key = t.created_at?.split('T')[0]
-        if (key && dayMap[key] !== undefined) dayMap[key]++
+        if (key && dayMap[key] !== undefined) dayMap[key] += Math.abs(Number(t.amount || 0)) / 100
       })
-      const rev = Object.entries(dayMap).map(([date, count]) => ({
-        date, revenue: Math.floor(count / 2) * 4,
+      const rev = Object.entries(dayMap).map(([date, amount]) => ({
+        date, revenue: amount,
         label: new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
       }))
       setRevenueData(rev)
@@ -113,7 +114,7 @@ export default function AdminDashboard() {
         totalRevenue,
         totalWalletBalance: Math.round(totalWalletBalance / 100),
         todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
-        todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.type === 'booking_fee' || t.type === 'posting_fee')).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100,
+        todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.type === 'razorpay' || t.type === 'subscription')).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100,
         verifiedUsers: usersData.filter(u => u.is_verified).length,
         workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
         totalReferrals: usersData.filter(u => u.referred_by).length,
@@ -402,7 +403,7 @@ export default function AdminDashboard() {
               ['🙋 Rides taken', u.total_rides_taken || 0],
               ['⭐ Rating', Number(u.avg_rating || 0).toFixed(1)],
               ['🎁 Referral code', u.referral_code || '—'],
-              ['🚘 Vehicle', u.vehicle_model || '—'],
+              ['🚘 Vehicle', `${u.vehicle_model || '—'}${u.vehicle_number ? ' · ' + u.vehicle_number : ''}`],
               ['💳 UPI', u.upi_id || '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ background: '#1a1a1a', borderRadius: 8, padding: '8px 10px' }}>
@@ -539,7 +540,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -587,13 +588,14 @@ export default function AdminDashboard() {
 
                 {/* Revenue Chart */}
                 <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 16, color: '#facc15' }}>📊 Revenue — Last 30 Days</div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80, overflowX: 'auto' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 16, color: '#facc15' }}>📊 Real Revenue — Last 30 Days</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, overflowX: 'auto' }}>
                     {revenueData.map((d, i) => (
-                      <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 18 }}>
+                      <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 18, gap: 2 }}>
+                        {d.revenue > 0 && <div style={{ fontSize: 8, color: '#facc15', fontWeight: 700 }}>₹{d.revenue.toFixed(0)}</div>}
                         <div style={{
-                          width: '100%', background: d.revenue > 0 ? '#16a34a' : '#222',
-                          height: Math.max(3, (d.revenue / maxRevenue) * 64), borderRadius: '3px 3px 0 0',
+                          width: '100%', background: d.revenue > 0 ? '#facc15' : '#2a2a2a',
+                          height: Math.max(4, (d.revenue / maxRevenue) * 70), borderRadius: '3px 3px 0 0',
                           transition: '0.2s',
                         }} title={`${d.label}: ₹${d.revenue}`} />
                       </div>
@@ -604,7 +606,7 @@ export default function AdminDashboard() {
                     <span style={{ fontSize: 9, color: '#444' }}>{revenueData[revenueData.length-1]?.label}</span>
                   </div>
                   <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginTop: 4 }}>
-                    Total: ₹{revenueData.reduce((s, d) => s + d.revenue, 0)} this month
+                    Total: ₹{revenueData.reduce((s, d) => s + d.revenue, 0).toFixed(0)} this month · Real revenue (recharges + Pro)
                   </div>
                 </div>
 
@@ -637,12 +639,13 @@ export default function AdminDashboard() {
                   ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
                   ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
+                  ['subs',      '⭐', 'Subscriptions', 'Pro members',           '#f59e0b'],
+                  ['recharges', '💳', 'Recharges', 'Wallet top-ups',           '#22c55e'],
                   ['revenue',   '💰', 'Revenue',   'Earnings',                 '#facc15'],
                   ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
                   ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
-                  ['subs',      '⭐', 'Subs',      'Pro members',              '#f59e0b'],
                   ['live',      '🔴', 'Live',      'Active rides',             '#16a34a'],
                   ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
                   ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
@@ -1053,6 +1056,10 @@ export default function AdminDashboard() {
               <RevenueTab supabase={supabase} />
             )}
 
+            {tab === 'recharges' && (
+              <RechargesTab supabase={supabase} />
+            )}
+
             {/* ── CITY ANALYTICS ── */}
             {tab === 'cities' && (
               <CityAnalyticsTab supabase={supabase} />
@@ -1119,24 +1126,47 @@ function RevenueTab({ supabase }) {
     const now = new Date()
     const d30 = new Date(now - 30 * 86400000).toISOString()
     const d7  = new Date(now - 7  * 86400000).toISOString()
-    const [t30, t7, tAll, proSubs, dailyRaw] = await Promise.all([
-      supabase.from('wallet_transactions').select('amount').eq('type','debit').ilike('description','%platform%').gte('created_at', d30),
-      supabase.from('wallet_transactions').select('amount').eq('type','debit').ilike('description','%platform%').gte('created_at', d7),
-      supabase.from('wallet_transactions').select('amount').eq('type','debit').ilike('description','%platform%'),
-      supabase.from('profiles').select('id').not('subscription_expires_at','is',null).gt('subscription_expires_at', now.toISOString()),
-      supabase.from('wallet_transactions').select('amount,created_at').eq('type','debit').ilike('description','%platform%').gte('created_at', d30).order('created_at'),
+
+    // REAL revenue = recharges (type 'razorpay') + Pro subscriptions (type 'subscription')
+    // Platform fees (booking_fee/posting_fee) = engagement metric, mostly from bonus money
+    const [allTxn, proSubs] = await Promise.all([
+      supabase.from('wallet_transactions').select('amount, type, created_at')
+        .in('type', ['razorpay', 'subscription', 'booking_fee', 'posting_fee']),
+      supabase.from('profiles').select('id')
+        .not('subscription_expires_at','is',null).gt('subscription_expires_at', now.toISOString()),
     ])
+
+    const txns = allTxn.data || []
+    const RAZ_RATE = 0.0236 // Razorpay ~2% + 18% GST on that
+
+    // Helper: sum absolute rupees for given types within optional date
+    const sumReal = (since) => {
+      return txns.filter(t =>
+        (t.type === 'razorpay' || t.type === 'subscription') &&
+        (!since || t.created_at >= since)
+      ).reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) / 100
+    }
+    const sumByType = (type) =>
+      txns.filter(t => t.type === type).reduce((s,t)=>s+Math.abs(Number(t.amount||0)),0) / 100
+
+    const recharges = sumByType('razorpay')
+    const subscriptions = sumByType('subscription')
+    const platformFees = sumByType('booking_fee') + sumByType('posting_fee')
+    const realAll = recharges + subscriptions
+    const realNet = realAll * (1 - RAZ_RATE)
+
+    // Daily REAL revenue chart (last 30 days)
     const byDay = {}
-    ;(dailyRaw.data || []).forEach(tx => {
-      const d = tx.created_at?.split('T')[0]
-      byDay[d] = (byDay[d] || 0) + Number(tx.amount)
-    })
+    txns.filter(t => (t.type === 'razorpay' || t.type === 'subscription') && t.created_at >= d30)
+      .forEach(tx => {
+        const d = tx.created_at?.split('T')[0]
+        byDay[d] = (byDay[d] || 0) + Math.abs(Number(tx.amount)) / 100
+      })
+
     setData({
-      rev30: (t30.data||[]).reduce((s,t)=>s+Number(t.amount),0),
-      rev7:  (t7.data ||[]).reduce((s,t)=>s+Number(t.amount),0),
-      revAll:(tAll.data||[]).reduce((s,t)=>s+Number(t.amount),0),
-      proCount: proSubs.data?.length || 0,
-      byDay,
+      realAll, realNet, real30: sumReal(d30), real7: sumReal(d7),
+      recharges, subscriptions, platformFees,
+      proCount: proSubs.data?.length || 0, byDay,
     })
   }
   if (!data) return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
@@ -1144,22 +1174,47 @@ function RevenueTab({ supabase }) {
   const maxRev = Math.max(...days.map(([,v])=>v), 1)
   return (
     <div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:10,marginBottom:20}}>
-        {[['💰 All Time',`₹${data.revAll.toFixed(0)}`,'#facc15','#111'],['📅 30 Days',`₹${data.rev30.toFixed(0)}`,'#16a34a','#fff'],['📅 7 Days',`₹${data.rev7.toFixed(0)}`,'#2563eb','#fff'],['⭐ Pro Active',`${data.proCount}`,'#7c3aed','#fff']].map(([l,v,bg,c])=>(
+      {/* Top cards — REAL revenue */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:10,marginBottom:16}}>
+        {[['💰 Real (All Time)',`₹${data.realAll.toFixed(0)}`,'#facc15','#111'],['📅 30 Days',`₹${data.real30.toFixed(0)}`,'#16a34a','#fff'],['📅 7 Days',`₹${data.real7.toFixed(0)}`,'#2563eb','#fff'],['⭐ Pro Active',`${data.proCount}`,'#7c3aed','#fff']].map(([l,v,bg,c])=>(
           <div key={l} style={{background:bg,borderRadius:12,padding:'14px 12px'}}>
             <div style={{fontSize:10,color:c==='#111'?'#854d0e':'rgba(255,255,255,0.6)',marginBottom:4}}>{l}</div>
             <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
           </div>
         ))}
       </div>
+
+      {/* Breakdown */}
+      <div style={{background:'#111',borderRadius:14,padding:16,marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#facc15',marginBottom:14}}>💵 Real Revenue Breakdown</div>
+        {[
+          ['💳 Wallet Recharges', data.recharges, '#22c55e'],
+          ['⭐ Pro Subscriptions', data.subscriptions, '#a855f7'],
+        ].map(([l,v,c])=>(
+          <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid #1a1a1a'}}>
+            <span style={{color:'#888',fontSize:13}}>{l}</span>
+            <span style={{fontWeight:700,color:c,fontSize:14}}>₹{v.toFixed(0)}</span>
+          </div>
+        ))}
+        <div style={{display:'flex',justifyContent:'space-between',padding:'12px 0 4px'}}>
+          <span style={{color:'#fff',fontSize:14,fontWeight:800}}>🟢 Gross Revenue</span>
+          <span style={{fontWeight:900,color:'#facc15',fontSize:16}}>₹{data.realAll.toFixed(0)}</span>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0'}}>
+          <span style={{color:'#888',fontSize:12}}>🏦 Net after Razorpay (~2.36%)</span>
+          <span style={{fontWeight:700,color:'#86efac',fontSize:13}}>≈ ₹{data.realNet.toFixed(0)}</span>
+        </div>
+      </div>
+
+      {/* Daily real revenue chart */}
       <div style={{background:'#111',borderRadius:14,padding:16}}>
-        <div style={{fontSize:12,fontWeight:700,color:'#facc15',marginBottom:14}}>📈 Daily Revenue — Last 30 Days</div>
+        <div style={{fontSize:12,fontWeight:700,color:'#facc15',marginBottom:14}}>📈 Real Revenue — Last 30 Days</div>
         {days.length===0
-          ? <div style={{color:'#555',textAlign:'center',padding:30}}>No revenue yet</div>
+          ? <div style={{color:'#555',textAlign:'center',padding:30}}>No real revenue yet</div>
           : <div style={{display:'flex',alignItems:'flex-end',gap:3,height:120,overflowX:'auto'}}>
               {days.map(([day,rev])=>(
                 <div key={day} style={{flex:1,minWidth:20,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                  <div style={{fontSize:8,color:'#555'}}>₹{rev}</div>
+                  <div style={{fontSize:8,color:'#555'}}>₹{rev.toFixed(0)}</div>
                   <div style={{width:'100%',background:'#facc15',borderRadius:'3px 3px 0 0',height:`${(rev/maxRev)*90}px`,minHeight:4}}/>
                   <div style={{fontSize:7,color:'#444',transform:'rotate(-45deg)',transformOrigin:'top left',whiteSpace:'nowrap',marginTop:4}}>{new Date(day).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
                 </div>
@@ -1167,8 +1222,83 @@ function RevenueTab({ supabase }) {
             </div>
         }
       </div>
-      <div style={{marginTop:12,padding:12,background:'#111',borderRadius:12,fontSize:12,color:'#555'}}>
-        💡 Revenue = ₹2 platform fee per booking. Pro subscribers pay no fees.
+
+      {/* Platform fees — engagement metric (separate, not real revenue) */}
+      <div style={{marginTop:12,padding:14,background:'#0a0a0a',border:'1px solid #1a1a1a',borderRadius:12}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{color:'#888',fontSize:13}}>📊 Platform fees collected</span>
+          <span style={{fontWeight:700,color:'#64748b',fontSize:14}}>₹{data.platformFees.toFixed(0)}</span>
+        </div>
+        <div style={{fontSize:10,color:'#444',marginTop:6,lineHeight:1.5}}>
+          ⚠️ Engagement metric only — NOT counted as real revenue. Most ₹2 fees are paid from signup/referral bonus money (gifted by us), so this isn't actual income.
+        </div>
+      </div>
+
+      <div style={{marginTop:12,padding:12,background:'#111',borderRadius:12,fontSize:11,color:'#555',lineHeight:1.6}}>
+        💡 <b style={{color:'#888'}}>Real Revenue</b> = actual cash in via Razorpay (wallet recharges + Pro subscriptions). Wallet recharges are user funds you hold; subscriptions are pure income. Net is after Razorpay's ~2.36% cut.
+      </div>
+    </div>
+  )
+}
+
+// ── RECHARGES (real wallet top-ups via Razorpay) ──
+function RechargesTab({ supabase }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const { data: txns } = await supabase
+      .from('wallet_transactions')
+      .select('user_id, amount, description, created_at')
+      .eq('type', 'razorpay')
+      .order('created_at', { ascending: false })
+    const ids = [...new Set((txns || []).map(t => t.user_id))]
+    let names = {}
+    if (ids.length) {
+      const { data: profs } = await supabase
+        .from('profiles').select('id, full_name, phone').in('id', ids)
+      ;(profs || []).forEach(p => { names[p.id] = p })
+    }
+    setRows((txns || []).map(t => ({
+      ...t,
+      name: names[t.user_id]?.full_name || 'Unknown',
+      phone: names[t.user_id]?.phone || '—',
+      rupees: Math.abs(Number(t.amount || 0)) / 100,
+    })))
+  }
+  if (!rows) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading...</div>
+  const total = rows.reduce((s, r) => s + r.rupees, 0)
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <div style={{ background: '#22c55e', borderRadius: 12, padding: '14px 12px' }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>💳 Total Recharged</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>₹{total.toFixed(0)}</div>
+        </div>
+        <div style={{ background: '#1a1a1a', borderRadius: 12, padding: '14px 12px' }}>
+          <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>🧾 Transactions</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#facc15' }}>{rows.length}</div>
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ color: '#555', textAlign: 'center', padding: 40 }}>No recharges yet</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rows.map((r, i) => (
+            <div key={i} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, color: '#fff', fontSize: 14 }}>{r.name}</div>
+                <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{r.phone}</div>
+                <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
+                  {new Date(r.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+              <div style={{ fontWeight: 900, color: '#22c55e', fontSize: 18 }}>+₹{r.rupees.toFixed(0)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ marginTop: 12, padding: 12, background: '#111', borderRadius: 12, fontSize: 11, color: '#555', lineHeight: 1.6 }}>
+        💡 Real wallet recharges via Razorpay. This is money users added (held by you). Admin top-ups/gifts are NOT shown here.
       </div>
     </div>
   )
@@ -1517,14 +1647,20 @@ function FixCitiesButton({ supabase, onDone }) {
 function SubscriptionsTab({ supabase }) {
   const [subs, setSubs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [subRevenue, setSubRevenue] = useState(0)
   useEffect(() => { load() }, [])
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('profiles')
-      .select('id,full_name,email,phone,subscription_expires_at,created_at')
-      .not('subscription_expires_at', 'is', null)
-      .order('subscription_expires_at', { ascending: false })
-    setSubs(data || [])
+    const [profRes, subRevRes] = await Promise.all([
+      supabase.from('profiles')
+        .select('id,full_name,email,phone,subscription_expires_at,created_at')
+        .not('subscription_expires_at', 'is', null)
+        .order('subscription_expires_at', { ascending: false }),
+      supabase.from('wallet_transactions').select('amount').eq('type', 'subscription'),
+    ])
+    setSubs(profRes.data || [])
+    const rev = (subRevRes.data || []).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100
+    setSubRevenue(rev)
     setLoading(false)
   }
   async function grantPro(userId) {
@@ -1544,7 +1680,7 @@ function SubscriptionsTab({ supabase }) {
   return (
     <div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:20}}>
-        {[['⭐ Active Pro',active.length,'#facc15'],['💀 Expired',expired.length,'#ef4444'],['💰 Revenue',`₹${active.length * 79}`,'#22c55e']].map(([l,v,c])=>(
+        {[['⭐ Active Pro',active.length,'#facc15'],['💀 Expired',expired.length,'#ef4444'],['💰 Revenue',`₹${subRevenue.toFixed(0)}`,'#22c55e']].map(([l,v,c])=>(
           <div key={l} style={{background:'#111',borderRadius:12,padding:14}}>
             <div style={{fontSize:10,color:'#555',marginBottom:6}}>{l}</div>
             <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
@@ -1592,12 +1728,31 @@ function LiveRidesTab({ supabase }) {
   async function load() {
     setLoading(true)
     const { data } = await supabase.from('rides')
-      .select('*, profiles(full_name,phone,avg_rating)')
+      .select('*, profiles(full_name,phone,avg_rating,vehicle_model,vehicle_number)')
       .in('status', ['active','full'])
       .order('ride_date').order('ride_time')
     setRides(data || [])
     setLastRefresh(new Date())
     setLoading(false)
+  }
+  function shareRide(r) {
+    const dateStr = new Date(r.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const t = r.ride_time?.slice(0,5) || ''
+    const [h, m] = t.split(':')
+    const timeStr = h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : ''
+    const msg = `🚗 Carpool Available — ${dateStr}
+
+🕘 Ride Time: ${timeStr}
+👤 Name: ${r.profiles?.full_name || ''}
+🚘 Vehicle: ${r.profiles?.vehicle_model || ''}${r.profiles?.vehicle_number ? ` (${r.profiles.vehicle_number})` : ''}
+
+📍 From: ${r.from_location}
+📍 To: ${r.to_location}
+${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat
+💺 Seats Available: ${r.seats_available}
+
+🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
   const istNow = new Date(Date.now() + 5.5*3600000)
   const todayIST = istNow.toISOString().split('T')[0]
@@ -1631,10 +1786,11 @@ function LiveRidesTab({ supabase }) {
                 {r.status==='full'?'🔵 FULL':'🟢 OPEN'}
               </span>
             </div>
-            <div style={{display:'flex',gap:8,marginTop:10}}>
+            <div style={{display:'flex',gap:8,marginTop:10,alignItems:'center'}}>
               {[['💺',`${r.seats_available}/${r.seats_total} seats`],['💰',`₹${r.fare}`],[r.ride_type==='to_office'?'🏢':'🏠',r.ride_type==='to_office'?'To Office':'To Home']].map(([icon,val])=>(
                 <span key={val} style={{background:'#1a1a1a',borderRadius:20,padding:'3px 10px',fontSize:11,color:'#888'}}>{icon} {val}</span>
               ))}
+              <button onClick={()=>shareRide(r)} style={{marginLeft:'auto',background:'#16a34a',color:'#fff',border:'none',borderRadius:20,padding:'5px 14px',fontSize:11,fontWeight:700,cursor:'pointer'}}>📲 Share</button>
             </div>
           </div>
         ))}
@@ -1642,9 +1798,14 @@ function LiveRidesTab({ supabase }) {
       {upcomingRides.length > 0 && <>
         <div style={{fontSize:11,fontWeight:800,color:'#facc15',margin:'16px 0 10px',letterSpacing:1}}>📅 UPCOMING RIDES</div>
         {upcomingRides.slice(0,20).map(r => (
-          <div key={r.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:6,opacity:0.8}}>
-            <div style={{fontWeight:600,fontSize:13,color:'#fff'}}>{r.from_location} → {r.to_location}</div>
-            <div style={{fontSize:11,color:'#555',marginTop:3}}>{new Date(r.ride_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} · {r.ride_time?.slice(0,5)} · {r.profiles?.full_name}</div>
+          <div key={r.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:6,opacity:0.85}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,color:'#fff'}}>{r.from_location} → {r.to_location}</div>
+                <div style={{fontSize:11,color:'#555',marginTop:3}}>{new Date(r.ride_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} · {r.ride_time?.slice(0,5)} · {r.profiles?.full_name} · 💺 {r.seats_available}/{r.seats_total}</div>
+              </div>
+              <button onClick={()=>shareRide(r)} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:20,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📲 Share</button>
+            </div>
           </div>
         ))}
       </>}

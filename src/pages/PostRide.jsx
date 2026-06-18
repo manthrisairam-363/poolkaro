@@ -41,7 +41,6 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
 💰 Fare: ₹${form.fare} per seat
 💺 Seats Available: ${form.seats_available}
 
-📞 Contact: ${profile?.phone}
 🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
   }
 
