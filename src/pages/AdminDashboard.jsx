@@ -639,13 +639,13 @@ export default function AdminDashboard() {
                   ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
                   ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
-                  ['revenue',   '💰', 'Revenue',   'Earnings',                 '#facc15'],
+                  ['subs',      '⭐', 'Subscriptions', 'Pro members',           '#f59e0b'],
                   ['recharges', '💳', 'Recharges', 'Wallet top-ups',           '#22c55e'],
+                  ['revenue',   '💰', 'Revenue',   'Earnings',                 '#facc15'],
                   ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
                   ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
-                  ['subs',      '⭐', 'Subs',      'Pro members',              '#f59e0b'],
                   ['live',      '🔴', 'Live',      'Active rides',             '#16a34a'],
                   ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
                   ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
@@ -1728,12 +1728,31 @@ function LiveRidesTab({ supabase }) {
   async function load() {
     setLoading(true)
     const { data } = await supabase.from('rides')
-      .select('*, profiles(full_name,phone,avg_rating)')
+      .select('*, profiles(full_name,phone,avg_rating,vehicle_model,vehicle_number)')
       .in('status', ['active','full'])
       .order('ride_date').order('ride_time')
     setRides(data || [])
     setLastRefresh(new Date())
     setLoading(false)
+  }
+  function shareRide(r) {
+    const dateStr = new Date(r.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const t = r.ride_time?.slice(0,5) || ''
+    const [h, m] = t.split(':')
+    const timeStr = h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : ''
+    const msg = `🚗 Carpool Available — ${dateStr}
+
+🕘 Ride Time: ${timeStr}
+👤 Name: ${r.profiles?.full_name || ''}
+🚘 Vehicle: ${r.profiles?.vehicle_model || ''}${r.profiles?.vehicle_number ? ` (${r.profiles.vehicle_number})` : ''}
+
+📍 From: ${r.from_location}
+📍 To: ${r.to_location}
+${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat
+💺 Seats Available: ${r.seats_available}
+
+🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
   const istNow = new Date(Date.now() + 5.5*3600000)
   const todayIST = istNow.toISOString().split('T')[0]
@@ -1767,10 +1786,11 @@ function LiveRidesTab({ supabase }) {
                 {r.status==='full'?'🔵 FULL':'🟢 OPEN'}
               </span>
             </div>
-            <div style={{display:'flex',gap:8,marginTop:10}}>
+            <div style={{display:'flex',gap:8,marginTop:10,alignItems:'center'}}>
               {[['💺',`${r.seats_available}/${r.seats_total} seats`],['💰',`₹${r.fare}`],[r.ride_type==='to_office'?'🏢':'🏠',r.ride_type==='to_office'?'To Office':'To Home']].map(([icon,val])=>(
                 <span key={val} style={{background:'#1a1a1a',borderRadius:20,padding:'3px 10px',fontSize:11,color:'#888'}}>{icon} {val}</span>
               ))}
+              <button onClick={()=>shareRide(r)} style={{marginLeft:'auto',background:'#16a34a',color:'#fff',border:'none',borderRadius:20,padding:'5px 14px',fontSize:11,fontWeight:700,cursor:'pointer'}}>📲 Share</button>
             </div>
           </div>
         ))}
@@ -1778,9 +1798,14 @@ function LiveRidesTab({ supabase }) {
       {upcomingRides.length > 0 && <>
         <div style={{fontSize:11,fontWeight:800,color:'#facc15',margin:'16px 0 10px',letterSpacing:1}}>📅 UPCOMING RIDES</div>
         {upcomingRides.slice(0,20).map(r => (
-          <div key={r.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:6,opacity:0.8}}>
-            <div style={{fontWeight:600,fontSize:13,color:'#fff'}}>{r.from_location} → {r.to_location}</div>
-            <div style={{fontSize:11,color:'#555',marginTop:3}}>{new Date(r.ride_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} · {r.ride_time?.slice(0,5)} · {r.profiles?.full_name}</div>
+          <div key={r.id} style={{background:'#111',borderRadius:12,padding:12,marginBottom:6,opacity:0.85}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,color:'#fff'}}>{r.from_location} → {r.to_location}</div>
+                <div style={{fontSize:11,color:'#555',marginTop:3}}>{new Date(r.ride_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} · {r.ride_time?.slice(0,5)} · {r.profiles?.full_name} · 💺 {r.seats_available}/{r.seats_total}</div>
+              </div>
+              <button onClick={()=>shareRide(r)} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:20,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📲 Share</button>
+            </div>
           </div>
         ))}
       </>}
