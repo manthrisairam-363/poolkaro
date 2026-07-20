@@ -52,123 +52,6 @@ function getLocationsForCity(city) {
 }
 
 
-function RideCard({ ride, onBook, myUserId }) {
-  const [expanded, setExpanded] = useState(false)
-  const isToOffice = ride.ride_type === 'to_office'
-  const isMyRide = ride.driver_id === myUserId
-  const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
-  const colors = ['#2563eb','#7c3aed','#059669','#dc2626','#d97706']
-  const color = colors[ride.driver_id?.charCodeAt(0) % colors.length] || '#2563eb'
-
-  return (
-    <div style={{
-      background: '#fff', borderRadius: 16, padding: 16,
-      boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: 12,
-      border: isMyRide ? '2px solid #facc15' : '1px solid #f0f0f0',
-    }}>
-      {isMyRide && (
-        <div style={{ background: '#facc15', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#111', display: 'inline-block', marginBottom: 8 }}>
-          YOUR RIDE
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        {ride.profiles?.avatar_url ? (
-          <img src={ride.profiles.avatar_url} alt="avatar"
-            style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #f0f0f0', pointerEvents: 'none', WebkitTouchCallout: 'none' }} />
-        ) : (
-          <div style={{
-            width: 42, height: 42, borderRadius: '50%', background: color,
-            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 700, fontSize: 15, flexShrink: 0,
-          }}>{initials}</div>
-        )}
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {ride.profiles?.full_name || 'Car Owner'}
-              {ride.profiles?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
-              {(() => {
-                const emailForCompany = (ride.profiles?.work_email_verified && ride.profiles?.work_email)
-                  ? ride.profiles.work_email
-                  : ride.profiles?.email
-                const co = getCompanyFromEmail(emailForCompany)
-                return co ? (
-                  <span style={{
-                    background: '#facc15', color: '#111',
-                    fontSize: 9, padding: '2px 7px', borderRadius: 8,
-                    fontWeight: 800, letterSpacing: 0.3,
-                  }}>
-                    🏢 {co.name}
-                  </span>
-                ) : null
-              })()}
-            </span>
-            <span style={{
-              background: isToOffice ? '#dbeafe' : '#fce7f3',
-              color: isToOffice ? '#1d4ed8' : '#be185d',
-              borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600,
-            }}>{isToOffice ? '🏢 To Office' : '🏠 To Home'}</span>
-          </div>
-          <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
-            {ride.vehicle_model} · {ride.vehicle_number}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
-        {[
-          { icon: '🕐', val: formatTime(ride.ride_time) },
-          { icon: '📅', val: formatDate(ride.ride_date) },
-          { icon: '📍', val: ride.from_location },
-          { icon: '🏁', val: ride.to_location },
-        ].map((item, i) => (
-          <div key={i} style={{ background: '#f8f9fa', borderRadius: 8, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 13 }}>{item.icon}</span>
-            <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.val}</span>
-          </div>
-        ))}
-      </div>
-
-      {expanded && ride.route_description && (
-        <div style={{ marginTop: 10, background: '#f0f4ff', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#444' }}>
-          🛣️ {ride.route_description}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '4px 12px', fontSize: 13, fontWeight: 700 }}>
-            ₹{ride.fare}
-          </span>
-          <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
-            💺 {ride.seats_available} seat{ride.seats_available !== 1 ? 's' : ''} left
-          </span>
-          {ride.is_recurring && (
-            <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 600 }}>
-              🔁 Daily
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {ride.route_description && (
-            <button onClick={() => setExpanded(!expanded)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#666', cursor: 'pointer' }}>
-              {expanded ? '▲' : 'Route ▼'}
-            </button>
-          )}
-          {!isMyRide && (
-            <button onClick={() => onBook(ride)} style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              Book ₹{ride.fare + 2}
-            </button>
-          )}
-        </div>
-      </div>
-      <div style={{ fontSize: 10, color: '#bbb', marginTop: 6, textAlign: 'right' }}>
-        + ₹2 platform fee from wallet
-      </div>
-    </div>
-  )
-}
-
 // Location autocomplete — uses city-specific locations
 function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocations, city }) {
   const cityLocs = getLocationsForCity(city || 'Hyderabad')
@@ -360,14 +243,11 @@ export default function Home() {
   const filtered = rides.filter(r => {
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
-    // Auto-filter from rider's active request (if no manual filter set)
-    const ef = !hasActiveFilters && myRequest
-    const fromFilter = filterFrom || (ef ? keyWord(myRequest.from_location) : '')
-    const toFilter = filterTo || (ef ? keyWord(myRequest.to_location) : '')
-    if (fromFilter && !r.from_location?.toLowerCase().includes(fromFilter.toLowerCase())
-      && !r.route_description?.toLowerCase().includes(fromFilter.toLowerCase())) return false
-    if (toFilter && !r.to_location?.toLowerCase().includes(toFilter.toLowerCase())
-      && !r.route_description?.toLowerCase().includes(toFilter.toLowerCase())) return false
+    // Only apply MANUAL filters (from the filter panel) — never auto-hide based on request
+    if (filterFrom && !r.from_location?.toLowerCase().includes(filterFrom.toLowerCase())
+      && !r.route_description?.toLowerCase().includes(filterFrom.toLowerCase())) return false
+    if (filterTo && !r.to_location?.toLowerCase().includes(filterTo.toLowerCase())
+      && !r.route_description?.toLowerCase().includes(filterTo.toLowerCase())) return false
     if (filterDate === 'today' && r.ride_date !== today) return false
     if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
     if (filterTime === 'morning') {
