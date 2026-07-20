@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
+import WhatsAppChannel from '../components/WhatsAppChannel'
 
 // City IT locations inline — no external import needed
 const CITY_LOCATIONS = {
@@ -645,6 +646,7 @@ export default function Home() {
         </div>
       )}
 
+      <WhatsAppChannel />
       <BottomNav />
       <GuidedTour />
       {selectedDriver && <DriverProfileModal driverId={selectedDriver} onClose={() => setSelectedDriver(null)} />}

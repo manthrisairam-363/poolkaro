@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from './lib/supabase'
+import { detectPlatform } from './lib/platform'
 import RequestRide from './pages/RequestRide'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Login from './pages/Login'
@@ -175,10 +176,16 @@ function AppRoutes() {
   const { user, profile, loading, profileError, fetchProfile } = useAuth()
   usePushNotifications(user?.id)
 
-  // Track last seen
+  // Track last seen + what device/mode they're on (for admin install guidance)
   useEffect(() => {
     if (!user?.id) return
-    supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', user.id).then(() => {})
+    const { platform, isPWA } = detectPlatform()
+    supabase.from('profiles').update({
+      last_seen_at: new Date().toISOString(),
+      platform,
+      is_pwa: isPWA,
+      platform_updated_at: new Date().toISOString(),
+    }).eq('id', user.id).then(() => {})
   }, [user?.id])
 
   if (loading) return <Loader />
