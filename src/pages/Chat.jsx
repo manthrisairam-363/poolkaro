@@ -230,7 +230,7 @@ export default function Chat() {
       if (saved) { setMsgs(prev => [...prev, saved]); scrollBottom() }
       if (info?.otherId) await supabase.from('notifications').insert({
         user_id: info.otherId, title: `📍 ${senderName} shared location`,
-        message: 'Tap to see pickup point', type: 'booking', is_read: false,
+        message: 'Tap to see pickup point', type: 'booking', booking_id: bookingId, is_read: false,
       })
     }, () => alert('Could not get location. Please enable GPS.'))
   }
@@ -271,7 +271,7 @@ export default function Chat() {
 
     if (info?.otherId) await supabase.from('notifications').insert({
       user_id: info.otherId, title: `📡 ${senderName} is sharing live location`,
-      message: 'Tap to track in real time', type: 'booking', is_read: false,
+      message: 'Tap to track in real time', type: 'booking', booking_id: bookingId, is_read: false,
     })
   }
 
@@ -405,6 +405,7 @@ export default function Chat() {
           title: `💬 ${senderName}`,
           message: msgText.slice(0, 80),
           type: 'booking',
+          booking_id: bookingId,
           is_read: false,
         })
       }

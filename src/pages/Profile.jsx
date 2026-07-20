@@ -164,7 +164,16 @@ export default function Profile() {
       <div style={{ background: '#111', padding: '20px 16px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ color: '#fff', fontWeight: 800, fontSize: 20 }}>My Profile</div>
-          <NotificationBell onNotificationClick={() => {}} />
+          <NotificationBell onNotificationClick={(n) => {
+            const t = n?.title || ''
+            const bId = n?.booking_id
+            if (bId && (t.startsWith('💬') || t.includes('📍') || t.includes('📡'))) navigate(`/chat/${bId}`)
+            else if (bId && (n?.type === 'rating' || t.toLowerCase().includes('rate'))) navigate(`/live/${bId}?rate=true`)
+            else if (bId && (n?.type === 'ride_start' || t.toLowerCase().includes('started'))) navigate(`/live/${bId}`)
+            else if (t.toLowerCase().includes('offer you a ride')) navigate('/')
+            else if (['booking', 'cancellation', 'ride_complete'].includes(n?.type)) navigate('/my-rides')
+            else navigate('/')
+          }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
 

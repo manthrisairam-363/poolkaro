@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { formatTime } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -8,6 +8,8 @@ import LocationInput from '../components/LocationInput'
 
 const inp = { width: '100%', padding: '11px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 14, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box' }
 const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, display: 'block' }
+const errInp = { ...inp, border: '2px solid #dc2626', background: '#fef2f2' }
+const errText = { fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 4 }
 
 export default function PostRide() {
   const navigate = useNavigate()
@@ -23,8 +25,25 @@ export default function PostRide() {
   const [error, setError] = useState('')
   const [posted, setPosted] = useState(false)
   const [waMessage, setWaMessage] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  // Refs so we can scroll + focus the first missing field
+  const timeRef = useRef(null)
+  const fromRef = useRef(null)
+  const toRef = useRef(null)
+  const fareRef = useRef(null)
+
+  // Clear a field's error as soon as the user fills it
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }))
+    if (v) setFieldErrors(e => (e[k] ? { ...e, [k]: false } : e))
+  }
+
+  function focusField(ref) {
+    if (!ref?.current) return
+    ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => ref.current?.focus(), 300)
+  }
 
   function generateWhatsApp() {
     const dateStr = new Date(form.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -46,44 +65,81 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
 
   async function postRide() {
     setError('')
-    if (!form.ride_time || !form.from_location || !form.to_location || !form.fare) {
-      setError('Please fill all required fields')
+
+    // ── Highlight EVERY missing mandatory field, focus the first one ──
+    const missing = {
+      ride_time: !form.ride_time,
+      from_location: !form.from_location,
+      to_location: !form.to_location,
+      fare: !form.fare,
+    }
+    setFieldErrors(missing)
+    const firstMissing = Object.entries(missing).find(([, v]) => v)?.[0]
+    if (firstMissing) {
+      setError('Please fill the highlighted field(s) below')
+      focusField({ ride_time: timeRef, from_location: fromRef, to_location: toRef, fare: fareRef }[firstMissing])
       return
     }
+
     if (form.from_location.trim().toLowerCase() === form.to_location.trim().toLowerCase()) {
       setError('Starting point and destination cannot be the same')
+      setFieldErrors({ to_location: true })
+      focusField(toRef)
       return
     }
     const fareNum = Number(form.fare)
-    if (fareNum < 10) { setError('Minimum fare is ₹10'); return }
-    if (fareNum > 500) { setError('Maximum fare is ₹500 per seat'); return }
+    if (fareNum < 10) { setError('Minimum fare is ₹10'); setFieldErrors({ fare: true }); focusField(fareRef); return }
+    if (fareNum > 500) { setError('Maximum fare is ₹500 per seat'); setFieldErrors({ fare: true }); focusField(fareRef); return }
     if (form.ride_date < today) { setError('Cannot post rides for past dates'); return }
     if (!profile?.vehicle_model) {
       setError('Please add your vehicle details in Profile first')
       return
     }
-    // Check wallet balance (single ride needs ₹2 minimum for first booking)
-    const { data: walletData } = await supabase
-      .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
-    const balance = walletData?.balance || 0
-    if (balance < 200) {
-      setError('Insufficient wallet balance. Add minimum ₹2 to your wallet first — it will be deducted when someone books your ride.')
-      return
-    }
-    // Warn for recurring rides with low balance
+
+    // ── Wallet check: ₹2 per seat. Pro subscribers pay ₹0, so they're exempt ──
+    const isPro = profile?.subscription_expires_at && new Date(profile.subscription_expires_at) > new Date()
     const seats = Number(form.seats_available)
-    const estimatedBookings = form.recurring === 'once' ? seats : seats * (form.recurring === 'weekdays' ? 20 : 28)
-    const estimatedCost = estimatedBookings * 200 // ₹2 per booking in paise
-    if (form.recurring !== 'once' && balance < estimatedCost) {
-      const canCover = Math.floor(balance / 200)
-      setError(`⚠️ Low balance: ₹${balance/100} covers ~${canCover} bookings. Top up wallet to ensure all bookings go through. Proceeding anyway...`)
-      // Don't return — let them post but warn
+    if (!isPro) {
+      const { data: walletData } = await supabase
+        .from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+      const balance = walletData?.balance || 0
+      const requiredPaise = seats * 200   // ₹2 per seat, in paise
+
+      if (balance < requiredPaise) {
+        alert(
+          `⚠️ Insufficient wallet balance\n\n` +
+          `You're posting ${seats} seat${seats > 1 ? 's' : ''}, which needs ₹${requiredPaise / 100} ` +
+          `(₹2 per seat, deducted only when someone books).\n\n` +
+          `Your balance: ₹${balance / 100}\n\n` +
+          `Please recharge your wallet and try again.`
+        )
+        setError(`Insufficient balance. You need ₹${requiredPaise / 100} for ${seats} seat${seats > 1 ? 's' : ''}. Your balance is ₹${balance / 100}.`)
+        setLoading(false)
+        return
+      }
+
+      // Recurring: we only require ONE day's worth up front, but warn about the rest
+      if (form.recurring !== 'once') {
+        const totalDays = form.recurring === 'weekdays' ? 5 : 7
+        const fullCost = seats * 200 * totalDays
+        if (balance < fullCost) {
+          const ok = confirm(
+            `ℹ️ Heads up\n\n` +
+            `You're posting ${totalDays} days × ${seats} seat${seats > 1 ? 's' : ''}. ` +
+            `If every seat gets booked, that's ₹${fullCost / 100} in platform fees.\n\n` +
+            `Your balance: ₹${balance / 100}\n\n` +
+            `You can post now and top up later. Continue?`
+          )
+          if (!ok) return
+        }
+      }
     }
+
     setLoading(true)
-    // Build list of dates to post
+    // Build list of dates to post — ONE WEEK max
     const dates = []
     const start = new Date(form.ride_date)
-    const days = form.recurring === 'once' ? 1 : 28
+    const days = form.recurring === 'once' ? 1 : 7
     for (let i = 0; i < days; i++) {
       const d = new Date(start)
       d.setDate(start.getDate() + i)
@@ -105,9 +161,9 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
     const { error: err } = await supabase.from('rides').insert(rideObjects)
     setLoading(false)
     if (err) { setError(err.message); return }
-    const ridesPosted = form.recurring === 'once' ? 1 : form.recurring === 'weekdays' ? 20 : 28
+    const ridesPosted = dates.length
     setWaMessage(generateWhatsApp() + (form.recurring !== 'once' ? `
-🔁 Recurring: ${form.recurring === 'weekdays' ? 'Mon-Fri' : 'Daily'} for 4 weeks (${ridesPosted} rides posted)` : ''))
+🔁 Recurring: ${form.recurring === 'weekdays' ? 'Mon-Fri' : 'Daily'} for 1 week (${ridesPosted} rides posted)` : ''))
     setPosted(true)
   }
 
@@ -184,11 +240,12 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
           </div>
           <div>
             <span style={label}>Time *</span>
-            <input style={inp} type="time" value={form.ride_time} onChange={e => set('ride_time', e.target.value)} />
+            <input ref={timeRef} style={fieldErrors.ride_time ? errInp : inp} type="time" value={form.ride_time} onChange={e => set('ride_time', e.target.value)} />
+            {fieldErrors.ride_time && <div style={errText}>⚠️ Required</div>}
           </div>
         </div>
 
-        <LocationInput label="From (Starting point) *" value={form.from_location} onChange={v => set('from_location', v)} placeholder="e.g. Uppal Ring Road" city={profile?.city} />
+        <LocationInput label="From (Starting point) *" value={form.from_location} onChange={v => set('from_location', v)} placeholder="e.g. Uppal Ring Road" city={profile?.city} error={fieldErrors.from_location} inputRef={fromRef} />
 
         {/* Swap button */}
         <div style={{ display: 'flex', justifyContent: 'center', margin: '-6px 0', position: 'relative', zIndex: 10 }}>
@@ -211,7 +268,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
           >⇅</button>
         </div>
 
-        <LocationInput label="To (Destination) *" value={form.to_location} onChange={v => set('to_location', v)} placeholder="e.g. GAR Kokapet, Financial District" city={profile?.city} />
+        <LocationInput label="To (Destination) *" value={form.to_location} onChange={v => set('to_location', v)} placeholder="e.g. GAR Kokapet, Financial District" city={profile?.city} error={fieldErrors.to_location} inputRef={toRef} />
 
         <span style={label}>Route via (optional)</span>
         <input style={{ ...inp, marginBottom: 14 }} placeholder="Uppal → Nagole → LB Nagar → Kokapet" value={form.route_description} onChange={e => set('route_description', e.target.value)} />
@@ -219,7 +276,8 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
           <div>
             <span style={label}>Fare per seat (₹) *</span>
-            <input style={inp} type="number" placeholder="150" value={form.fare} onChange={e => set('fare', e.target.value)} />
+            <input ref={fareRef} style={fieldErrors.fare ? errInp : inp} type="number" placeholder="150" value={form.fare} onChange={e => set('fare', e.target.value)} />
+            {fieldErrors.fare && <div style={errText}>⚠️ Required</div>}
           </div>
           <div>
             <span style={label}>Seats Available</span>
@@ -255,7 +313,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
           </div>
           {form.recurring !== 'once' && (
             <div style={{ marginTop: 8, background: '#f0f4ff', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#2563eb' }}>
-              📅 Posts rides for next 4 weeks automatically. You can cancel individual days from My Rides.
+              📅 Posts rides for the next 1 week automatically. You can cancel individual days from My Rides.
             </div>
           )}
         </div>

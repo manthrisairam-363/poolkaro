@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import RequestRide from './pages/RequestRide'
 import { AuthProvider, useAuth } from './lib/AuthContext'
@@ -29,6 +29,42 @@ function Loader() {
       alignItems: 'center', justifyContent: 'center', padding: 40,
     }}>
       <img src="/logo.png" alt="CarpoolKaro" style={{ width: '80%', maxWidth: 280, height: 'auto' }} />
+    </div>
+  )
+}
+
+// ── Global offline banner ──
+function OfflineBanner() {
+  const [offline, setOffline] = useState(!navigator.onLine)
+  const [showBack, setShowBack] = useState(false)
+
+  useEffect(() => {
+    function goOffline() { setOffline(true); setShowBack(false) }
+    function goOnline() {
+      setOffline(false)
+      setShowBack(true)
+      setTimeout(() => setShowBack(false), 3000)
+    }
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
+
+  if (!offline && !showBack) return null
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+      background: offline ? '#dc2626' : '#16a34a', color: '#fff',
+      padding: '10px 16px', fontSize: 13, fontWeight: 700,
+      textAlign: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+    }}>
+      {offline
+        ? '⚠️ No internet connection — please check your network'
+        : '✅ Back online'}
     </div>
   )
 }
@@ -71,6 +107,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
+      <OfflineBanner />
       <AppRoutes />
     </AuthProvider>
   )

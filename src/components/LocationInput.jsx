@@ -154,7 +154,7 @@ const AREAS = [
   'ORR Gachibowli', 'ORR Patancheru', 'ORR Shamshabad', 'ORR Kompally',
 ]
 
-export default function LocationInput({ label, value, onChange, placeholder, city }) {
+export default function LocationInput({ label, value, onChange, placeholder, city, error, inputRef }) {
   const AREAS = getLocationsForCity(city || 'Hyderabad')
   const [query, setQuery] = useState(value || '')
   const [suggestions, setSuggestions] = useState([])
@@ -212,6 +212,7 @@ export default function LocationInput({ label, value, onChange, placeholder, cit
         </label>
       )}
       <input
+        ref={inputRef}
         type="text"
         value={query}
         onChange={handleInput}
@@ -219,12 +220,17 @@ export default function LocationInput({ label, value, onChange, placeholder, cit
         placeholder={placeholder || 'Type or search area...'}
         style={{
           width: '100%', padding: '11px 14px',
-          border: '1.5px solid #e5e7eb', borderRadius: 10,
-          fontSize: 14, background: '#fafafa',
+          border: error ? '2px solid #dc2626' : '1.5px solid #e5e7eb', borderRadius: 10,
+          fontSize: 14, background: error ? '#fef2f2' : '#fafafa',
           fontFamily: 'inherit', boxSizing: 'border-box',
-          borderColor: showDropdown ? '#111' : '#e5e7eb',
+          borderColor: error ? '#dc2626' : showDropdown ? '#111' : '#e5e7eb',
         }}
       />
+      {error && (
+        <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 4 }}>
+          ⚠️ This field is required
+        </div>
+      )}
 
       {/* Dropdown suggestions */}
       {showDropdown && suggestions.length > 0 && (

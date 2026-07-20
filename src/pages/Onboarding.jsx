@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
@@ -64,6 +64,24 @@ export default function Onboarding() {
   })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // ── Referral code live validation ──
+  // 'idle' = nothing typed | 'checking' | 'valid' | 'invalid'
+  const [refStatus, setRefStatus] = useState('idle')
+  const [refName, setRefName] = useState('')
+
+  useEffect(() => {
+    const code = form.referral_code?.trim().toUpperCase()
+    if (!code) { setRefStatus('idle'); setRefName(''); return }
+    setRefStatus('checking')
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles').select('full_name').eq('referral_code', code).maybeSingle()
+      if (data) { setRefStatus('valid'); setRefName(data.full_name || '') }
+      else { setRefStatus('invalid'); setRefName('') }
+    }, 500)
+    return () => clearTimeout(t)
+  }, [form.referral_code])
 
   async function finish() {
     setError('')
@@ -180,6 +198,16 @@ export default function Onboarding() {
         return
       }
 
+      // Referral code entered but not found in our database
+      const refCode = form.referral_code?.trim().toUpperCase()
+      if (refCode) {
+        if (refStatus === 'checking') { setError('Checking referral code, please wait...'); return }
+        if (refStatus === 'invalid') {
+          setError(`⚠️ Referral code "${refCode}" doesn't exist. Please check the spelling, or clear the field to continue without a referral.`)
+          return
+        }
+      }
+
       // Riders skip vehicle AND upi — go straight to finish (after consent)
       if (form.role === 'rider') {
         if (!form.consent_given) { setError('Please read and accept the terms to continue'); return }
@@ -248,11 +276,30 @@ export default function Onboarding() {
               ))}
             </select>
             <label style={s.label}>Referral Code (optional)</label>
-            <input style={{ ...s.input, textTransform: 'uppercase', letterSpacing: 3 }}
+            <input style={{
+                ...s.input, textTransform: 'uppercase', letterSpacing: 3,
+                border: refStatus === 'invalid' ? '2px solid #dc2626'
+                      : refStatus === 'valid' ? '2px solid #16a34a'
+                      : s.input.border,
+                marginBottom: refStatus === 'idle' ? s.input.marginBottom : 4,
+              }}
               placeholder="Friend's code — get ₹10 bonus!"
               value={form.referral_code}
               onChange={e => set('referral_code', e.target.value.toUpperCase().slice(0, 15))}
             />
+            {refStatus === 'checking' && (
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>⏳ Checking code...</div>
+            )}
+            {refStatus === 'valid' && (
+              <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginBottom: 12 }}>
+                ✅ Valid code{refName ? ` — referred by ${refName}` : ''}
+              </div>
+            )}
+            {refStatus === 'invalid' && (
+              <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, marginBottom: 12 }}>
+                ❌ This referral code doesn't exist. Check the spelling, or leave it blank.
+              </div>
+            )}
             {/* Consent on personal step for RIDERS (their last step) */}
             {isRider && (
               <div style={{ background: '#f8f9fa', borderRadius: 12, padding: 14, marginTop: 8, border: '1px solid #e5e7eb' }}>

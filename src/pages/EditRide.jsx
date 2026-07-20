@@ -15,7 +15,7 @@ const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, d
 export default function EditRide() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
 
   const [ride, setRide] = useState(null)
   const [bookingCount, setBookingCount] = useState(0)
@@ -72,6 +72,28 @@ export default function EditRide() {
 
   async function saveChanges() {
     setError(''); setSaving(true)
+
+    // Same wallet rule as posting: ₹2 per seat must be covered. Pro pays ₹0.
+    // Only checked when the driver INCREASES seats — normal edits are untouched.
+    if (bookingCount === 0 && Number(form.seats_available) > (ride?.seats_available || 0)) {
+      const isPro = profile?.subscription_expires_at && new Date(profile.subscription_expires_at) > new Date()
+      if (!isPro) {
+        const seats = Number(form.seats_available)
+        const { data: w } = await supabase.from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+        const balance = w?.balance || 0
+        if (balance < seats * 200) {
+          alert(
+            `⚠️ Insufficient wallet balance\n\n` +
+            `${seats} seats needs ₹${seats * 2} (₹2 per seat).\n` +
+            `Your balance: ₹${balance / 100}\n\n` +
+            `Please recharge your wallet and try again.`
+          )
+          setError(`Insufficient balance. ${seats} seats needs ₹${seats * 2}, you have ₹${balance / 100}.`)
+          setSaving(false)
+          return
+        }
+      }
+    }
 
     const updates = { ride_time: form.ride_time }
 

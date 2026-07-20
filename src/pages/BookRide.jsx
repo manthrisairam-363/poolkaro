@@ -31,15 +31,20 @@ export default function BookRide() {
     setRide(data)
     setOwner(data.profiles)
 
+    // If this rider ALREADY has a confirmed booking on this ride, never show the
+    // Confirm screen again — go straight to payment. Prevents accidental double booking.
     const { data: existing } = await supabase
-      .from('bookings').select('id, seats_booked')
+      .from('bookings').select('id, seats_booked, ride_fare')
       .eq('ride_id', id)
       .eq('rider_id', user.id)
       .eq('status', 'confirmed')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
     if (existing) {
-      // Already have a confirmed booking - redirect to my rides
       setAlreadyBooked(true)
+      setBookingData(existing)
+      setStep('pay')
     }
 
     const { data: wallet } = await supabase
@@ -93,11 +98,6 @@ export default function BookRide() {
     return links[app]
   }
 
-  function copyUPI() {
-    navigator.clipboard.writeText(owner?.upi_id || '')
-      .then(() => alert('UPI ID copied! ✅'))
-      .catch(() => alert(owner?.upi_id))
-  }
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f6fa' }}>
@@ -110,13 +110,6 @@ export default function BookRide() {
 
   // ── PAY FARE SCREEN ──
   if (step === 'pay') {
-    const waMsg = encodeURIComponent(
-      `Hi ${owner?.full_name}! 👋\n\nI just booked a seat on your CarpoolKaro ride.\n\n` +
-      `📍 ${ride.from_location} → ${ride.to_location}\n` +
-      `🕐 ${formatTime(ride.ride_time)}\n` +
-      `My name: ${profile?.full_name}\n📱 ${profile?.phone}\n\n` +
-      `Sending ₹${ride.fare} to your UPI now! 🚗`
-    )
 
     return (
       <div style={{ minHeight: '100vh', background: '#111', color: '#fff' }}>
@@ -174,18 +167,7 @@ export default function BookRide() {
                   Use the chat button below to coordinate payment with them directly.
                 </div>
               </div>
-            ) : (
-              <div style={{ background: '#222', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Car Owner UPI ID</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>{owner?.upi_id}</span>
-                  <button onClick={copyUPI} style={{
-                    background: '#333', border: 'none', color: '#facc15',
-                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}>📋 Copy</button>
-                </div>
-              </div>
-            )}
+            ) : null}
 
             {/* Payment app buttons - only show if UPI is set */}
             {owner?.upi_id && (
