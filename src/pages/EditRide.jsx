@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import LocationInput from '../components/LocationInput'
+import { findRideConflicts, conflictMessage } from '../lib/rideConflict'
 
 const inp = {
   width: '100%', padding: '11px 14px',
@@ -118,7 +119,37 @@ export default function EditRide() {
     }
 
     const timeChanged = form.ride_time !== ride?.ride_time?.slice(0, 5)
+    const dateChanged = bookingCount === 0 && form.ride_date !== ride?.ride_date
     const seatsChanged = newTotal !== (ride?.seats_total ?? ride?.seats_available)
+
+    // ── Same conflict rule as posting ──
+    // Without this, a driver could post at a legal time and then simply edit it
+    // back onto an existing ride, ending up with two rides at once.
+    // Only enforced when the slot actually moves, so editing seats on a ride
+    // that already clashes isn't blocked by a problem that predates the edit.
+    if (timeChanged || dateChanged) {
+      const effectiveDate = bookingCount === 0 ? form.ride_date : ride.ride_date
+      const conflicts = await findRideConflicts({
+        supabase,
+        driverId: user.id,
+        dates: [effectiveDate],
+        time: form.ride_time,
+        from: bookingCount === 0 ? form.from_location : ride.from_location,
+        to: bookingCount === 0 ? form.to_location : ride.to_location,
+        excludeRideId: id,          // a ride never clashes with itself
+      })
+
+      if (conflicts.length > 0) {
+        alert(conflictMessage(conflicts[0]))
+        setError(
+          conflicts[0].sameRoute
+            ? 'You already have this ride posted at that time.'
+            : 'You already have another ride at that time.'
+        )
+        setSaving(false)
+        return
+      }
+    }
 
     // Time and seats can always be changed — even with bookings.
     const updates = {
