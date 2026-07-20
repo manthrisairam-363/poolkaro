@@ -34,22 +34,74 @@ function Loader() {
 }
 
 // ── Global offline banner ──
+// navigator.onLine only tells us a network interface exists — WiFi with no
+// internet still reports "online", and on iOS PWAs the offline event often
+// never fires. So we actively probe Supabase, which our service worker
+// deliberately does NOT intercept (same-origin requests fall back to cache
+// and would falsely succeed).
 function OfflineBanner() {
-  const [offline, setOffline] = useState(!navigator.onLine)
+  const [offline, setOffline] = useState(false)
   const [showBack, setShowBack] = useState(false)
 
   useEffect(() => {
-    function goOffline() { setOffline(true); setShowBack(false) }
-    function goOnline() {
-      setOffline(false)
-      setShowBack(true)
-      setTimeout(() => setShowBack(false), 3000)
+    let cancelled = false
+    let wasOffline = false
+    let timer = null
+
+    async function reachable() {
+      if (!navigator.onLine) return false
+      const ctrl = new AbortController()
+      const kill = setTimeout(() => ctrl.abort(), 6000)
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health?_=${Date.now()}`,
+          { method: 'GET', mode: 'no-cors', cache: 'no-store', signal: ctrl.signal }
+        )
+        return true
+      } catch {
+        return false
+      } finally {
+        clearTimeout(kill)
+      }
     }
-    window.addEventListener('offline', goOffline)
-    window.addEventListener('online', goOnline)
+
+    async function check() {
+      const ok = await reachable()
+      if (cancelled) return
+      if (!ok) {
+        wasOffline = true
+        setOffline(true)
+        setShowBack(false)
+      } else {
+        setOffline(false)
+        if (wasOffline) {
+          wasOffline = false
+          setShowBack(true)
+          setTimeout(() => { if (!cancelled) setShowBack(false) }, 3000)
+        }
+      }
+    }
+
+    // Instant signal when the browser does fire the events
+    function onOffline() { wasOffline = true; setOffline(true); setShowBack(false) }
+    function onOnline() { check() }
+    function onVisible() { if (document.visibilityState === 'visible') check() }
+
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+    document.addEventListener('visibilitychange', onVisible)
+
+    check()
+    timer = setInterval(() => {
+      if (document.visibilityState === 'visible') check()
+    }, 15000)
+
     return () => {
-      window.removeEventListener('offline', goOffline)
-      window.removeEventListener('online', goOnline)
+      cancelled = true
+      clearInterval(timer)
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [])
 
