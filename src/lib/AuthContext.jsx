@@ -7,6 +7,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  // true = we could not reach the server to load the profile (NOT "no profile")
+  const [profileError, setProfileError] = useState(false)
 
   useEffect(() => {
     // Get current session on mount
@@ -27,12 +29,23 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
-    setProfile(data)
+
+    // PGRST116 = no row found → genuinely a new user, onboarding is correct.
+    // Any other error (offline, timeout, server down) must NOT be mistaken for
+    // "no profile", otherwise an existing user is dumped into onboarding.
+    if (error && error.code !== 'PGRST116') {
+      setProfileError(true)
+      setLoading(false)
+      return
+    }
+
+    setProfileError(false)
+    setProfile(data ?? null)
     setLoading(false)
   }
 
@@ -43,7 +56,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut, fetchProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, profileError, signOut, fetchProfile }}>
       {children}
     </AuthContext.Provider>
   )
