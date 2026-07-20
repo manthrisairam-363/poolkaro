@@ -3,7 +3,7 @@
 // Drop <WhatsAppChannel /> on any page; pass bottom={20} where there's no nav.
 export const CHANNEL_URL = 'https://whatsapp.com/channel/0029VbCsbtd9xVJnkU8Gdn30'
 
-export default function WhatsAppChannel({ bottom = 78, right = 14 }) {
+export default function WhatsAppChannel({ bottom = 86, right = 14 }) {
   return (
     <a
       href={CHANNEL_URL}
@@ -12,7 +12,9 @@ export default function WhatsAppChannel({ bottom = 78, right = 14 }) {
       aria-label="Join our WhatsApp channel"
       title="Join our WhatsApp channel"
       style={{
-        position: 'fixed', right, bottom, zIndex: 60,
+        position: 'fixed', right, zIndex: 60,
+        // Add the iPhone home-indicator inset so it clears the taller nav on iOS
+        bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottom}px)`,
         width: 50, height: 50, borderRadius: '50%',
         background: '#25D366', textDecoration: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
