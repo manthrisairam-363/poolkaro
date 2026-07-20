@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { platformText } from '../lib/platform'
 import { useAuth } from '../lib/AuthContext'
 import { formatTime, formatDate } from '../lib/utils'
 
@@ -300,6 +301,12 @@ export default function AdminDashboard() {
       if (userFilter === 'low_balance') return (wallets[u.id] || 0) < 500
       if (userFilter === 'no_rides') return (u.total_rides_given || 0) === 0 && (u.total_rides_taken || 0) === 0
       if (userFilter === 'referred') return !!u.referred_by
+      if (userFilter === 'ios') return u.platform === 'ios'
+      if (userFilter === 'android') return u.platform === 'android'
+      if (userFilter === 'desktop') return u.platform === 'desktop'
+      if (userFilter === 'installed') return u.is_pwa === true
+      if (userFilter === 'browser') return !!u.platform && u.is_pwa !== true
+      if (userFilter === 'unknown_platform') return !u.platform
       return true
     })
     list = [...list].sort((a, b) => {
@@ -404,6 +411,7 @@ export default function AdminDashboard() {
               ['⭐ Rating', Number(u.avg_rating || 0).toFixed(1)],
               ['🎁 Referral code', u.referral_code || '—'],
               ['🚘 Vehicle', `${u.vehicle_model || '—'}${u.vehicle_number ? ' · ' + u.vehicle_number : ''}`],
+              ['📲 Device', platformText(u)],
               ['💳 UPI', u.upi_id || '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ background: '#1a1a1a', borderRadius: 8, padding: '8px 10px' }}>
@@ -689,6 +697,12 @@ export default function AdminDashboard() {
                     ['low_balance', '⚠️ Low balance'],
                     ['no_rides', '😴 No rides'],
                     ['referred', '🎁 Referred'],
+                    ['ios', '🍎 iOS'],
+                    ['android', '🤖 Android'],
+                    ['desktop', '💻 Desktop'],
+                    ['installed', '📲 Installed app'],
+                    ['browser', '🌐 Browser only'],
+                    ['unknown_platform', '❓ Unknown device'],
                   ].map(([f, label]) => (
                     <button key={f} onClick={() => setUserFilter(f)} style={{
                       padding: '6px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700,
@@ -714,6 +728,34 @@ export default function AdminDashboard() {
 
                 <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>
                   {getFilteredSortedUsers().length} {search || userFilter !== 'all' ? 'results' : 'total users'}
+                </div>
+
+                {/* Device breakdown — who needs which install instructions */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {(() => {
+                    const c = { ios: 0, android: 0, desktop: 0, installed: 0, browser: 0, unknown: 0 }
+                    users.forEach(u => {
+                      if (!u.platform) { c.unknown++; return }
+                      c[u.platform] = (c[u.platform] || 0) + 1
+                      if (u.is_pwa) c.installed++; else c.browser++
+                    })
+                    return [
+                      ['ios', '🍎', c.ios, '#a855f7'],
+                      ['android', '🤖', c.android, '#22c55e'],
+                      ['desktop', '💻', c.desktop, '#3b82f6'],
+                      ['installed', '📲', c.installed, '#facc15'],
+                      ['browser', '🌐', c.browser, '#f97316'],
+                      ['unknown_platform', '❓', c.unknown, '#64748b'],
+                    ].map(([f, icon, n, color]) => (
+                      <button key={f} onClick={() => setUserFilter(f)} style={{
+                        flex: '1 1 30%', background: '#1a1a1a', border: `1px solid ${userFilter === f ? color : '#222'}`,
+                        borderRadius: 10, padding: '8px 6px', cursor: 'pointer', textAlign: 'center',
+                      }}>
+                        <div style={{ fontSize: 14 }}>{icon}</div>
+                        <div style={{ fontSize: 16, fontWeight: 900, color }}>{n}</div>
+                      </button>
+                    ))
+                  })()}
                 </div>
 
                 {getFilteredSortedUsers().map(u => (
@@ -1521,6 +1563,10 @@ function NotifyTab({ supabase, users }) {
     if(targetType==='pro') return users.filter(u=>u.subscription_expires_at&&new Date(u.subscription_expires_at)>new Date())
     if(targetType==='drivers') return users.filter(u=>u.role==='driver'||u.role==='both')
     if(targetType==='riders') return users.filter(u=>u.role==='rider'||u.role==='both')
+    // Device targeting — send the right install guidance to the right people
+    if(targetType==='ios_browser') return users.filter(u=>u.platform==='ios'&&!u.is_pwa)
+    if(targetType==='android_browser') return users.filter(u=>u.platform==='android'&&!u.is_pwa)
+    if(targetType==='not_installed') return users.filter(u=>u.platform&&!u.is_pwa)
     return users
   }
   async function send() {
@@ -1544,7 +1590,7 @@ function NotifyTab({ supabase, users }) {
         <div style={{marginBottom:12}}>
           <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>SEND TO</div>
           <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-            {[['all','🌐 All'],['city','🏙️ City'],['pro','⭐ Pro'],['drivers','🚗 Drivers'],['riders','🙋 Riders']].map(([v,l])=>(
+            {[['all','🌐 All'],['city','🏙️ City'],['pro','⭐ Pro'],['drivers','🚗 Drivers'],['riders','🙋 Riders'],['ios_browser','🍎 iOS (not installed)'],['android_browser','🤖 Android (not installed)'],['not_installed','📲 Not installed']].map(([v,l])=>(
               <button key={v} onClick={()=>setTargetType(v)} style={{padding:'6px 12px',borderRadius:20,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:targetType===v?'#facc15':'#1a1a1a',color:targetType===v?'#111':'#888'}}>{l}</button>
             ))}
           </div>
