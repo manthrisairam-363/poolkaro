@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import LocationInput from '../components/LocationInput'
+import { findRideConflicts, conflictMessage, fmtDate } from '../lib/rideConflict'
 
 const inp = { width: '100%', padding: '11px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 14, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box' }
 const label = { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5, display: 'block' }
@@ -147,48 +148,36 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       if (form.recurring === 'weekdays' && (dow === 0 || dow === 6)) continue
       dates.push(d.toISOString().split('T')[0])
     }
-    // ── Duplicate check: don't let a driver post the same ride twice ──
-    // Same route + same date + a start time within 90 minutes counts as a repeat.
-    const toMin = t => {
-      const [h, m] = String(t || '').slice(0, 5).split(':').map(Number)
-      return (h || 0) * 60 + (m || 0)
-    }
-    const norm = s => String(s || '').trim().toLowerCase()
-    const { data: myRides } = await supabase
-      .from('rides')
-      .select('id, ride_date, ride_time, from_location, to_location')
-      .eq('driver_id', user.id)
-      .in('status', ['active', 'full'])
-      .in('ride_date', dates)
+    // ── Conflict check: one driver, one car, one place at a time ──
+    // Blocks repeating the same ride AND posting a different route at a
+    // clashing time. Shared with EditRide so both screens agree.
+    const conflicts = await findRideConflicts({
+      supabase,
+      driverId: user.id,
+      dates,
+      time: form.ride_time,
+      from: form.from_location,
+      to: form.to_location,
+    })
 
-    const clashes = (myRides || []).filter(r =>
-      norm(r.from_location) === norm(form.from_location) &&
-      norm(r.to_location) === norm(form.to_location) &&
-      Math.abs(toMin(r.ride_time) - toMin(form.ride_time)) <= 90
-    )
-
-    if (clashes.length > 0) {
-      const clashDates = new Set(clashes.map(c => c.ride_date))
+    if (conflicts.length > 0) {
+      const clashDates = new Set(conflicts.map(c => c.ride_date))
       const remaining = dates.filter(d => !clashDates.has(d))
-      const fmt = d => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-      const existing = clashes[0]
 
       if (remaining.length === 0) {
-        alert(
-          `⚠️ You've already posted this ride\n\n` +
-          `${form.from_location} → ${form.to_location}\n` +
-          `${fmt(existing.ride_date)} at ${String(existing.ride_time).slice(0, 5)}\n\n` +
-          `Open "My Rides" to edit the seats or time on that ride instead of posting a new one.`
+        alert(conflictMessage(conflicts[0]))
+        setError(
+          conflicts[0].sameRoute
+            ? 'This ride is already posted. Edit it from My Rides instead.'
+            : 'You already have a ride at this time.'
         )
-        setError('This ride is already posted. Edit it from My Rides instead.')
         setLoading(false)
         return
       }
 
       const ok = confirm(
-        `⚠️ Already posted on ${clashes.length} of these dates\n\n` +
-        `${form.from_location} → ${form.to_location} at ${String(existing.ride_time).slice(0, 5)}\n` +
-        `Already posted: ${[...clashDates].map(fmt).join(', ')}\n\n` +
+        `⚠️ You already have rides on ${clashDates.size} of these dates\n\n` +
+        `Clashing: ${[...clashDates].map(fmtDate).join(', ')}\n\n` +
         `Post only the remaining ${remaining.length} date${remaining.length > 1 ? 's' : ''}?`
       )
       if (!ok) { setLoading(false); return }
