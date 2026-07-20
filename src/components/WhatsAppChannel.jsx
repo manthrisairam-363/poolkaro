@@ -38,18 +38,6 @@ export default function WhatsAppChannel({ bottom = 78, label = true }) {
               fontSize: 12,
             }}
           >
-            Open WhatsApp →
-          </a>
-          <button
-            onClick={() => { setExpanded(false); setHidden(true) }}
-            style={{
-              display: 'block', width: '100%', marginTop: 6, background: 'none',
-              border: 'none', color: '#777', fontSize: 10.5, cursor: 'pointer',
-            }}
-          >
-            Don't show again
-          </button>
-        </div>
       )}
 
       <button
