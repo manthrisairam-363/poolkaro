@@ -19,6 +19,7 @@ export default function EditRide() {
 
   const [ride, setRide] = useState(null)
   const [bookingCount, setBookingCount] = useState(0)
+  const [bookedSeats, setBookedSeats] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -57,6 +58,10 @@ export default function EditRide() {
 
     setRide(rideData)
     setBookingCount(count || 0)
+    // A single booking can hold multiple seats, so derive booked seats from the
+    // ride itself rather than counting booking rows.
+    const totalSeats = rideData.seats_total ?? rideData.seats_available
+    setBookedSeats(Math.max(0, totalSeats - rideData.seats_available))
     setForm({
       ride_type: rideData.ride_type,
       ride_date: rideData.ride_date,
@@ -65,7 +70,7 @@ export default function EditRide() {
       to_location: rideData.to_location,
       route_description: rideData.route_description || '',
       fare: String(rideData.fare),
-      seats_available: String(rideData.seats_available),
+      seats_available: String(totalSeats),   // form holds TOTAL seats offered
     })
     setLoading(false)
   }
@@ -73,31 +78,61 @@ export default function EditRide() {
   async function saveChanges() {
     setError(''); setSaving(true)
 
-    // Same wallet rule as posting: ₹2 per seat must be covered. Pro pays ₹0.
-    // Only checked when the driver INCREASES seats — normal edits are untouched.
-    if (bookingCount === 0 && Number(form.seats_available) > (ride?.seats_available || 0)) {
+    const newTotal = Number(form.seats_available)
+    const openSeats = newTotal - bookedSeats          // seats still bookable after this edit
+    const prevOpen = ride?.seats_available || 0
+
+    // Can never offer fewer seats than are already booked.
+    if (newTotal < bookedSeats) {
+      alert(
+        `⚠️ Cannot reduce seats\n\n` +
+        `${bookedSeats} seat${bookedSeats > 1 ? 's are' : ' is'} already booked.\n` +
+        `You can set the total to ${bookedSeats} or more.\n\n` +
+        `To free up a booked seat, the co-rider must cancel.`
+      )
+      setError(`${bookedSeats} seat${bookedSeats > 1 ? 's are' : ' is'} already booked — total cannot be lower.`)
+      setSaving(false)
+      return
+    }
+
+    // Same wallet rule as posting: ₹2 per seat that could still be booked.
+    // Only enforced when the driver OPENS UP more seats. Pro pays ₹0.
+    if (openSeats > prevOpen) {
       const isPro = profile?.subscription_expires_at && new Date(profile.subscription_expires_at) > new Date()
       if (!isPro) {
-        const seats = Number(form.seats_available)
         const { data: w } = await supabase.from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
         const balance = w?.balance || 0
-        if (balance < seats * 200) {
+        if (balance < openSeats * 200) {
           alert(
             `⚠️ Insufficient wallet balance\n\n` +
-            `${seats} seats needs ₹${seats * 2} (₹2 per seat).\n` +
+            `${openSeats} open seat${openSeats > 1 ? 's need' : ' needs'} ₹${openSeats * 2} ` +
+            `(₹2 per seat, deducted only when someone books).\n` +
             `Your balance: ₹${balance / 100}\n\n` +
             `Please recharge your wallet and try again.`
           )
-          setError(`Insufficient balance. ${seats} seats needs ₹${seats * 2}, you have ₹${balance / 100}.`)
+          setError(`Insufficient balance. ${openSeats} open seat${openSeats > 1 ? 's need' : ' needs'} ₹${openSeats * 2}, you have ₹${balance / 100}.`)
           setSaving(false)
           return
         }
       }
     }
 
-    const updates = { ride_time: form.ride_time }
+    const timeChanged = form.ride_time !== ride?.ride_time?.slice(0, 5)
+    const seatsChanged = newTotal !== (ride?.seats_total ?? ride?.seats_available)
 
-    // If no bookings — allow full edit
+    // Time and seats can always be changed — even with bookings.
+    const updates = {
+      ride_time: form.ride_time,
+      seats_total: newTotal,
+      seats_available: openSeats,
+    }
+    // Only recompute status for a live ride — never revive a cancelled or
+    // completed one by editing it.
+    if (ride?.status === 'active' || ride?.status === 'full') {
+      updates.status = openSeats === 0 ? 'full' : 'active'
+    }
+
+    // Everything else only while nobody has booked
     if (bookingCount === 0) {
       Object.assign(updates, {
         ride_type: form.ride_type,
@@ -106,8 +141,6 @@ export default function EditRide() {
         to_location: form.to_location,
         route_description: form.route_description || null,
         fare: Number(form.fare),
-        seats_available: Number(form.seats_available),
-        seats_total: Number(form.seats_available),
       })
     }
 
@@ -116,8 +149,8 @@ export default function EditRide() {
 
     if (err) { setError(err.message); setSaving(false); return }
 
-    // Notify co-riders if ride has bookings
-    if (bookingCount > 0) {
+    // Notify co-riders only about changes that actually affect them
+    if (bookingCount > 0 && timeChanged) {
       const { data: bookings } = await supabase
         .from('bookings').select('rider_id').eq('ride_id', id).eq('status', 'confirmed')
 
@@ -134,7 +167,10 @@ export default function EditRide() {
     }
 
     setSaving(false)
-    setSuccess('Ride updated successfully! ✅')
+    setSuccess(
+      seatsChanged && !timeChanged ? 'Seats updated successfully! ✅'
+        : 'Ride updated successfully! ✅'
+    )
     setTimeout(() => navigate('/my-rides'), 1500)
   }
 
@@ -173,7 +209,7 @@ export default function EditRide() {
               ⚠️ {bookingCount} co-rider{bookingCount > 1 ? 's have' : ' has'} booked this ride
             </div>
             <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
-              Only <strong>ride time</strong> can be changed now. Co-rider{bookingCount > 1 ? 's' : ''} will be notified automatically. To change other details, cancel this ride and post a new one.
+              Only <strong>ride time</strong> and <strong>seat count</strong> can be changed now. Co-rider{bookingCount > 1 ? 's' : ''} will be notified if the time changes. To change route, date or fare, cancel this ride and post a new one.
             </div>
           </div>
         )}
@@ -242,21 +278,35 @@ export default function EditRide() {
             </>
           )}
 
-          {/* Fare & Seats — locked if bookings */}
+          {/* Seats — always editable (can't go below already-booked seats) */}
+          <div style={{ marginBottom: 16 }}>
+            <span style={label}>
+              Total Seats {hasBookings && (
+                <span style={{ color: '#16a34a', fontWeight: 400 }}>
+                  ({bookedSeats} booked, {Math.max(0, Number(form.seats_available) - bookedSeats)} open)
+                </span>
+              )}
+            </span>
+            <select style={{ ...inp, border: '2px solid #111' }} value={form.seats_available}
+              onChange={e => set('seats_available', e.target.value)}>
+              {[1, 2, 3, 4].filter(n => n >= Math.max(1, bookedSeats)).map(n => (
+                <option key={n} value={n}>{n} seat{n > 1 ? 's' : ''}</option>
+              ))}
+            </select>
+            {hasBookings && (
+              <div style={{ fontSize: 11, color: '#888', marginTop: 5, lineHeight: 1.5 }}>
+                Reduce if seats filled elsewhere, or increase to open more.
+                Minimum is {bookedSeats} (already booked).
+              </div>
+            )}
+          </div>
+
+          {/* Fare — locked if bookings */}
           {!hasBookings && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-              <div>
-                <span style={label}>Fare (₹)</span>
-                <input style={inp} type="number" value={form.fare}
-                  onChange={e => set('fare', e.target.value)} />
-              </div>
-              <div>
-                <span style={label}>Seats</span>
-                <select style={inp} value={form.seats_available}
-                  onChange={e => set('seats_available', e.target.value)}>
-                  {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} seat{n > 1 ? 's' : ''}</option>)}
-                </select>
-              </div>
+            <div style={{ marginBottom: 16 }}>
+              <span style={label}>Fare (₹)</span>
+              <input style={inp} type="number" value={form.fare}
+                onChange={e => set('fare', e.target.value)} />
             </div>
           )}
 
