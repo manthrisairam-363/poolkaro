@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import RequestRide from './pages/RequestRide'
 import { AuthProvider, useAuth } from './lib/AuthContext'
@@ -121,8 +121,58 @@ function OfflineBanner() {
   )
 }
 
+// ── Shown when signed in but the profile could not be loaded (no connection) ──
+function ConnectionError({ onRetry }) {
+  const [retrying, setRetrying] = useState(false)
+  const retryRef = useRef(onRetry)
+  retryRef.current = onRetry
+
+  async function retry() {
+    setRetrying(true)
+    await onRetry()
+    setRetrying(false)
+  }
+
+  useEffect(() => {
+    // Keep trying quietly so the app recovers on its own the moment the
+    // network comes back — the user shouldn't have to tap anything.
+    // onRetry is recreated each render, so hold it in a ref and register once.
+    const fire = () => retryRef.current?.()
+    const t = setInterval(fire, 5000)
+    window.addEventListener('online', fire)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('online', fire)
+    }
+  }, [])
+
+  return (
+    <div style={{
+      minHeight: '100vh', background: '#111', color: '#fff',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', padding: 24, textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: '#facc15', marginBottom: 8 }}>
+        No internet connection
+      </div>
+      <div style={{ fontSize: 14, color: '#888', lineHeight: 1.6, maxWidth: 300, marginBottom: 24 }}>
+        CarpoolKaro needs a connection to load your account. Please check your
+        network — we'll reconnect automatically.
+      </div>
+      <button onClick={retry} disabled={retrying} style={{
+        padding: '12px 28px', background: '#facc15', color: '#111',
+        border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
+        cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1,
+      }}>
+        {retrying ? 'Reconnecting…' : '🔄 Try Again'}
+      </button>
+    </div>
+  )
+}
+
 function AppRoutes() {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, profileError, fetchProfile } = useAuth()
   usePushNotifications(user?.id)
 
   // Track last seen
@@ -133,6 +183,10 @@ function AppRoutes() {
 
   if (loading) return <Loader />
   if (!user) return <Login />
+  // Signed in, but we couldn't reach the server to load the profile.
+  // Never fall through to Onboarding here — that would restart setup for an
+  // existing user just because they opened the app with no connection.
+  if (profileError) return <ConnectionError onRetry={() => fetchProfile(user.id)} />
   if (!profile?.onboarding_complete) return <Onboarding />
   return (
     <Routes>
