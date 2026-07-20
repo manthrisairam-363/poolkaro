@@ -175,9 +175,10 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
           <button onClick={() => onCancel(ride.id)} style={{ padding: '8px 14px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🚫 Cancel</button>
         )}
         {(ride.status === 'full' || (ride.status === 'active' && bookedCount > 0)) && (() => {
-          const istNow = new Date(Date.now() + 5.5 * 3600000)
-          const rideDateTime = new Date(`${ride.ride_date}T${ride.ride_time || '00:00'}`)
-          const isPast = rideDateTime < new Date(istNow - 30 * 60000)
+          // Compare in IST consistently. `new Date("YYYY-MM-DDTHH:mm")` parses as
+          // BROWSER-local time, so we must build the ride time as IST explicitly.
+          const rideDateTime = new Date(`${ride.ride_date}T${ride.ride_time || '00:00'}:00+05:30`)
+          const isPast = rideDateTime.getTime() < Date.now() - 30 * 60000
           return isPast ? (
             <button onClick={async () => {
               if (!confirm('Mark this ride as completed?')) return
@@ -371,13 +372,13 @@ export default function MyRides() {
   }
 
   async function cancelBooking(bookingId, rideId, seatsBooked) {
-    if (!confirm('Cancel your booking?\n\nYour ₹2 platform fee will NOT be refunded.\nThe driver will receive ₹2 as compensation.')) return
+    if (!confirm('Cancel your booking?\n\nYour ₹2 platform fee will NOT be refunded.')) return
     try {
       const { data, error } = await supabase.rpc('cancel_booking_atomic', { p_booking_id: bookingId, p_rider_id: user.id })
       if (error) throw error
       if (!data?.success) throw new Error(data?.error || 'Cancel failed')
-      await sendNotification(data.driver_id, '❌ Booking Cancelled', `A rider cancelled their booking for ${data.from_location} → ${data.to_location}. ₹2 compensation added to your wallet.`)
-      alert('✅ Booking cancelled. ₹2 compensation sent to driver.')
+      await sendNotification(data.driver_id, '❌ Booking Cancelled', `A rider cancelled their booking for ${data.from_location} → ${data.to_location}. Your ₹2 platform fee has been refunded.`)
+      alert('✅ Booking cancelled.')
       await fetchData()
     } catch (err) { alert('Something went wrong: ' + err.message) }
   }
@@ -532,7 +533,7 @@ export default function MyRides() {
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>PAY DRIVER</div>
               <div style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', margin: '6px 0' }}>₹{upiSheet.fare}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>to {upiSheet.name} · {upiSheet.upi}</div>
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>to {upiSheet.name}</div>
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 14, textAlign: 'center' }}>SELECT PAYMENT APP</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
