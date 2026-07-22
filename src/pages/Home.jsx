@@ -230,7 +230,7 @@ export default function Home() {
         const [h, m] = ride.ride_time.split(':')
         const rideMinutes = parseInt(h) * 60 + parseInt(m)
         // Show if ride departs in future OR within last 60 min
-        return rideMinutes >= (nowMinutes - 60)
+        return rideMinutes >= (nowMinutes - 10)
       })
       setRides(fresh)
     }

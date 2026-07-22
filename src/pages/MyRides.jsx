@@ -199,11 +199,28 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   )
 }
 
-// UPI App Logo SVGs
+// Build a spec-compliant UPI intent. The standard `upi://pay` scheme is the
+// ONLY one every UPI app + bank reliably honours. App-specific schemes like
+// phonepe:// / gpay:// / paytmmp:// are unofficial and get rejected as
+// "declined for security reasons" when built externally — which is exactly
+// the bug we hit. So every button uses upi://pay and lets the OS/app resolve.
+function buildUpiUrl(upi, name, fare) {
+  const params = new URLSearchParams({
+    pa: String(upi || '').trim(),          // payee VPA
+    pn: String(name || 'Driver').trim(),   // payee name
+    am: Number(fare || 0).toFixed(2),      // amount MUST be 2-decimal ("150.00")
+    cu: 'INR',
+    tn: 'CarpoolKaro ride fare',           // note (URLSearchParams encodes spaces)
+  })
+  return `upi://pay?${params.toString()}`
+}
+
+// UPI App Logo SVGs. All use the standard builder; the label just tells the
+// user which icon to look for in the app chooser.
 const UPI_APPS = [
   {
     name: 'PhonePe',
-    url: (upi, name, fare) => `phonepe://pay?pa=${upi}&pn=${name}&am=${fare}&cu=INR&tn=CarpoolKaro+ride+fare`,
+    url: buildUpiUrl,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="#5f259f"/>
@@ -215,7 +232,7 @@ const UPI_APPS = [
   },
   {
     name: 'Google Pay',
-    url: (upi, name, fare) => `gpay://upi/pay?pa=${upi}&pn=${name}&am=${fare}&cu=INR`,
+    url: buildUpiUrl,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="white" stroke="#e2e8f0" strokeWidth="1"/>
@@ -228,7 +245,7 @@ const UPI_APPS = [
   },
   {
     name: 'Paytm',
-    url: (upi, name, fare) => `paytmmp://pay?pa=${upi}&pn=${name}&am=${fare}&cu=INR`,
+    url: buildUpiUrl,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="#002970"/>
@@ -239,7 +256,7 @@ const UPI_APPS = [
   },
   {
     name: 'BHIM',
-    url: (upi, name, fare) => `upi://pay?pa=${upi}&pn=${name}&am=${fare}&cu=INR&tn=CarpoolKaro+ride+fare`,
+    url: buildUpiUrl,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="#00529C"/>
@@ -251,7 +268,7 @@ const UPI_APPS = [
   },
   {
     name: 'Amazon Pay',
-    url: (upi, name, fare) => `amzn://pay?pa=${upi}&pn=${name}&am=${fare}&cu=INR`,
+    url: buildUpiUrl,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="#1A1919"/>
@@ -263,7 +280,7 @@ const UPI_APPS = [
   },
   {
     name: 'WhatsApp',
-    url: (upi, name, fare) => `whatsapp://send?text=Please+send+₹${fare}+to+UPI+ID:+${upi}`,
+    url: (upi, name, fare) => `whatsapp://send?text=${encodeURIComponent(`Please send ₹${fare} to UPI ID: ${upi}`)}`,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="#25D366"/>
@@ -273,7 +290,7 @@ const UPI_APPS = [
   },
   {
     name: 'Cred',
-    url: (upi, name, fare) => `credpay://pay?pa=${upi}&pn=${name}&am=${fare}&cu=INR`,
+    url: buildUpiUrl,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="#1C1C1C"/>
@@ -285,7 +302,7 @@ const UPI_APPS = [
   },
   {
     name: 'Any UPI',
-    url: (upi, name, fare) => `upi://pay?pa=${upi}&pn=${name}&am=${fare}&cu=INR&tn=CarpoolKaro+ride+fare`,
+    url: buildUpiUrl,
     logo: (
       <svg viewBox="0 0 48 48" width="40" height="40">
         <rect width="48" height="48" rx="12" fill="#0f172a"/>
@@ -538,7 +555,7 @@ export default function MyRides() {
             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 14, textAlign: 'center' }}>SELECT PAYMENT APP</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
               {UPI_APPS.map(app => (
-                <button key={app.name} onClick={() => { window.open(app.url(upiSheet.upi, encodeURIComponent(upiSheet.name), upiSheet.fare), '_blank'); setUpiSheet(null) }}
+                <button key={app.name} onClick={() => { window.location.href = app.url(upiSheet.upi, upiSheet.name, upiSheet.fare); setUpiSheet(null) }}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '12px 4px', cursor: 'pointer' }}>
                   {app.logo}
                   <span style={{ fontSize: 9, fontWeight: 700, color: '#334155', textAlign: 'center', lineHeight: 1.2 }}>{app.name}</span>
