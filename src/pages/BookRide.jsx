@@ -83,19 +83,18 @@ export default function BookRide() {
   }
 
   // UPI deep links to open payment apps
-  function getUPILink(app) {
-    const upi = owner?.upi_id
-    const name = encodeURIComponent(owner?.full_name || 'Car Owner')
-    const amount = ride?.fare
-    const note = encodeURIComponent(`CarpoolKaro ride fare - ${ride?.from_location} to ${ride?.to_location}`)
-
-    const links = {
-      gpay: `tez://upi/pay?pa=${upi}&pn=${name}&am=${amount}&cu=INR&tn=${note}`,
-      phonepe: `phonepe://pay?pa=${upi}&pn=${name}&am=${amount}&cu=INR&tn=${note}`,
-      paytm: `paytmmp://pay?pa=${upi}&pn=${name}&am=${amount}&cu=INR&tn=${note}`,
-      upi: `upi://pay?pa=${upi}&pn=${name}&am=${amount}&cu=INR&tn=${note}`,
-    }
-    return links[app]
+  function getUPILink() {
+    // Always the standard upi://pay scheme — app-specific deep links (phonepe://,
+    // tez://, paytmmp://) get rejected as "declined for security reasons" when
+    // built externally. Amount must be a 2-decimal string; everything encoded.
+    const params = new URLSearchParams({
+      pa: String(owner?.upi_id || '').trim(),
+      pn: String(owner?.full_name || 'Car Owner').trim(),
+      am: Number(ride?.fare || 0).toFixed(2),
+      cu: 'INR',
+      tn: `CarpoolKaro fare ${ride?.from_location || ''} to ${ride?.to_location || ''}`.trim(),
+    })
+    return `upi://pay?${params.toString()}`
   }
 
 
