@@ -205,14 +205,15 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
 // "declined for security reasons" when built externally — which is exactly
 // the bug we hit. So every button uses upi://pay and lets the OS/app resolve.
 function buildUpiUrl(upi, name, fare) {
-  const params = new URLSearchParams({
-    pa: String(upi || '').trim(),          // payee VPA
-    pn: String(name || 'Driver').trim(),   // payee name
-    am: Number(fare || 0).toFixed(2),      // amount MUST be 2-decimal ("150.00")
-    cu: 'INR',
-    tn: 'CarpoolKaro ride fare',           // note (URLSearchParams encodes spaces)
-  })
-  return `upi://pay?${params.toString()}`
+  // NOTE: do NOT use URLSearchParams here. It form-encodes — turning @ into
+  // %40 and spaces into "+". UPI apps read those literally and reject the VPA
+  // ("declined for security reasons"). UPI needs RFC-3986: @ stays literal,
+  // spaces become %20. encodeURIComponent gives us exactly that.
+  const pa = String(upi || '').trim()                 // VPA: keep @ literal
+  const pn = encodeURIComponent(String(name || 'Driver').trim())
+  const am = Number(fare || 0).toFixed(2)
+  const tn = encodeURIComponent('CarpoolKaro ride fare')
+  return `upi://pay?pa=${pa}&pn=${pn}&am=${am}&cu=INR&tn=${tn}`
 }
 
 // UPI App Logo SVGs. All use the standard builder; the label just tells the
