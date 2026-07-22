@@ -84,17 +84,14 @@ export default function BookRide() {
 
   // UPI deep links to open payment apps
   function getUPILink() {
-    // Always the standard upi://pay scheme — app-specific deep links (phonepe://,
-    // tez://, paytmmp://) get rejected as "declined for security reasons" when
-    // built externally. Amount must be a 2-decimal string; everything encoded.
-    const params = new URLSearchParams({
-      pa: String(owner?.upi_id || '').trim(),
-      pn: String(owner?.full_name || 'Car Owner').trim(),
-      am: Number(ride?.fare || 0).toFixed(2),
-      cu: 'INR',
-      tn: `CarpoolKaro fare ${ride?.from_location || ''} to ${ride?.to_location || ''}`.trim(),
-    })
-    return `upi://pay?${params.toString()}`
+    // Standard upi://pay scheme. Do NOT use URLSearchParams — it turns @ into
+    // %40 and spaces into "+", which UPI apps reject. Build manually with
+    // encodeURIComponent so @ stays literal and spaces become %20.
+    const pa = String(owner?.upi_id || '').trim()
+    const pn = encodeURIComponent(String(owner?.full_name || 'Car Owner').trim())
+    const am = Number(ride?.fare || 0).toFixed(2)
+    const tn = encodeURIComponent(`CarpoolKaro fare ${ride?.from_location || ''} to ${ride?.to_location || ''}`.trim())
+    return `upi://pay?pa=${pa}&pn=${pn}&am=${am}&cu=INR&tn=${tn}`
   }
 
 
