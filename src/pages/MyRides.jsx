@@ -348,14 +348,22 @@ export default function MyRides() {
   async function markPaid(bookingId) {
     if (!bookingId) { setUpiSheet(null); return }
     setPayingId(bookingId)
-    const { error } = await supabase
+    // .select() is essential: without it Supabase returns no error when RLS
+    // blocks the update — it just affects 0 rows and looks like success.
+    const { data, error } = await supabase
       .from('bookings')
       .update({ payment_status: 'paid' })
       .eq('id', bookingId)
       .eq('rider_id', user.id)
+      .select('id')
 
     if (error) {
-      alert('Could not save. Please check your connection and try again.')
+      alert(`Could not save: ${error.message}`)
+      setPayingId(null)
+      return
+    }
+    if (!data || data.length === 0) {
+      alert("Couldn't update the payment status. Please tell the admin — the app doesn't have permission to save this.")
       setPayingId(null)
       return
     }
@@ -371,7 +379,7 @@ export default function MyRides() {
 
     setPayingId(null)
     setUpiSheet(null)
-    fetchData()
+    await fetchData()
   }
 
   async function fetchUnreadCounts(bookingIds) {
@@ -537,11 +545,17 @@ export default function MyRides() {
                     <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>✅ {b.seats_booked} seat{b.seats_booked > 1 ? 's' : ''} confirmed</span>
                     <span style={{ background: '#f8f9fa', color: '#555', borderRadius: 20, padding: '3px 10px', fontSize: 12 }}>💰 ₹2 platform fee paid</span>
                   </div>
-                  {/* Pay driver — opens UPI picker */}
+                  {/* Pay driver — shows a clear paid state once confirmed */}
                   {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && b.status !== 'completed' && (
-                    <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, b.ride_fare || b.rides?.fare || 150, b.rides.profiles.full_name?.split(' ')[0] || 'Driver', b.id)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                      💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
-                    </button>
+                    b.payment_status === 'paid' ? (
+                      <div style={{ width: '100%', marginTop: 8, padding: '11px', background: '#dcfce7', color: '#15803d', borderRadius: 10, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        ✓ Paid ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
+                      </div>
+                    ) : (
+                      <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, b.ride_fare || b.rides?.fare || 150, b.rides.profiles.full_name?.split(' ')[0] || 'Driver', b.id)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
+                      </button>
+                    )
                   )}
                   <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                     <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{ flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⭐ Rate</button>
@@ -602,12 +616,13 @@ export default function MyRides() {
               <div style={{ fontSize: 12, color: '#94a3b8' }}>to {upiSheet.name}</div>
             </div>
 
-            {/* STEP 1 — copy the UPI ID */}
+            {/* OPTION 1 — copy & paste. Works in every app, every time. */}
             <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-              STEP 1 — Copy the driver's UPI ID
+              OPTION 1 — Copy &amp; pay in your UPI app
             </div>
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>UPI ID</div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis' }}>{upiSheet.upi}</div>
               </div>
               <button onClick={() => {
@@ -617,44 +632,51 @@ export default function MyRides() {
                 {copied ? '✓ Copied' : 'Copy'}
               </button>
             </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16, lineHeight: 1.5 }}>
+              Open PhonePe / GPay / Paytm → <b>Pay to UPI ID</b> → paste → enter <b>₹{upiSheet.fare}</b>
+            </div>
 
-            {/* STEP 2 — open their UPI app */}
+            {/* OPTION 2 — save QR, upload in the UPI app. Amount comes pre-filled,
+                and this works in PhonePe where the direct link does not. */}
             <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-              STEP 2 — Open your UPI app and pay ₹{upiSheet.fare}
+              OPTION 2 — Save QR, then upload it in your UPI app
+            </div>
+            {upiSheet.qr ? (
+              <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                <img src={upiSheet.qr} alt="UPI QR code" style={{ width: 170, height: 170, border: '1px solid #e2e8f0', borderRadius: 14, padding: 6, background: '#fff' }} />
+                <a href={upiSheet.qr} download={`carpoolkaro-pay-${upiSheet.fare}.png`}
+                  style={{ display: 'block', marginTop: 8, padding: 11, background: '#0f172a', color: '#fff', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                  ⬇ Save QR image
+                </a>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#aaa', fontSize: 12, padding: 20 }}>Generating QR…</div>
+            )}
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16, lineHeight: 1.5 }}>
+              In your UPI app tap <b>Scan</b> → gallery icon → pick the saved QR.
+              The ₹{upiSheet.fare} amount fills in automatically.
+            </div>
+
+            {/* OPTION 3 — direct link. Works in some apps (CRED, GPay); PhonePe
+                rejects links opened from a browser, which we can't control. */}
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+              OPTION 3 — Try opening a UPI app directly
             </div>
             <a href={buildUpiUrl(upiSheet.upi, upiSheet.name, upiSheet.fare)}
-              style={{ display: 'block', textAlign: 'center', padding: 13, background: '#111', color: '#facc15', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', marginBottom: 6 }}>
-              Try opening a UPI app
+              style={{ display: 'block', textAlign: 'center', padding: 12, background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', marginBottom: 6 }}>
+              Open UPI app
             </a>
-            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginBottom: 16, lineHeight: 1.5 }}>
-              If that doesn't open, open PhonePe / GPay / Paytm yourself,
-              choose <b>Pay to UPI ID</b>, and paste the ID above.
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 18, lineHeight: 1.5 }}>
+              Your phone picks which app opens — PhonePe often blocks payments
+              opened this way. If it fails, use Option 1 or 2.
             </div>
 
-            {/* STEP 3 — confirm */}
             <button
               onClick={() => markPaid(upiSheet.bookingId)}
               disabled={payingId === upiSheet.bookingId}
               style={{ width: '100%', padding: 14, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer', marginBottom: 12, opacity: payingId === upiSheet.bookingId ? 0.6 : 1 }}>
               {payingId === upiSheet.bookingId ? 'Saving…' : "✓ I've Paid"}
             </button>
-
-            {/* QR — only useful for paying from a DIFFERENT device, so it's
-                tucked away rather than presented as the main path. */}
-            <details style={{ marginBottom: 12 }}>
-              <summary style={{ fontSize: 12, color: '#64748b', cursor: 'pointer', padding: '8px 0' }}>
-                Paying from another phone? Show QR code
-              </summary>
-              <div style={{ textAlign: 'center', paddingTop: 10 }}>
-                {upiSheet.qr
-                  ? <img src={upiSheet.qr} alt="UPI QR code" style={{ width: 200, height: 200, border: '1px solid #e2e8f0', borderRadius: 16, padding: 8, background: '#fff' }} />
-                  : <div style={{ width: 200, height: 200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 13 }}>Generating QR…</div>}
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.5 }}>
-                  Scan this from a different device. You can't scan it with the
-                  same phone that's showing it.
-                </div>
-              </div>
-            </details>
 
             <button onClick={() => setUpiSheet(null)} style={{ width: '100%', padding: 12, background: 'none', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>Close</button>
           </div>
