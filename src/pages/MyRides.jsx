@@ -77,6 +77,16 @@ function PassengerCard({ booking, unreadCount, onRate }) {
           </div>
         ))}
       </div>
+      {/* Fare payment status — the rider marks this after paying via UPI */}
+      <div style={{
+        marginTop: 8, padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+        background: booking.payment_status === 'paid' ? '#dcfce7' : '#fef3c7',
+        color: booking.payment_status === 'paid' ? '#15803d' : '#92400e',
+      }}>
+        {booking.payment_status === 'paid'
+          ? `✓ Rider marked fare as paid`
+          : `⏳ Fare payment pending`}
+      </div>
       <ContactButtons phone={rider?.phone} name={rider?.full_name} bookingId={booking.id} navigate={navigate} />
       {unreadCount > 0 && (
         <button onClick={() => navigate(`/chat/${booking.id}`)} style={{ width: '100%', marginTop: 10, padding: '10px', background: '#fefce8', border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 700, fontSize: 13, color: '#854d0e' }}>
