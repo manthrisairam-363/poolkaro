@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import QRCode from 'qrcode'
 import { formatTime, formatDate } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -320,12 +321,28 @@ export default function MyRides() {
   const navigate = useNavigate()
   const [tab, setTab] = useState('posted')
   const [upiSheet, setUpiSheet] = useState(null)
+  const [copied, setCopied] = useState(false)
   const [rides, setRides] = useState([])
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [unreadCounts, setUnreadCounts] = useState({})
 
   useEffect(() => { fetchData() }, [])
+
+  // Open the payment sheet and generate a UPI QR for it. The QR carries the
+  // standard upi:// string — the rider scans it with their own UPI app, which
+  // is the only reliable way to pay from a web app (app deep-links get blocked).
+  async function openUpiSheet(upi, fare, name) {
+    setCopied(false)
+    setUpiSheet({ upi, fare, name, qr: null })
+    try {
+      const url = buildUpiUrl(upi, name, fare)
+      const qr = await QRCode.toDataURL(url, { width: 440, margin: 1 })
+      setUpiSheet(s => (s && s.upi === upi ? { ...s, qr } : s))
+    } catch (e) {
+      // If QR generation fails, the copy-UPI + tap-to-open fallbacks still work.
+    }
+  }
 
   async function fetchUnreadCounts(bookingIds) {
     if (!bookingIds.length) return
@@ -492,7 +509,7 @@ export default function MyRides() {
                   </div>
                   {/* Pay driver — opens UPI picker */}
                   {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && b.status !== 'completed' && (
-                    <button onClick={() => setUpiSheet({ upi: b.rides.profiles.upi_id, fare: b.ride_fare || b.rides?.fare || 150, name: b.rides.profiles.full_name?.split(' ')[0] || 'Driver' })} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, b.ride_fare || b.rides?.fare || 150, b.rides.profiles.full_name?.split(' ')[0] || 'Driver')} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
                     </button>
                   )}
@@ -542,28 +559,53 @@ export default function MyRides() {
 
       <BottomNav />
 
-      {/* UPI Picker Bottom Sheet */}
+      {/* UPI Payment Bottom Sheet — QR is the reliable path from a web app */}
       {upiSheet && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
           <div onClick={() => setUpiSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: '#fff', borderRadius: '24px 24px 0 0', padding: '20px 20px 40px', animation: 'slideUp 0.3s ease' }}>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: '#fff', borderRadius: '24px 24px 0 0', padding: '20px 20px 40px', animation: 'slideUp 0.3s ease', maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 100, margin: '0 auto 20px' }} />
-            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>PAY DRIVER</div>
               <div style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', margin: '6px 0' }}>₹{upiSheet.fare}</div>
               <div style={{ fontSize: 12, color: '#94a3b8' }}>to {upiSheet.name}</div>
             </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 14, textAlign: 'center' }}>SELECT PAYMENT APP</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
-              {UPI_APPS.map(app => (
-                <button key={app.name} onClick={() => { window.location.href = app.url(upiSheet.upi, upiSheet.name, upiSheet.fare); setUpiSheet(null) }}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '12px 4px', cursor: 'pointer' }}>
-                  {app.logo}
-                  <span style={{ fontSize: 9, fontWeight: 700, color: '#334155', textAlign: 'center', lineHeight: 1.2 }}>{app.name}</span>
-                </button>
-              ))}
+
+            {/* QR — rider scans with any UPI app. Payment is trusted because the
+                rider's own app reads it, so no "declined for security" block. */}
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              {upiSheet.qr
+                ? <img src={upiSheet.qr} alt="UPI QR code" style={{ width: 220, height: 220, border: '1px solid #e2e8f0', borderRadius: 16, padding: 8, background: '#fff' }} />
+                : <div style={{ width: 220, height: 220, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 13 }}>Generating QR…</div>}
             </div>
-            <button onClick={() => setUpiSheet(null)} style={{ width: '100%', padding: 12, background: 'none', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+            <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', marginBottom: 16, lineHeight: 1.5 }}>
+              Scan with <b>any UPI app</b> (PhonePe, GPay, Paytm…) to pay ₹{upiSheet.fare}
+            </div>
+
+            {/* Copy UPI ID — backup for paying manually */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: 0.5 }}>UPI ID</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis' }}>{upiSheet.upi}</div>
+              </div>
+              <button onClick={() => {
+                navigator.clipboard?.writeText(upiSheet.upi)
+                setCopied(true); setTimeout(() => setCopied(false), 1500)
+              }} style={{ flexShrink: 0, marginLeft: 12, padding: '8px 16px', background: copied ? '#16a34a' : '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+
+            {/* Tap-to-open — works on some phones; QR is the guaranteed path */}
+            <a href={buildUpiUrl(upiSheet.upi, upiSheet.name, upiSheet.fare)}
+              style={{ display: 'block', textAlign: 'center', padding: 13, background: '#111', color: '#facc15', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', marginBottom: 10 }}>
+              Open a UPI app on this phone
+            </a>
+
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginBottom: 14, lineHeight: 1.5 }}>
+              After paying, tap "I've Paid" so the driver is notified.
+            </div>
+            <button onClick={() => setUpiSheet(null)} style={{ width: '100%', padding: 12, background: 'none', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>Close</button>
           </div>
         </div>
       )}

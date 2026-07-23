@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import QRCode from 'qrcode'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -18,9 +19,19 @@ export default function BookRide() {
   const [alreadyBooked, setAlreadyBooked] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
   const [bookingData, setBookingData] = useState(null)
+  const [upiQr, setUpiQr] = useState(null)
+  const [upiCopied, setUpiCopied] = useState(false)
   const [seatsToBook, setSeatsToBook] = useState(1)
 
   useEffect(() => { fetchRide() }, [id])
+
+  // Generate the UPI QR once we're on the pay screen and have the owner's VPA.
+  useEffect(() => {
+    if (step !== 'pay' || !owner?.upi_id || !ride?.fare) return
+    QRCode.toDataURL(getUPILink(), { width: 400, margin: 1 })
+      .then(setUpiQr)
+      .catch(() => {})
+  }, [step, owner?.upi_id, ride?.fare])
 
   async function fetchRide() {
     const { data } = await supabase
@@ -168,28 +179,32 @@ export default function BookRide() {
             {/* Payment app buttons - only show if UPI is set */}
             {owner?.upi_id && (
             <>
-            <div style={{ fontSize: 12, color: '#888', marginBottom: 10, textAlign: 'center' }}>
-              Open payment app directly:
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-              {[
-                { app: 'gpay', icon: '🟢', label: 'Google Pay' },
-                { app: 'phonepe', icon: '🟣', label: 'PhonePe' },
-                { app: 'paytm', icon: '🔵', label: 'Paytm' },
-                { app: 'upi', icon: '⚡', label: 'Any UPI' },
-              ].map(({ app, icon, label }) => (
-                <a key={app} href={getUPILink(app)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 8, padding: '12px', background: '#222', borderRadius: 10,
-                    color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-                    border: '1px solid #333',
-                  }}>
-                  {icon} {label}
-                </a>
-              ))}
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              {upiQr
+                ? <img src={upiQr} alt="UPI QR code" style={{ width: 200, height: 200, background: '#fff', borderRadius: 14, padding: 8 }} />
+                : <div style={{ width: 200, height: 200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 13 }}>Generating QR…</div>}
+              <div style={{ fontSize: 12, color: '#aaa', marginTop: 8, lineHeight: 1.5 }}>
+                Scan with <b style={{ color: '#ddd' }}>any UPI app</b> to pay ₹{ride?.fare}
+              </div>
             </div>
 
+            <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>UPI ID</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis' }}>{owner?.upi_id}</div>
+              </div>
+              <button onClick={() => {
+                navigator.clipboard?.writeText(owner?.upi_id || '')
+                setUpiCopied(true); setTimeout(() => setUpiCopied(false), 1500)
+              }} style={{ flexShrink: 0, marginLeft: 12, padding: '8px 16px', background: upiCopied ? '#16a34a' : '#facc15', color: '#111', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                {upiCopied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+
+            <a href={getUPILink()}
+              style={{ display: 'block', textAlign: 'center', padding: 12, background: '#222', borderRadius: 10, color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 600, border: '1px solid #333', marginBottom: 12 }}>
+              Open a UPI app on this phone
+            </a>
             </>
             )}
             {/* Chat with car owner */}
