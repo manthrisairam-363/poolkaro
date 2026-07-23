@@ -322,6 +322,7 @@ export default function MyRides() {
   const [tab, setTab] = useState('posted')
   const [upiSheet, setUpiSheet] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [payingId, setPayingId] = useState(null)
   const [rides, setRides] = useState([])
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -329,19 +330,48 @@ export default function MyRides() {
 
   useEffect(() => { fetchData() }, [])
 
-  // Open the payment sheet and generate a UPI QR for it. The QR carries the
-  // standard upi:// string — the rider scans it with their own UPI app, which
-  // is the only reliable way to pay from a web app (app deep-links get blocked).
-  async function openUpiSheet(upi, fare, name) {
+  // Open the payment sheet. Copy-first is the primary path because the rider is
+  // paying from this same phone — a QR on its own screen can't be scanned by it.
+  async function openUpiSheet(upi, fare, name, bookingId) {
     setCopied(false)
-    setUpiSheet({ upi, fare, name, qr: null })
+    setUpiSheet({ upi, fare, name, bookingId, qr: null })
     try {
       const url = buildUpiUrl(upi, name, fare)
       const qr = await QRCode.toDataURL(url, { width: 440, margin: 1 })
       setUpiSheet(s => (s && s.upi === upi ? { ...s, qr } : s))
     } catch (e) {
-      // If QR generation fails, the copy-UPI + tap-to-open fallbacks still work.
+      // QR is optional — copy + open-app fallbacks still work without it.
     }
+  }
+
+  // Rider confirms they've paid → mark the booking and notify the driver.
+  async function markPaid(bookingId) {
+    if (!bookingId) { setUpiSheet(null); return }
+    setPayingId(bookingId)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ payment_status: 'paid' })
+      .eq('id', bookingId)
+      .eq('rider_id', user.id)
+
+    if (error) {
+      alert('Could not save. Please check your connection and try again.')
+      setPayingId(null)
+      return
+    }
+
+    const b = bookings.find(x => x.id === bookingId)
+    if (b?.rides?.driver_id) {
+      await sendNotification(
+        b.rides.driver_id,
+        '💰 Payment received',
+        `Rider marked ₹${b.ride_fare || b.rides?.fare || ''} as paid for ${b.rides.from_location} → ${b.rides.to_location}`
+      )
+    }
+
+    setPayingId(null)
+    setUpiSheet(null)
+    fetchData()
   }
 
   async function fetchUnreadCounts(bookingIds) {
@@ -360,7 +390,7 @@ export default function MyRides() {
     setLoading(true)
     const [ridesRes, bookingsRes] = await Promise.all([
       supabase.from('rides').select('*').eq('driver_id', user.id).order('ride_date', { ascending: false }),
-      supabase.from('bookings').select('*, rides(from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))').eq('rider_id', user.id).order('created_at', { ascending: true }),
+      supabase.from('bookings').select('*, rides(driver_id, from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))').eq('rider_id', user.id).order('created_at', { ascending: true }),
     ])
     if (!ridesRes.error) setRides(ridesRes.data || [])
     if (!bookingsRes.error) {
@@ -509,7 +539,7 @@ export default function MyRides() {
                   </div>
                   {/* Pay driver — opens UPI picker */}
                   {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && b.status !== 'completed' && (
-                    <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, b.ride_fare || b.rides?.fare || 150, b.rides.profiles.full_name?.split(' ')[0] || 'Driver')} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, b.ride_fare || b.rides?.fare || 150, b.rides.profiles.full_name?.split(' ')[0] || 'Driver', b.id)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
                     </button>
                   )}
@@ -559,52 +589,73 @@ export default function MyRides() {
 
       <BottomNav />
 
-      {/* UPI Payment Bottom Sheet — QR is the reliable path from a web app */}
+      {/* UPI Payment Sheet — copy-first, because the rider is paying FROM this
+          same phone and cannot scan a QR shown on its own screen. */}
       {upiSheet && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
           <div onClick={() => setUpiSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: '#fff', borderRadius: '24px 24px 0 0', padding: '20px 20px 40px', animation: 'slideUp 0.3s ease', maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 100, margin: '0 auto 20px' }} />
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ textAlign: 'center', marginBottom: 18 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>PAY DRIVER</div>
               <div style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', margin: '6px 0' }}>₹{upiSheet.fare}</div>
               <div style={{ fontSize: 12, color: '#94a3b8' }}>to {upiSheet.name}</div>
             </div>
 
-            {/* QR — rider scans with any UPI app. Payment is trusted because the
-                rider's own app reads it, so no "declined for security" block. */}
-            <div style={{ textAlign: 'center', marginBottom: 8 }}>
-              {upiSheet.qr
-                ? <img src={upiSheet.qr} alt="UPI QR code" style={{ width: 220, height: 220, border: '1px solid #e2e8f0', borderRadius: 16, padding: 8, background: '#fff' }} />
-                : <div style={{ width: 220, height: 220, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 13 }}>Generating QR…</div>}
+            {/* STEP 1 — copy the UPI ID */}
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+              STEP 1 — Copy the driver's UPI ID
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', marginBottom: 16, lineHeight: 1.5 }}>
-              Scan with <b>any UPI app</b> (PhonePe, GPay, Paytm…) to pay ₹{upiSheet.fare}
-            </div>
-
-            {/* Copy UPI ID — backup for paying manually */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: 0.5 }}>UPI ID</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis' }}>{upiSheet.upi}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis' }}>{upiSheet.upi}</div>
               </div>
               <button onClick={() => {
                 navigator.clipboard?.writeText(upiSheet.upi)
                 setCopied(true); setTimeout(() => setCopied(false), 1500)
-              }} style={{ flexShrink: 0, marginLeft: 12, padding: '8px 16px', background: copied ? '#16a34a' : '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              }} style={{ flexShrink: 0, marginLeft: 12, padding: '9px 18px', background: copied ? '#16a34a' : '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 {copied ? '✓ Copied' : 'Copy'}
               </button>
             </div>
 
-            {/* Tap-to-open — works on some phones; QR is the guaranteed path */}
-            <a href={buildUpiUrl(upiSheet.upi, upiSheet.name, upiSheet.fare)}
-              style={{ display: 'block', textAlign: 'center', padding: 13, background: '#111', color: '#facc15', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', marginBottom: 10 }}>
-              Open a UPI app on this phone
-            </a>
-
-            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginBottom: 14, lineHeight: 1.5 }}>
-              After paying, tap "I've Paid" so the driver is notified.
+            {/* STEP 2 — open their UPI app */}
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+              STEP 2 — Open your UPI app and pay ₹{upiSheet.fare}
             </div>
+            <a href={buildUpiUrl(upiSheet.upi, upiSheet.name, upiSheet.fare)}
+              style={{ display: 'block', textAlign: 'center', padding: 13, background: '#111', color: '#facc15', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', marginBottom: 6 }}>
+              Try opening a UPI app
+            </a>
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginBottom: 16, lineHeight: 1.5 }}>
+              If that doesn't open, open PhonePe / GPay / Paytm yourself,
+              choose <b>Pay to UPI ID</b>, and paste the ID above.
+            </div>
+
+            {/* STEP 3 — confirm */}
+            <button
+              onClick={() => markPaid(upiSheet.bookingId)}
+              disabled={payingId === upiSheet.bookingId}
+              style={{ width: '100%', padding: 14, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer', marginBottom: 12, opacity: payingId === upiSheet.bookingId ? 0.6 : 1 }}>
+              {payingId === upiSheet.bookingId ? 'Saving…' : "✓ I've Paid"}
+            </button>
+
+            {/* QR — only useful for paying from a DIFFERENT device, so it's
+                tucked away rather than presented as the main path. */}
+            <details style={{ marginBottom: 12 }}>
+              <summary style={{ fontSize: 12, color: '#64748b', cursor: 'pointer', padding: '8px 0' }}>
+                Paying from another phone? Show QR code
+              </summary>
+              <div style={{ textAlign: 'center', paddingTop: 10 }}>
+                {upiSheet.qr
+                  ? <img src={upiSheet.qr} alt="UPI QR code" style={{ width: 200, height: 200, border: '1px solid #e2e8f0', borderRadius: 16, padding: 8, background: '#fff' }} />
+                  : <div style={{ width: 200, height: 200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 13 }}>Generating QR…</div>}
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.5 }}>
+                  Scan this from a different device. You can't scan it with the
+                  same phone that's showing it.
+                </div>
+              </div>
+            </details>
+
             <button onClick={() => setUpiSheet(null)} style={{ width: '100%', padding: 12, background: 'none', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>Close</button>
           </div>
         </div>
