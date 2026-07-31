@@ -398,7 +398,7 @@ export default function Home() {
               padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
               background: filter === v ? '#0f172a' : '#f1f5f9',
               color: filter === v ? '#facc15' : '#64748b',
-              fontWeight: 'bold', fontSize: 11,
+              fontWeight: 700, fontSize: 11,
             }}>
               {l}{v === 'requests' && requests.length > 0 ? ` (${requests.length})` : ''}
             </button>
