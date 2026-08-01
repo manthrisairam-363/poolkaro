@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import { formatTime, formatDate } from '../lib/utils'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
@@ -329,7 +329,12 @@ const UPI_APPS = [
 export default function MyRides() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('posted')
+  // A notification tap sets ?tab= and always wins. Otherwise we pick the tab
+  // based on the user's most recent action (see chooseTabByActivity below).
+  const urlTab = new URLSearchParams(window.location.search).get('tab')
+  const [tab, setTab] = useState(urlTab === 'booked' ? 'booked' : 'posted')
+  // Only auto-pick by activity once, and only when no ?tab= was given.
+  const autoPickDone = useRef(!!urlTab)
   const [upiSheet, setUpiSheet] = useState(null)
   const [copied, setCopied] = useState(false)
   const [payingId, setPayingId] = useState(null)
@@ -337,6 +342,36 @@ export default function MyRides() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [unreadCounts, setUnreadCounts] = useState({})
+
+  const location = useLocation()
+  // If a notification navigates here (even while the app is already open),
+  // switch to the tab named in ?tab=.
+  useEffect(() => {
+    const t = new URLSearchParams(location.search).get('tab')
+    if (t === 'booked' || t === 'posted') { setTab(t); autoPickDone.current = true }
+  }, [location.search])
+
+  // First load with NO ?tab=: open the tab matching the user's most recent
+  // action. Posted a ride more recently than they booked one → "I Posted";
+  // booked more recently → "I Booked". Handles "Both" users by actual activity
+  // rather than a fixed default. Runs once.
+  useEffect(() => {
+    if (autoPickDone.current) return
+    if (loading) return
+    autoPickDone.current = true
+
+    const latest = (arr, field) => arr.reduce((max, x) => {
+      const ts = new Date(x[field] || 0).getTime()
+      return ts > max ? ts : max
+    }, 0)
+
+    const lastPosted = latest(rides, 'created_at')
+    const lastBooked = latest(bookings, 'created_at')
+
+    // If they've only ever done one, show that. If both, show the more recent.
+    if (lastBooked > lastPosted) setTab('booked')
+    else setTab('posted')
+  }, [loading, rides, bookings])
 
   useEffect(() => { fetchData() }, [])
 
