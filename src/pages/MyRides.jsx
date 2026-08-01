@@ -352,9 +352,9 @@ export default function MyRides() {
   }, [location.search])
 
   // First load with NO ?tab=: open the tab matching the user's most recent
-  // action. Posted a ride more recently than they booked one → "I Posted";
-  // booked more recently → "I Booked". Handles "Both" users by actual activity
-  // rather than a fixed default. Runs once.
+  // action — whichever they did more recently (posted vs booked). Handles
+  // "Both" users by real activity rather than a fixed default. Runs once,
+  // after loading finishes, using the settled rides/bookings arrays.
   useEffect(() => {
     if (autoPickDone.current) return
     if (loading) return
@@ -368,10 +368,10 @@ export default function MyRides() {
     const lastPosted = latest(rides, 'created_at')
     const lastBooked = latest(bookings, 'created_at')
 
-    // If they've only ever done one, show that. If both, show the more recent.
-    if (lastBooked > lastPosted) setTab('booked')
-    else setTab('posted')
-  }, [loading, rides, bookings])
+    // Booked more recently → I Booked. Otherwise (posted more recently, only
+    // posted, or nothing yet) → I Posted.
+    setTab(lastBooked > lastPosted ? 'booked' : 'posted')
+  }, [loading])
 
   useEffect(() => { fetchData() }, [])
 
