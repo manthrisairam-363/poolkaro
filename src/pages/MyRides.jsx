@@ -390,8 +390,31 @@ export default function MyRides() {
   }
 
   // Rider confirms they've paid → mark the booking and notify the driver.
+  // Undo an accidental "I've Paid" — sets the booking back to pending.
+  async function unmarkPaid(bookingId) {
+    const ok = window.confirm('Mark this fare as NOT paid?\n\nUse this only if you tapped "I\'ve Paid" by mistake.')
+    if (!ok) return
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ payment_status: 'pending' })
+      .eq('id', bookingId)
+      .eq('rider_id', user.id)
+      .select('id')
+    if (error || !data || data.length === 0) {
+      alert('Could not undo. Please try again.')
+      return
+    }
+    await fetchData()
+  }
+
   async function markPaid(bookingId) {
     if (!bookingId) { setUpiSheet(null); return }
+    // Guard against accidental taps — this changes payment status and notifies
+    // the driver, so confirm the rider actually paid first.
+    const ok = window.confirm(
+      "Confirm you've paid the fare to the driver?\n\nOnly tap OK if you have actually completed the UPI payment. The driver will be notified."
+    )
+    if (!ok) return
     setPayingId(bookingId)
     // .select() is essential: without it Supabase returns no error when RLS
     // blocks the update — it just affects 0 rows and looks like success.
@@ -598,9 +621,9 @@ export default function MyRides() {
                   {/* Pay driver — shows a clear paid state once confirmed */}
                   {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && b.status !== 'completed' && (
                     b.payment_status === 'paid' ? (
-                      <div style={{ width: '100%', marginTop: 8, padding: '11px', background: '#dcfce7', color: '#15803d', borderRadius: 10, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        ✓ Paid ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
-                      </div>
+                      <button onClick={() => unmarkPaid(b.id)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        ✓ Paid ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]} <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>· tap to undo</span>
+                      </button>
                     ) : (
                       <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, b.ride_fare || b.rides?.fare || 150, b.rides.profiles.full_name?.split(' ')[0] || 'Driver', b.id)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                         💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
