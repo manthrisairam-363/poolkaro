@@ -86,6 +86,7 @@ export default function Chat() {
   const [sending, setSending] = useState(false)
   const [recording, setRecording] = useState(false)
   const [recSecs, setRecSecs] = useState(0)
+  const [showQuick, setShowQuick] = useState(false)
   const [warn, setWarn] = useState('')
   const [senderName, setSenderName] = useState('')
   const [isLive, setIsLive] = useState(false)
@@ -98,6 +99,7 @@ export default function Chat() {
   const mediaRec = useRef(null)
   const recChunks = useRef([])
   const recTimer = useRef(null)
+  const recMime = useRef('audio/webm')
 
   const scrollBottom = useCallback(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
@@ -417,12 +419,25 @@ export default function Chat() {
     if (recording) return
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mr = new MediaRecorder(stream)
+      // Pick a format the browser can record AND phones can play back. iOS
+      // can't play webm, so prefer mp4/aac when available; fall back to webm.
+      const preferred = [
+        'audio/mp4',
+        'audio/aac',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+      ]
+      let mimeType = ''
+      for (const t of preferred) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) { mimeType = t; break }
+      }
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      recMime.current = mr.mimeType || mimeType || 'audio/webm'
       recChunks.current = []
       mr.ondataavailable = (ev) => { if (ev.data.size > 0) recChunks.current.push(ev.data) }
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(recChunks.current, { type: mr.mimeType || 'audio/webm' })
+        const blob = new Blob(recChunks.current, { type: recMime.current })
         await uploadVoiceNote(blob)
       }
       mr.start()
@@ -431,7 +446,7 @@ export default function Chat() {
       setRecSecs(0)
       recTimer.current = setInterval(() => {
         setRecSecs(s => {
-          if (s >= 59) { stopRecording() ; return 60 }  // 60s cap
+          if (s >= 59) { stopRecording() ; return 60 }
           return s + 1
         })
       }, 1000)
@@ -459,7 +474,8 @@ export default function Chat() {
   async function uploadVoiceNote(blob) {
     setSending(true)
     try {
-      const path = `${bookingId}/${user.id}-${Date.now()}.webm`
+      const ext = (recMime.current || '').includes('mp4') || (recMime.current || '').includes('aac') ? 'm4a' : 'webm'
+      const path = `${bookingId}/${user.id}-${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage
         .from('voice-notes')
         .upload(path, blob, { contentType: blob.type, upsert: false })
@@ -645,11 +661,13 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Quick replies — vertical list, tap to send instantly */}
-      {!info?.isCancelled && msgs.length < 3 && !recording && (
+      {/* Quick replies — vertical list, tap to send instantly.
+          Shown automatically for the first couple messages, and any time the
+          user taps the 💬 Quick button. */}
+      {!info?.isCancelled && (msgs.length < 3 || showQuick) && !recording && (
         <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, maxHeight: 200, overflowY: 'auto' }}>
           {(info?.isDriver ? QUICK_DRIVER : QUICK_RIDER).map(q => (
-            <button key={q} onClick={() => sendQuick(q)}
+            <button key={q} onClick={() => { sendQuick(q); setShowQuick(false) }}
               style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#ddd', padding: '10px 14px', borderRadius: 12, fontSize: 13, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
               {q}
             </button>
@@ -665,8 +683,11 @@ export default function Chat() {
 
       {!info?.isCancelled ? (
         <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', paddingBottom: 'max(10px, env(safe-area-inset-bottom))', flexShrink: 0 }}>
-          {/* Location buttons */}
+          {/* Location + quick-messages buttons */}
           <div style={{ display: 'flex', gap: 8, padding: '8px 12px 4px' }}>
+            <button onClick={() => setShowQuick(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: showQuick ? '#facc15' : '#1a1a1a', border: '1px solid #2a2a2a', color: showQuick ? '#111' : '#facc15', borderRadius: 20, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              💬 Quick
+            </button>
             <button onClick={sendLocation} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#facc15', borderRadius: 20, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               📍 Location
             </button>
