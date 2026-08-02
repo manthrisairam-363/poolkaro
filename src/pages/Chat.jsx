@@ -53,12 +53,26 @@ function sanitize(text) {
   return result
 }
 
-const QUICK = [
+// Quick messages differ by role — a rider and a driver need to say different
+// things. The right set is chosen at render time from info.isDriver.
+const QUICK_RIDER = [
   '👋 Hi! I booked your ride',
   '📍 What\'s the exact pickup point?',
-  '🕐 Running 5 mins late, sorry!',
+  '🕐 What time should I be ready?',
+  '🚶 I\'m walking to the pickup point',
+  '⏳ Running 5 mins late, sorry!',
   '✅ I\'m here, ready to go!',
-  '🙏 Thanks for the ride!',
+  '🙏 Thank you for the ride!',
+]
+
+const QUICK_DRIVER = [
+  '👋 Hi! Thanks for booking',
+  '📍 Where\'s your pickup point?',
+  '🚗 I\'m on the way',
+  '📌 I\'ve reached the pickup point',
+  '🕐 Please be ready, I\'m nearby',
+  '⏳ Running 5 mins late, sorry!',
+  '🙏 Thanks, ride complete!',
 ]
 
 export default function Chat() {
@@ -70,6 +84,8 @@ export default function Chat() {
   const [info, setInfo] = useState(null) // { rideInfo, otherName, otherAvatar, otherPhone, otherId, isCancelled }
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [recSecs, setRecSecs] = useState(0)
   const [warn, setWarn] = useState('')
   const [senderName, setSenderName] = useState('')
   const [isLive, setIsLive] = useState(false)
@@ -79,6 +95,9 @@ export default function Chat() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const latestMsgId = useRef(null)
+  const mediaRec = useRef(null)
+  const recChunks = useRef([])
+  const recTimer = useRef(null)
 
   const scrollBottom = useCallback(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
@@ -133,6 +152,7 @@ export default function Chat() {
       otherAvatar: other?.avatar_url,
       otherPhone: other?.phone,
       otherId,
+      isDriver,          // this user drives the ride
       isCancelled: b.status === 'cancelled',
     })
 
@@ -327,6 +347,20 @@ export default function Chat() {
       )
     }
 
+    if (txt.startsWith('🎤VOICE:')) {
+      const url = txt.replace('🎤VOICE:', '')
+      return (
+        <div style={{ background: mine ? '#facc15' : '#1e1e1e', borderRadius: 14, padding: '10px 12px', width: 230 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+            <span>🎤</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: mine ? '#111' : '#fff' }}>Voice note</span>
+          </div>
+          <audio controls preload="none" src={url} style={{ width: '100%', height: 36 }} />
+          <div style={{ fontSize: 10, color: mine ? '#78350f' : '#555', textAlign: 'right', marginTop: 4 }}>{fmtTime(item.created_at)}</div>
+        </div>
+      )
+    }
+
     if (txt.startsWith('📡LIVE:')) {
       const senderId = txt.replace('📡LIVE:', '')
       const live = liveLocations[senderId]
@@ -373,6 +407,84 @@ export default function Chat() {
         </div>
       </div>
     )
+  }
+
+  // ── Voice notes ──
+  // Recorded with MediaRecorder, uploaded to Supabase Storage bucket
+  // "voice-notes", and sent as a message with a "🎤VOICE:<url>" convention
+  // (same pattern as location messages, so the messages table needs no change).
+  async function startRecording() {
+    if (recording) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      recChunks.current = []
+      mr.ondataavailable = (ev) => { if (ev.data.size > 0) recChunks.current.push(ev.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(recChunks.current, { type: mr.mimeType || 'audio/webm' })
+        await uploadVoiceNote(blob)
+      }
+      mr.start()
+      mediaRec.current = mr
+      setRecording(true)
+      setRecSecs(0)
+      recTimer.current = setInterval(() => {
+        setRecSecs(s => {
+          if (s >= 59) { stopRecording() ; return 60 }  // 60s cap
+          return s + 1
+        })
+      }, 1000)
+    } catch (err) {
+      alert('Could not access microphone. Please allow mic permission.')
+    }
+  }
+
+  function stopRecording() {
+    if (!recording) return
+    clearInterval(recTimer.current)
+    setRecording(false)
+    try { mediaRec.current?.stop() } catch (_) {}
+  }
+
+  function cancelRecording() {
+    if (!recording) return
+    clearInterval(recTimer.current)
+    setRecording(false)
+    recChunks.current = []           // discard — onstop won't upload
+    const mr = mediaRec.current
+    if (mr) { mr.onstop = () => mr.stream?.getTracks().forEach(t => t.stop()); try { mr.stop() } catch (_) {} }
+  }
+
+  async function uploadVoiceNote(blob) {
+    setSending(true)
+    try {
+      const path = `${bookingId}/${user.id}-${Date.now()}.webm`
+      const { error: upErr } = await supabase.storage
+        .from('voice-notes')
+        .upload(path, blob, { contentType: blob.type, upsert: false })
+      if (upErr) { alert('Could not send voice note. Please try again.'); setSending(false); return }
+
+      const { data: pub } = supabase.storage.from('voice-notes').getPublicUrl(path)
+      const url = pub?.publicUrl
+      if (!url) { setSending(false); return }
+
+      const { data: saved } = await supabase.from('messages').insert({
+        booking_id: bookingId, sender_id: user.id,
+        text: `🎤VOICE:${url}`, read: false,
+      }).select().single()
+
+      if (saved) { setMsgs(prev => [...prev, saved]); latestMsgId.current = saved.id; scrollBottom() }
+
+      if (info?.otherId) {
+        await supabase.from('notifications').insert({
+          user_id: info.otherId, title: `🎤 ${senderName} sent a voice note`,
+          message: 'Tap to listen', type: 'booking', booking_id: bookingId, is_read: false,
+        })
+      }
+    } finally {
+      setSending(false)
+    }
   }
 
   async function send(e) {
@@ -511,7 +623,7 @@ export default function Chat() {
       {/* Quick replies */}
       {!info?.isCancelled && msgs.length < 3 && (
         <div style={{ padding: '6px 10px', display: 'flex', gap: 8, overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none' }}>
-          {QUICK.map(q => (
+          {(info?.isDriver ? QUICK_DRIVER : QUICK_RIDER).map(q => (
             <button key={q} onClick={() => { setText(q); inputRef.current?.focus() }}
               style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#bbb', padding: '7px 12px', borderRadius: 18, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
               {q}
@@ -543,7 +655,26 @@ export default function Chat() {
               </button>
             )}
           </div>
-          {/* Message input */}
+          {/* Message input (or recording bar) */}
+          {recording ? (
+            <div style={{ padding: '0 12px 10px', display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={cancelRecording}
+                style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', background: '#1a1a1a', color: '#ef4444', fontSize: 18, cursor: 'pointer', flexShrink: 0 }}>
+                ✕
+              </button>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 22, padding: '10px 16px' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite' }} />
+                <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
+                  Recording… {String(Math.floor(recSecs / 60)).padStart(1, '0')}:{String(recSecs % 60).padStart(2, '0')}
+                </span>
+                <span style={{ color: '#666', fontSize: 11, marginLeft: 'auto' }}>max 60s</span>
+              </div>
+              <button onClick={stopRecording}
+                style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', background: '#facc15', color: '#111', fontSize: 18, cursor: 'pointer', flexShrink: 0 }}>
+                ➤
+              </button>
+            </div>
+          ) : (
           <div style={{ padding: '0 12px 10px', display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <textarea
               ref={inputRef} value={text}
@@ -554,11 +685,19 @@ export default function Chat() {
               style={{ flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#fff', borderRadius: 22, padding: '10px 16px', fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120 }}
               onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
             />
-            <button onClick={send} disabled={!text.trim() || sending}
-              style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: text.trim() ? 'pointer' : 'default', background: text.trim() ? '#facc15' : '#1a1a1a', color: text.trim() ? '#111' : '#444', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: '0.2s' }}>
-              {sending ? '⏳' : '➤'}
-            </button>
+            {text.trim() ? (
+              <button onClick={send} disabled={sending}
+                style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#facc15', color: '#111', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: '0.2s' }}>
+                {sending ? '⏳' : '➤'}
+              </button>
+            ) : (
+              <button onClick={startRecording} disabled={sending} aria-label="Record voice note"
+                style={{ width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#1a1a1a', color: '#facc15', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {sending ? '⏳' : '🎤'}
+              </button>
+            )}
           </div>
+          )}
         </div>
       ) : (
         <div style={{ background: '#111', borderTop: '1px solid #1a1a1a', padding: '14px', textAlign: 'center', color: '#555', fontSize: 13, flexShrink: 0 }}>
