@@ -463,7 +463,11 @@ export default function Chat() {
       const { error: upErr } = await supabase.storage
         .from('voice-notes')
         .upload(path, blob, { contentType: blob.type, upsert: false })
-      if (upErr) { alert('Could not send voice note. Please try again.'); setSending(false); return }
+      if (upErr) {
+        console.error('Voice upload failed:', upErr)
+        alert('Could not send voice note: ' + (upErr.message || 'storage error'))
+        setSending(false); return
+      }
 
       const { data: pub } = supabase.storage.from('voice-notes').getPublicUrl(path)
       const url = pub?.publicUrl
@@ -485,6 +489,27 @@ export default function Chat() {
     } finally {
       setSending(false)
     }
+  }
+
+  // Send a preset quick message directly (no need to edit it first).
+  async function sendQuick(q) {
+    if (sending) return
+    setSending(true)
+    const { data: saved } = await supabase.from('messages').insert({
+      booking_id: bookingId, sender_id: user.id, text: q, read: false,
+    }).select().single()
+    if (saved) {
+      setMsgs(prev => prev.find(m => m.id === saved.id) ? prev : [...prev, saved])
+      latestMsgId.current = saved.id
+      scrollBottom()
+      if (info?.otherId) {
+        await supabase.from('notifications').insert({
+          user_id: info.otherId, title: `💬 ${senderName}`,
+          message: q, type: 'booking', booking_id: bookingId, is_read: false,
+        })
+      }
+    }
+    setSending(false)
   }
 
   async function send(e) {
@@ -554,7 +579,7 @@ export default function Chat() {
   )
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff' }}>
+    <div style={{ position: 'fixed', inset: 0, height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0a0a0a', color: '#fff', overflow: 'hidden' }}>
 
       {/* Header */}
       <div style={{ background: '#111', padding: '12px 16px', borderBottom: '1px solid #1a1a1a', flexShrink: 0, paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
@@ -620,12 +645,12 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Quick replies */}
-      {!info?.isCancelled && msgs.length < 3 && (
-        <div style={{ padding: '6px 10px', display: 'flex', gap: 8, overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none' }}>
+      {/* Quick replies — vertical list, tap to send instantly */}
+      {!info?.isCancelled && msgs.length < 3 && !recording && (
+        <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, maxHeight: 200, overflowY: 'auto' }}>
           {(info?.isDriver ? QUICK_DRIVER : QUICK_RIDER).map(q => (
-            <button key={q} onClick={() => { setText(q); inputRef.current?.focus() }}
-              style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#bbb', padding: '7px 12px', borderRadius: 18, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <button key={q} onClick={() => sendQuick(q)}
+              style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#ddd', padding: '10px 14px', borderRadius: 12, fontSize: 13, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
               {q}
             </button>
           ))}
