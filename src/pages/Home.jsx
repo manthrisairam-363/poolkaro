@@ -88,7 +88,9 @@ export default function Home() {
   const { profile, user } = useAuth()
   const navigate = useNavigate()
   const [rides, setRides] = useState([])
+  const [myBookedRideIds, setMyBookedRideIds] = useState(new Set())
   const [requests, setRequests] = useState([])
+  const [bookedRideIds, setBookedRideIds] = useState(new Set())
   const [myRequest, setMyRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -118,6 +120,13 @@ export default function Home() {
   }, [])
 
   useEffect(() => { fetchSuggestedRoutes() }, [])
+
+  // Which rides has this user booked? Their plates get unmasked on the card.
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('bookings').select('ride_id').eq('rider_id', user.id).eq('status', 'confirmed')
+      .then(({ data }) => { if (data) setBookedRideIds(new Set(data.map(b => b.ride_id))) })
+  }, [user?.id])
 
   const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
@@ -438,7 +447,9 @@ export default function Home() {
       <div style={{ padding: '10px 14px' }}>
 
         {/* Usual routes */}
-        {suggestedRoutes.length > 0 && filter === 'all' && !search && !hasActiveFilters && (
+        {/* Usual routes — only worth showing when there are enough rides to
+            filter through (otherwise applying a filter just empties the list). */}
+        {suggestedRoutes.length > 0 && rides.length >= 10 && filter === 'all' && !search && !hasActiveFilters && (
           <div style={{ marginBottom: 10, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
             {suggestedRoutes.map((r, i) => (
               <button key={i} onClick={() => { setFilterFrom(r.from.split(' ')[0]); setFilterTo(r.to.split(' ')[0]) }} style={{
@@ -534,7 +545,7 @@ export default function Home() {
             ))}
             {/* ALL OTHER RIDES — compact */}
             {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} />
+              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} booked={bookedRideIds.has(ride.id)} />
             ))}
           </div>
         )}
@@ -658,54 +669,63 @@ export default function Home() {
 }
 
 // ── COMPACT RIDE CARD (other rides) ──
-function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
+function CompactRideCard({ ride, onTap, getCompanyFromEmail, booked }) {
   const emailForBadge = ride.profiles?.work_email_verified ? ride.profiles?.work_email : ride.profiles?.email
   const co = getCompanyFromEmail(emailForBadge)
   const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
   const seatsLeft = ride.seats_available || 0
-  const seatsColor = seatsLeft === 1 ? '#ef4444' : seatsLeft === 2 ? '#f97316' : '#16a34a'
+  const seatsColor = seatsLeft === 1 ? '#dc2626' : seatsLeft === 2 ? '#ea580c' : '#16a34a'
+
+  const carModel = ride.vehicle_model || ride.profiles?.vehicle_model || 'Car'
+  const fullPlate = ride.vehicle_number || ride.profiles?.vehicle_number || ''
+  // Mask the plate until the user has booked this ride: "TS08JB0143" → "TS08****"
+  const maskedPlate = fullPlate
+    ? (fullPlate.replace(/\s/g, '').slice(0, 4) + '****')
+    : ''
+  const plate = booked ? fullPlate : maskedPlate
 
   return (
-    <div
-      onClick={onTap}
-      style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.06)', cursor: 'pointer', border: '1px solid #f1f5f9', transition: '0.15s' }}
-    >
-      {/* Driver row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0, overflow: 'hidden' }}>
-          {ride.profiles?.avatar_url ? <img src={ride.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', WebkitTouchCallout: 'none' }} /> : initials}
+    <div onClick={onTap}
+      style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.06)', cursor: 'pointer', border: '1px solid #f1f5f9' }}>
+
+      {/* Driver + price row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0, overflow: 'hidden' }}>
+          {ride.profiles?.avatar_url ? <img src={ride.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} /> : initials}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
-            {ride.profiles?.full_name}
-            {ride.profiles?.is_verified && <span style={{ color: '#3b82f6', fontSize: 10 }}>✓</span>}
-            {co && <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', fontSize: 9, padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>{co.name}</span>}
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ride.profiles?.full_name}</span>
+            {ride.profiles?.is_verified && <span style={{ color: '#3b82f6', fontSize: 11, flexShrink: 0 }}>✓</span>}
           </div>
-          <div style={{ fontSize: 10, color: '#94a3b8' }}>
-            {formatTime(ride.ride_time)} · {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-            {ride.profiles?.avg_rating > 0 && <span style={{ marginLeft: 6, color: '#f59e0b' }}>⭐ {Number(ride.profiles.avg_rating).toFixed(1)}</span>}
+          <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {ride.profiles?.avg_rating > 0 && <span style={{ color: '#b45309', fontWeight: 700 }}>⭐ {Number(ride.profiles.avg_rating).toFixed(1)}</span>}
+            {co && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{co.name}</span>}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a' }}>₹{ride.fare}</div>
-          <div style={{ fontSize: 9, fontWeight: 700, color: seatsColor }}>{seatsLeft} seat{seatsLeft !== 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 17, fontWeight: 900, color: '#0f172a' }}>₹{ride.fare}</div>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: seatsColor }}>{seatsLeft} seat{seatsLeft !== 1 ? 's' : ''} left</div>
         </div>
       </div>
+
       {/* Route */}
-      <div style={{ background: '#f8fafc', borderRadius: 8, padding: '7px 10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ride.from_location}</span>
-          <span style={{ fontSize: 10, color: '#94a3b8' }}>→</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{ride.to_location}</span>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
-        </div>
-        {ride.route_description && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, paddingTop: 4, borderTop: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: 9, color: '#94a3b8', flexShrink: 0 }}>via</span>
-            <span style={{ fontSize: 10, color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ride.route_description}</span>
-          </div>
-        )}
+      <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 11px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ride.from_location}</span>
+        <span style={{ fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>→</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{ride.to_location}</span>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
+      </div>
+
+      {/* Time + car — the details users said were missing */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: '#475569', flexWrap: 'wrap' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+          🕐 {formatTime(ride.ride_time)} · {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          🚗 {carModel}{plate ? ` · ${plate}` : ''}
+        </span>
       </div>
     </div>
   )
