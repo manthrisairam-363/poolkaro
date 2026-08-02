@@ -545,7 +545,7 @@ export default function Home() {
             ))}
             {/* ALL OTHER RIDES — compact */}
             {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} booked={bookedRideIds.has(ride.id)} />
+              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} />
             ))}
           </div>
         )}
@@ -589,12 +589,23 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Car */}
+                  {/* Car — plate masked on the public list; full number shows
+                      in My Rides → I Booked after booking. */}
                   <div style={{ background: '#f8fafc', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
                     <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>Vehicle</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-                      {sheetRide.vehicle_model || sheetRide.profiles?.vehicle_model || 'Car'} · {sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number || '—'}
+                      {(() => {
+                        const model = sheetRide.vehicle_model || sheetRide.profiles?.vehicle_model || 'Car'
+                        const full = sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number || ''
+                        const shown = full ? (full.replace(/\s/g, '').slice(0, 4) + '****') : '—'
+                        return `${model} · ${shown}`
+                      })()}
                     </div>
+                    {(sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number) && (
+                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                        🔒 Full number shown in "My Rides" after you book
+                      </div>
+                    )}
                   </div>
 
                   {/* Route */}
@@ -669,7 +680,7 @@ export default function Home() {
 }
 
 // ── COMPACT RIDE CARD (other rides) ──
-function CompactRideCard({ ride, onTap, getCompanyFromEmail, booked }) {
+function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
   const emailForBadge = ride.profiles?.work_email_verified ? ride.profiles?.work_email : ride.profiles?.email
   const co = getCompanyFromEmail(emailForBadge)
   const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
@@ -678,11 +689,10 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail, booked }) {
 
   const carModel = ride.vehicle_model || ride.profiles?.vehicle_model || 'Car'
   const fullPlate = ride.vehicle_number || ride.profiles?.vehicle_number || ''
-  // Mask the plate until the user has booked this ride: "TS08JB0143" → "TS08****"
-  const maskedPlate = fullPlate
-    ? (fullPlate.replace(/\s/g, '').slice(0, 4) + '****')
-    : ''
-  const plate = booked ? fullPlate : maskedPlate
+  // Plate is ALWAYS masked on the public Rides list. The rider sees the full
+  // number in "My Rides → I Booked" after booking (where they need it at
+  // pickup); by then this card is gone from the list anyway.
+  const plate = fullPlate ? (fullPlate.replace(/\s/g, '').slice(0, 4) + '****') : ''
 
   return (
     <div onClick={onTap}
