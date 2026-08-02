@@ -152,14 +152,17 @@ export default function Home() {
 
   async function fetchSuggestedRoutes() {
     if (!user?.id) return
-    // Get user's 3 most used routes from past bookings
+    // Most-travelled routes from the user's booking HISTORY, so they can book
+    // the same route again. Includes completed + confirmed (their past and
+    // present rides) — NOT limited to active bookings, so these still show even
+    // when the user currently has nothing booked.
     const { data } = await supabase
       .from('bookings')
       .select('rides(from_location, to_location)')
       .eq('rider_id', user.id)
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'completed'])
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(30)
     if (!data) return
     // Count route frequency
     const routeCount = {}
@@ -398,7 +401,7 @@ export default function Home() {
               padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
               background: filter === v ? '#0f172a' : '#f1f5f9',
               color: filter === v ? '#facc15' : '#64748b',
-              fontWeight: 700, fontSize: 11,
+              fontWeight: filter === v ? 700 : 500, fontSize: 11,
             }}>
               {l}{v === 'requests' && requests.length > 0 ? ` (${requests.length})` : ''}
             </button>
