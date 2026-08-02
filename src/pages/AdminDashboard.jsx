@@ -21,6 +21,8 @@ export default function AdminDashboard() {
     if (['rides','bookings','overview','users'].includes(v)) fetchAll()
   }
   const [selectedUser, setSelectedUser] = useState(null)
+  const [selectedRide, setSelectedRide] = useState(null)
+  const [rideFilter, setRideFilter] = useState('all')
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
   const [search, setSearch] = useState('')
   const [broadcastTitle, setBroadcastTitle] = useState('')
@@ -211,9 +213,23 @@ export default function AdminDashboard() {
 
   async function cancelRideAdmin(rideId) {
     if (!confirm('Cancel this ride?')) return
-    await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
+    const { data, error } = await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId).select('id')
+    if (error || !data || data.length === 0) {
+      alert('Could not cancel. The admin update policy may be missing — run the admin RLS SQL.')
+      return
+    }
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('ride_id', rideId)
+    alert('✅ Ride cancelled')
     fetchAll()
+  }
+
+  function shareRideAdmin(r) {
+    const dateStr = new Date(r.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const t = r.ride_time?.slice(0, 5) || ''
+    const [h, m] = t.split(':')
+    const timeStr = h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : ''
+    const msg = `🚗 Carpool Available — ${dateStr}\n\n🕘 Ride Time: ${timeStr}\n👤 Name: ${r.profiles?.full_name || ''}\n🚘 Vehicle: ${r.profiles?.vehicle_model || ''}${r.profiles?.vehicle_number ? ` (${r.profiles.vehicle_number})` : ''}\n\n📍 From: ${r.from_location}\n📍 To: ${r.to_location}\n${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat\n💺 Seats Available: ${r.seats_available}\n\n🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   async function handleBroadcast() {
@@ -355,6 +371,18 @@ export default function AdminDashboard() {
     const [topupAmount, setTopupAmount] = useState('')
     const [topupNote, setTopupNote] = useState('')
     const [topupLoading, setTopupLoading] = useState(false)
+    const [txns, setTxns] = useState(null)   // wallet transaction history
+
+    // Load this user's full wallet transaction history when the panel opens.
+    useEffect(() => {
+      if (!u?.id) return
+      supabase.from('wallet_transactions')
+        .select('*')
+        .eq('user_id', u.id)
+        .order('created_at', { ascending: false })
+        .limit(100)
+        .then(({ data }) => setTxns(data || []))
+    }, [u?.id])
 
     async function handleTopup() {
       if (!u || !topupAmount || !topupNote) return
@@ -505,6 +533,44 @@ export default function AdminDashboard() {
               </button>
             )}
           </div>
+          {/* ── Wallet transaction history ── */}
+          <div style={{ marginTop: 18, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#facc15', marginBottom: 8 }}>
+              💳 Transaction History {txns ? `(${txns.length})` : ''}
+            </div>
+            {txns === null ? (
+              <div style={{ color: '#666', fontSize: 12, padding: 10 }}>Loading…</div>
+            ) : txns.length === 0 ? (
+              <div style={{ color: '#666', fontSize: 12, padding: 10, textAlign: 'center' }}>No transactions yet</div>
+            ) : (
+              <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {txns.map(t => {
+                  const credit = t.amount > 0
+                  const label = {
+                    recharge: '➕ Wallet recharge',
+                    booking_fee: '➖ Booking fee (₹2)',
+                    posting_fee: '➖ Posting fee (₹2)',
+                    refund_cancel: '↩️ Cancellation refund',
+                    subscription: '⭐ Subscription',
+                    admin_credit: '🎁 Admin credit',
+                  }[t.type] || t.type
+                  return (
+                    <div key={t.id} style={{ background: '#1a1a1a', border: '1px solid #222', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#ddd' }}>{label}</div>
+                        {t.description && <div style={{ fontSize: 10, color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>}
+                        <div style={{ fontSize: 10, color: '#555', marginTop: 1 }}>{new Date(t.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: credit ? '#4ade80' : '#f87171', flexShrink: 0 }}>
+                        {credit ? '+' : ''}₹{Math.abs(t.amount / 100).toFixed(0)}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           <button onClick={() => setSelectedUser(null)} style={{ width: '100%', padding: 10, background: 'none', border: '1px solid #333', borderRadius: 10, color: '#666', fontSize: 13, cursor: 'pointer' }}>
             Close
           </button>
@@ -654,7 +720,6 @@ export default function AdminDashboard() {
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
                   ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
-                  ['live',      '🔴', 'Live',      'Active rides',             '#16a34a'],
                   ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
                   ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
                 ].map(([v, icon, label, sub, color]) => (
@@ -821,22 +886,50 @@ export default function AdminDashboard() {
             {/* RIDES */}
             {tab === 'rides' && (
               <div>
-                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{rides.filter(r => !r.from_location?.startsWith('TEST_')).length} rides</div>
-                {rides.filter(r => !r.from_location?.startsWith('TEST_')).map(r => (
-                  <div key={r.id} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{r.from_location} → {r.to_location}</div>
-                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{r.profiles?.full_name} · {formatDate(r.ride_date)} · {formatTime(r.ride_time)}</div>
-                        <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>₹{r.fare} · {r.seats_available}/{r.seats_total} seats · {r.ride_type}</div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: r.status === 'active' ? '#052e16' : r.status === 'full' ? '#1e3a5f' : '#3b0764', color: r.status === 'active' ? '#22c55e' : r.status === 'full' ? '#60a5fa' : '#c084fc' }}>● {r.status}</span>
-                        {r.status === 'active' && <button onClick={() => cancelRideAdmin(r.id)} style={{ padding: '4px 8px', background: '#3b0764', color: '#f0abfc', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer' }}>Cancel</button>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {/* Filter: All / Upcoming / Past — replaces the separate Live tab */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  {[['all','All'],['upcoming','🟢 Upcoming'],['past','Past']].map(([v,l]) => (
+                    <button key={v} onClick={() => setRideFilter(v)} style={{
+                      flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: rideFilter === v ? '#facc15' : '#1a1a1a',
+                      color: rideFilter === v ? '#111' : '#888', fontSize: 12, fontWeight: 700,
+                    }}>{l}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const istNow = new Date(Date.now() + 5.5 * 3600000)
+                  const todayIST = istNow.toISOString().split('T')[0]
+                  const visible = rides
+                    .filter(r => !r.from_location?.startsWith('TEST_'))
+                    .filter(r => {
+                      if (rideFilter === 'upcoming') return ['active','full'].includes(r.status) && r.ride_date >= todayIST
+                      if (rideFilter === 'past') return r.ride_date < todayIST || ['completed','cancelled'].includes(r.status)
+                      return true
+                    })
+                  return (
+                    <>
+                      <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{visible.length} rides</div>
+                      {visible.map(r => (
+                        <div key={r.id} onClick={() => setSelectedRide(r)} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: 'pointer' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 13 }}>{r.from_location} → {r.to_location}</div>
+                              <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{r.profiles?.full_name} · {formatDate(r.ride_date)} · {formatTime(r.ride_time)}</div>
+                              <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>₹{r.fare} · {r.seats_available}/{r.seats_total} seats · {r.ride_type}</div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: r.status === 'active' ? '#052e16' : r.status === 'full' ? '#1e3a5f' : '#3b0764', color: r.status === 'active' ? '#22c55e' : r.status === 'full' ? '#60a5fa' : '#c084fc' }}>● {r.status}</span>
+                              {['active','full'].includes(r.status) && (
+                                <button onClick={(e) => { e.stopPropagation(); shareRideAdmin(r) }} style={{ padding: '4px 10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>📲 Share</button>
+                              )}
+                              {r.status === 'active' && <button onClick={(e) => { e.stopPropagation(); cancelRideAdmin(r.id) }} style={{ padding: '4px 8px', background: '#3b0764', color: '#f0abfc', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer' }}>Cancel</button>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )
+                })()}
               </div>
             )}
 
@@ -1148,6 +1241,7 @@ export default function AdminDashboard() {
 
     {/* User detail panel */}
     {selectedUser && <UserDetailPanel u={selectedUser} />}
+    {selectedRide && <RideDetailPanel ride={selectedRide} supabase={supabase} onClose={() => setSelectedRide(null)} />}
 
     {/* Photo viewer */}
     {viewAdminPhoto && (
@@ -1161,6 +1255,77 @@ export default function AdminDashboard() {
 }
 
 // ── REVENUE DASHBOARD ──
+// Shows a ride's full booking detail: who booked, seats, payment status, contact.
+function RideDetailPanel({ ride, supabase, onClose }) {
+  const [bookings, setBookings] = useState(null)
+
+  useEffect(() => {
+    if (!ride?.id) return
+    supabase.from('bookings')
+      .select('*, profiles:rider_id(full_name, phone, email)')
+      .eq('ride_id', ride.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setBookings(data || []))
+  }, [ride?.id])
+
+  const fmtDate = d => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+  const payColor = { paid: '#4ade80', pending: '#fbbf24', failed: '#f87171', refunded: '#a78bfa' }
+  const statusColor = { confirmed: '#4ade80', cancelled: '#f87171', completed: '#60a5fa' }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#111', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ width: 40, height: 4, background: '#333', borderRadius: 2, margin: '0 auto 16px' }} />
+
+        {/* Ride summary */}
+        <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{ride.from_location} → {ride.to_location}</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 3 }}>Driver: {ride.profiles?.full_name || '—'}</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 3 }}>{formatDate(ride.ride_date)} · {formatTime(ride.ride_time)} · ₹{ride.fare}</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>
+          Seats: {ride.seats_available}/{ride.seats_total} available · <span style={{ color: statusColor[ride.status] || '#888' }}>● {ride.status}</span>
+        </div>
+        {ride.route_description && <div style={{ fontSize: 11, color: '#666', background: '#1a1a1a', borderRadius: 8, padding: '8px 10px', marginBottom: 14 }}>🛣️ {ride.route_description}</div>}
+
+        {/* Bookings */}
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#facc15', marginBottom: 8 }}>
+          🎫 Bookings {bookings ? `(${bookings.length})` : ''}
+        </div>
+        {bookings === null ? (
+          <div style={{ color: '#666', fontSize: 12, padding: 10 }}>Loading…</div>
+        ) : bookings.length === 0 ? (
+          <div style={{ color: '#666', fontSize: 12, padding: 20, textAlign: 'center' }}>No bookings on this ride yet</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {bookings.map(b => (
+              <div key={b.id} style={{ background: '#1a1a1a', border: '1px solid #222', borderRadius: 10, padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{b.profiles?.full_name || 'Unknown'}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>{b.profiles?.phone || '—'}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: statusColor[b.status] || '#888' }}>● {b.status}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: payColor[b.payment_status] || '#888', marginTop: 2 }}>💰 {b.payment_status}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#666', flexWrap: 'wrap' }}>
+                  <span>💺 {b.seats_booked} seat{b.seats_booked > 1 ? 's' : ''}</span>
+                  <span>💵 ₹{b.ride_fare || ride.fare} fare</span>
+                  <span>📅 {fmtDate(b.created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={onClose} style={{ width: '100%', marginTop: 16, padding: 10, background: 'none', border: '1px solid #333', borderRadius: 10, color: '#666', fontSize: 13, cursor: 'pointer' }}>
+          Close
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function RevenueTab({ supabase }) {
   const [data, setData] = useState(null)
   useEffect(() => { load() }, [])

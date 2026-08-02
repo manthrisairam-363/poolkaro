@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { formatTime } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -24,6 +24,30 @@ export default function PostRide() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Pre-fill from/to/via/fare from the driver's most recent ride, so regular
+  // commuters don't retype the same route every time. They can still edit it.
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('rides')
+      .select('from_location, to_location, route_description, fare, ride_type')
+      .eq('driver_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setForm(f => ({
+          ...f,
+          // only fill if the user hasn't already started typing
+          from_location: f.from_location || data.from_location || '',
+          to_location: f.to_location || data.to_location || '',
+          route_description: f.route_description || data.route_description || '',
+          fare: f.fare || (data.fare ? String(data.fare) : ''),
+          ride_type: data.ride_type || f.ride_type,
+        }))
+      })
+  }, [user?.id])
   const [posted, setPosted] = useState(false)
   const [waMessage, setWaMessage] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -339,7 +363,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
         <div style={{ marginBottom: 16 }}>
           <span style={label}>🔁 Repeat This Ride</span>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            {[['once','One Time'],['weekdays','Mon–Fri'],['daily','Every Day']].map(([v,l]) => (
+            {[['once','One Time'],['weekdays','Mon–Fri']].map(([v,l]) => (
               <button key={v} onClick={() => set('recurring', v)} style={{
                 padding: '10px 4px', borderRadius: 10, cursor: 'pointer', fontSize: 12,
                 border: `2px solid ${form.recurring === v ? '#111' : '#e5e7eb'}`,
