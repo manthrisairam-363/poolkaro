@@ -653,7 +653,7 @@ export default function Chat() {
                   if (!confirm('Report this message for sharing personal contact info?')) return
                   await supabase.from('reported_messages').insert({ booking_id: bookingId, reported_by: user.id, message_text: item.text })
                   alert('✅ Reported. We will review within 24 hours.')
-                }} style={{ background: 'none', border: 'none', color: '#333', fontSize: 14, cursor: 'pointer', padding: 2, flexShrink: 0, opacity: 0.5 }}>⚑</button>
+                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 15, cursor: 'pointer', padding: 2, flexShrink: 0, opacity: 0.75 }} title="Report this message">🚩</button>
               )}
             </div>
           )
