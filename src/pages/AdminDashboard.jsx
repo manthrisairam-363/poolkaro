@@ -22,6 +22,7 @@ export default function AdminDashboard() {
   }
   const [selectedUser, setSelectedUser] = useState(null)
   const [selectedRide, setSelectedRide] = useState(null)
+  const [rideFilter, setRideFilter] = useState('all')
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
   const [search, setSearch] = useState('')
   const [broadcastTitle, setBroadcastTitle] = useState('')
@@ -212,9 +213,23 @@ export default function AdminDashboard() {
 
   async function cancelRideAdmin(rideId) {
     if (!confirm('Cancel this ride?')) return
-    await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
+    const { data, error } = await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId).select('id')
+    if (error || !data || data.length === 0) {
+      alert('Could not cancel. The admin update policy may be missing — run the admin RLS SQL.')
+      return
+    }
     await supabase.from('bookings').update({ status: 'cancelled' }).eq('ride_id', rideId)
+    alert('✅ Ride cancelled')
     fetchAll()
+  }
+
+  function shareRideAdmin(r) {
+    const dateStr = new Date(r.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const t = r.ride_time?.slice(0, 5) || ''
+    const [h, m] = t.split(':')
+    const timeStr = h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : ''
+    const msg = `🚗 Carpool Available — ${dateStr}\n\n🕘 Ride Time: ${timeStr}\n👤 Name: ${r.profiles?.full_name || ''}\n🚘 Vehicle: ${r.profiles?.vehicle_model || ''}${r.profiles?.vehicle_number ? ` (${r.profiles.vehicle_number})` : ''}\n\n📍 From: ${r.from_location}\n📍 To: ${r.to_location}\n${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat\n💺 Seats Available: ${r.seats_available}\n\n🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   async function handleBroadcast() {
@@ -705,7 +720,6 @@ export default function AdminDashboard() {
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
                   ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
-                  ['live',      '🔴', 'Live',      'Active rides',             '#16a34a'],
                   ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
                   ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
                 ].map(([v, icon, label, sub, color]) => (
@@ -872,22 +886,50 @@ export default function AdminDashboard() {
             {/* RIDES */}
             {tab === 'rides' && (
               <div>
-                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{rides.filter(r => !r.from_location?.startsWith('TEST_')).length} rides</div>
-                {rides.filter(r => !r.from_location?.startsWith('TEST_')).map(r => (
-                  <div key={r.id} onClick={() => setSelectedRide(r)} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{r.from_location} → {r.to_location}</div>
-                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{r.profiles?.full_name} · {formatDate(r.ride_date)} · {formatTime(r.ride_time)}</div>
-                        <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>₹{r.fare} · {r.seats_available}/{r.seats_total} seats · {r.ride_type}</div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: r.status === 'active' ? '#052e16' : r.status === 'full' ? '#1e3a5f' : '#3b0764', color: r.status === 'active' ? '#22c55e' : r.status === 'full' ? '#60a5fa' : '#c084fc' }}>● {r.status}</span>
-                        {r.status === 'active' && <button onClick={(e) => { e.stopPropagation(); cancelRideAdmin(r.id) }} style={{ padding: '4px 8px', background: '#3b0764', color: '#f0abfc', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer' }}>Cancel</button>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {/* Filter: All / Upcoming / Past — replaces the separate Live tab */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  {[['all','All'],['upcoming','🟢 Upcoming'],['past','Past']].map(([v,l]) => (
+                    <button key={v} onClick={() => setRideFilter(v)} style={{
+                      flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: rideFilter === v ? '#facc15' : '#1a1a1a',
+                      color: rideFilter === v ? '#111' : '#888', fontSize: 12, fontWeight: 700,
+                    }}>{l}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const istNow = new Date(Date.now() + 5.5 * 3600000)
+                  const todayIST = istNow.toISOString().split('T')[0]
+                  const visible = rides
+                    .filter(r => !r.from_location?.startsWith('TEST_'))
+                    .filter(r => {
+                      if (rideFilter === 'upcoming') return ['active','full'].includes(r.status) && r.ride_date >= todayIST
+                      if (rideFilter === 'past') return r.ride_date < todayIST || ['completed','cancelled'].includes(r.status)
+                      return true
+                    })
+                  return (
+                    <>
+                      <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{visible.length} rides</div>
+                      {visible.map(r => (
+                        <div key={r.id} onClick={() => setSelectedRide(r)} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: 'pointer' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 13 }}>{r.from_location} → {r.to_location}</div>
+                              <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>{r.profiles?.full_name} · {formatDate(r.ride_date)} · {formatTime(r.ride_time)}</div>
+                              <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>₹{r.fare} · {r.seats_available}/{r.seats_total} seats · {r.ride_type}</div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: r.status === 'active' ? '#052e16' : r.status === 'full' ? '#1e3a5f' : '#3b0764', color: r.status === 'active' ? '#22c55e' : r.status === 'full' ? '#60a5fa' : '#c084fc' }}>● {r.status}</span>
+                              {['active','full'].includes(r.status) && (
+                                <button onClick={(e) => { e.stopPropagation(); shareRideAdmin(r) }} style={{ padding: '4px 10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>📲 Share</button>
+                              )}
+                              {r.status === 'active' && <button onClick={(e) => { e.stopPropagation(); cancelRideAdmin(r.id) }} style={{ padding: '4px 8px', background: '#3b0764', color: '#f0abfc', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer' }}>Cancel</button>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )
+                })()}
               </div>
             )}
 
