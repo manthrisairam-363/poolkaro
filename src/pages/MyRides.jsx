@@ -578,6 +578,11 @@ export default function MyRides() {
                     <div style={{ marginTop: 8, background: '#f8f9fa', borderRadius: 8, padding: '8px 10px' }}>
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>🚗 Car Owner</div>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{b.rides.profiles.full_name}</div>
+                      {(b.rides?.vehicle_model || b.rides?.vehicle_number) && (
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          🚘 {b.rides.vehicle_model || 'Car'}{b.rides.vehicle_number ? ` · ${b.rides.vehicle_number}` : ''}
+                        </div>
+                      )}
                       <ContactButtons phone={b.rides.profiles.phone} name={b.rides.profiles.full_name} bookingId={b.id} navigate={navigate} />
                     </div>
                   )}

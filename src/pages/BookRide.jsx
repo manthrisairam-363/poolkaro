@@ -274,7 +274,9 @@ export default function BookRide() {
                 {owner?.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 6, fontWeight: 700 }}>✓</span>}
                 {company && <span style={{ background: company.bg, color: company.color, fontSize: 9, padding: '2px 6px', borderRadius: 6, fontWeight: 700 }}>{company.name}</span>}
               </div>
-              <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{owner?.vehicle_model} · {owner?.vehicle_number}</div>
+              <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
+                {owner?.vehicle_model}{owner?.vehicle_number ? ` · ${alreadyBooked ? owner.vehicle_number : owner.vehicle_number.replace(/\s/g, '').slice(0, 4) + '****'}` : ''}
+              </div>
               {owner?.avg_rating > 0 && (
                 <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 2 }}>
                   {'★'.repeat(Math.round(owner.avg_rating))} {Number(owner.avg_rating).toFixed(1)} ({owner.total_ratings} ratings)
