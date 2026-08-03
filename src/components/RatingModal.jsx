@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { submitRating as submitRatingHelper } from '../lib/ratings'
 
 // Display stars (read-only)
 export function StarDisplay({ rating, size = 14, showNumber = true }) {
@@ -31,27 +32,12 @@ export function RatingModal({ booking, rideOwner, onClose }) {
   async function submitRating() {
     if (stars === 0) return
     setLoading(true)
-    const { error } = await supabase.from('ratings').insert({
-      booking_id: booking.id,
-      rated_by: user.id,
-      rated_user: rideOwner.id,
-      ride_id: booking.ride_id,
-      stars,
-      comment: comment || null,
+    const res = await submitRatingHelper({
+      bookingId: booking.id, rideId: booking.ride_id,
+      raterId: user.id, ratedUserId: rideOwner.id, stars, comment,
     })
-    if (!error) {
-      // Recalculate rated user's average
-      const { data: allRatings } = await supabase
-        .from('ratings').select('stars').eq('rated_user', rideOwner.id)
-      if (allRatings && allRatings.length > 0) {
-        const avg = allRatings.reduce((s, r) => s + r.stars, 0) / allRatings.length
-        await supabase.from('profiles').update({
-          avg_rating: Math.round(avg * 10) / 10,
-          total_ratings: allRatings.length,
-        }).eq('id', rideOwner.id)
-      }
-      setDone(true)
-    }
+    if (res.ok) setDone(true)
+    else alert(res.error || 'Could not submit rating')
     setLoading(false)
   }
 
