@@ -4,6 +4,7 @@ import { formatTime, formatDate } from '../lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { hasRated, getBookingRatings, submitRating as submitRatingLib } from '../lib/ratings'
 import BottomNav from '../components/BottomNav'
 
 // Contact buttons — call + in-app chat
@@ -24,31 +25,96 @@ function ContactButtons({ phone, name, bookingId, navigate }) {
 }
 
 // Single passenger card inside a ride
+// Inline rating: rider rates the driver after a completed ride, right on the
+// booked card. Uses the shared rating helper so it stays in sync with every
+// other rating entry point (no double-rating, consistent averages).
+function RiderRatesDriver({ booking }) {
+  const { user } = useAuth()
+  const driverId = booking.rides?.driver_id
+  const driverName = booking.rides?.profiles?.full_name?.split(' ')[0] || 'the driver'
+  const [given, setGiven] = useState(null)     // stars I gave (or null)
+  const [received, setReceived] = useState(null) // stars they gave me (or null)
+  const [checking, setChecking] = useState(true)
+  const [rating, setRating] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!driverId || !user?.id) { setChecking(false); return }
+    getBookingRatings(booking.id).then(rows => {
+      const mine = rows.find(r => r.rated_by === user.id)
+      const theirs = rows.find(r => r.rated_by === driverId && r.rated_user === user.id)
+      if (mine) setGiven(mine.stars)
+      if (theirs) setReceived(theirs.stars)
+      setChecking(false)
+    })
+  }, [booking.id, driverId, user?.id])
+
+  async function submit(stars) {
+    if (submitting || !driverId) return
+    setSubmitting(true); setRating(stars)
+    const res = await submitRating({
+      bookingId: booking.id, rideId: booking.ride_id,
+      raterId: user.id, ratedUserId: driverId, stars,
+    })
+    if (res.ok) setGiven(stars)
+    else alert(res.error || 'Could not submit rating')
+    setSubmitting(false)
+  }
+
+  if (checking) return null
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {given ? (
+        <div style={{ textAlign: 'center', fontSize: 12, color: '#16a34a', fontWeight: 600 }}>
+          ✅ You rated {driverName} {'★'.repeat(given)}
+        </div>
+      ) : (
+        <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 700, marginBottom: 6, textAlign: 'center' }}>How was your ride with {driverName}?</div>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+            {[1,2,3,4,5].map(s => (
+              <button key={s} onClick={() => submit(s)} disabled={submitting}
+                style={{ background: 'none', border: 'none', fontSize: 30, cursor: submitting ? 'default' : 'pointer', color: rating >= s ? '#facc15' : '#e5e7eb', padding: 0, lineHeight: 1 }}>★</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {received && (
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#888', marginTop: 4 }}>
+          {driverName} rated you {'★'.repeat(received)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PassengerCard({ booking, unreadCount, onRate }) {
   const rider = booking.profiles
   const navigate = useNavigate()
   const { user } = useAuth()
   const initials = rider?.full_name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
   const [rating, setRating] = useState(0)
-  const [rated, setRated] = useState(booking.driver_rated || false)
+  const [rated, setRated] = useState(false)
+  const [checking, setChecking] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
+  useEffect(() => {
+    if (!user?.id) { setChecking(false); return }
+    hasRated(booking.id, user.id).then(r => { if (r) { setRated(true); setRating(r.stars) } setChecking(false) })
+  }, [booking.id, user?.id])
+
   async function submitRating(stars) {
-    setSubmitting(true)
-    await supabase.from('ratings').insert({
-      booking_id: booking.id,
-      rated_by: user.id,
-      rated_user: booking.rider_id,
-      stars,
-      role: 'driver',
+    if (submitting) return
+    setSubmitting(true); setRating(stars)
+    // The old code omitted ride_id (a NOT NULL column) → the insert failed
+    // silently, which is why driver→rider ratings never saved.
+    const res = await submitRatingLib({
+      bookingId: booking.id, rideId: booking.ride_id,
+      raterId: user.id, ratedUserId: booking.rider_id, stars,
     })
-    const { data: allRatings } = await supabase
-      .from('ratings').select('stars').eq('rated_user', booking.rider_id)
-    if (allRatings?.length) {
-      const avg = allRatings.reduce((s, r) => s + r.stars, 0) / allRatings.length
-      await supabase.from('profiles').update({ avg_rating: Math.round(avg * 10) / 10, total_ratings: allRatings.length }).eq('id', booking.rider_id)
-    }
-    setRated(true)
+    if (res.ok) setRated(true)
+    else alert(res.error || 'Could not submit rating')
     setSubmitting(false)
   }
 
@@ -630,10 +696,13 @@ export default function MyRides() {
                       </button>
                     )
                   )}
+                  {/* Rate the driver — inline, once the ride is completed */}
+                  {b.status === 'completed' && (
+                    <RiderRatesDriver booking={b} />
+                  )}
                   <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                    <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{ flex: 1, padding: 9, background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⭐ Rate</button>
                     {b.status !== 'cancelled' && b.status !== 'completed' && (
-                      <button onClick={() => cancelBooking(b.id, b.ride_id, b.seats_booked)} style={{ flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🚫 Cancel</button>
+                      <button onClick={() => cancelBooking(b.id, b.ride_id, b.seats_booked)} style={{ flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🚫 Cancel Booking</button>
                     )}
                   </div>
                 </div>
