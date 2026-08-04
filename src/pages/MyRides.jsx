@@ -98,41 +98,6 @@ function PassengerCard({ booking, unreadCount, onRate }) {
   const [rated, setRated] = useState(false)
   const [checking, setChecking] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [reminding, setReminding] = useState(false)
-
-  // Driver confirms they actually received the fare (2-way with rider's "I've Paid").
-  async function confirmReceived(b) {
-    setConfirming(true)
-    const { data, error } = await supabase
-      .from('bookings')
-      .update({ driver_confirmed: true, payment_status: 'paid' })
-      .eq('id', b.id)
-      .select('id')
-    if (error || !data?.length) {
-      alert('Could not save. If this keeps happening, the driver_confirmed column may be missing — tell the admin.')
-      setConfirming(false); return
-    }
-    b.driver_confirmed = true; b.payment_status = 'paid'
-    await supabase.from('notifications').insert({
-      user_id: b.rider_id, title: '✅ Payment confirmed',
-      message: `The driver confirmed receiving ₹${b.ride_fare || b.fare}. Thank you!`,
-      type: 'booking', booking_id: b.id, is_read: false,
-    })
-    setConfirming(false)
-  }
-
-  // Nudge the rider in-app to complete a pending payment.
-  async function remindRider(b) {
-    setReminding(true)
-    await supabase.from('notifications').insert({
-      user_id: b.rider_id, title: '🔔 Payment reminder',
-      message: `Please pay ₹${b.ride_fare || b.fare} for your ride (${b.rides?.from_location || ''} → ${b.rides?.to_location || ''}) and tap "I've Paid".`,
-      type: 'booking', booking_id: b.id, is_read: false,
-    })
-    setReminding(false)
-    alert('Reminder sent to the rider.')
-  }
 
 
   useEffect(() => {
@@ -179,48 +144,8 @@ function PassengerCard({ booking, unreadCount, onRate }) {
           </div>
         ))}
       </div>
-      {/* Fare payment status + driver follow-up actions.
-          Status is rider-marked (honesty-based), so wording says "hasn't marked
-          as paid" — not an accusation. The driver can Confirm receipt (2-way),
-          Remind the rider (in-app nudge), or call them (number revealed for
-          follow-up on a completed ride). */}
-      <div style={{
-        marginTop: 8, padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-        background: booking.payment_status === 'paid' ? '#dcfce7' : '#fef3c7',
-        color: booking.payment_status === 'paid' ? '#15803d' : '#92400e',
-      }}>
-        {booking.payment_status === 'paid'
-          ? `✓ Rider marked fare as paid`
-          : `⏳ Rider hasn't marked as paid yet`}
-      </div>
-
-      {/* Driver's own confirmation that they received the money (2-way) */}
-      {booking.driver_confirmed ? (
-        <div style={{ marginTop: 6, fontSize: 12, color: '#15803d', fontWeight: 700, textAlign: 'center' }}>
-          ✅ You confirmed you received ₹{booking.ride_fare || booking.fare}
-        </div>
-      ) : (
-        <button onClick={() => confirmReceived(booking)} disabled={confirming}
-          style={{ width: '100%', marginTop: 6, padding: '9px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          {confirming ? 'Saving…' : '✓ Confirm I received the payment'}
-        </button>
-      )}
-
-      {/* If unpaid, let the driver nudge the rider in-app + call them */}
-      {booking.payment_status !== 'paid' && !booking.driver_confirmed && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-          <button onClick={() => remindRider(booking)} disabled={reminding}
-            style={{ flex: 1, padding: '9px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            {reminding ? 'Sending…' : '🔔 Remind rider'}
-          </button>
-          {rider?.phone && (
-            <a href={`tel:${rider.phone}`}
-              style={{ flex: 1, padding: '9px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 8, fontSize: 12, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
-              📞 Call rider
-            </a>
-          )}
-        </div>
-      )}
+      {/* Payment is handled in the clean summary above; this detailed card is
+          just for chat / rating / contact. */}
       <ContactButtons phone={rider?.phone} name={rider?.full_name} bookingId={booking.id} navigate={navigate} />
       {unreadCount > 0 && (
         <button onClick={() => navigate(`/chat/${booking.id}`)} style={{ width: '100%', marginTop: 10, padding: '10px', background: '#fefce8', border: '2px solid #facc15', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontWeight: 700, fontSize: 13, color: '#854d0e' }}>
@@ -254,6 +179,55 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   const [loadingPax, setLoadingPax] = useState(false)
   const [actualBookedCount, setActualBookedCount] = useState(null)
   const [paySummary, setPaySummary] = useState(null)  // { collected, pending, paidCount, unpaidCount }
+  const [payRows, setPayRows] = useState([])          // per-rider payment rows
+  const [busyRow, setBusyRow] = useState(null)        // bookingId being acted on
+
+  // Confirm the driver received a rider's payment (marks paid + confirmed).
+  async function confirmRow(row) {
+    setBusyRow(row.bookingId)
+    const { data } = await supabase.from('bookings')
+      .update({ driver_confirmed: true, payment_status: 'paid' })
+      .eq('id', row.bookingId).select('id')
+    if (data?.length) {
+      setPayRows(rows => rows.map(r => r.riderId === row.riderId ? { ...r, paid: true, driverConfirmed: true } : r))
+      recomputeSummary(row.riderId, true)
+      await supabase.from('notifications').insert({
+        user_id: row.riderId, title: '✅ Payment confirmed',
+        message: `The driver confirmed receiving ₹${row.amount}. Thank you!`,
+        type: 'booking', booking_id: row.bookingId, is_read: false,
+      })
+    } else {
+      alert('Could not save. The driver_confirmed column may be missing — tell the admin.')
+    }
+    setBusyRow(null)
+  }
+
+  // Nudge a rider in-app to pay.
+  async function remindRow(row) {
+    setBusyRow(row.bookingId)
+    await supabase.from('notifications').insert({
+      user_id: row.riderId, title: '🔔 Payment reminder',
+      message: `Please pay ₹${row.amount} for your ride (${ride.from_location} → ${ride.to_location}) and tap "I've Paid".`,
+      type: 'booking', booking_id: row.bookingId, is_read: false,
+    })
+    setBusyRow(null)
+    alert('Reminder sent.')
+  }
+
+  function recomputeSummary(riderId, nowPaid) {
+    setPaySummary(s => {
+      if (!s) return s
+      const row = payRows.find(r => r.riderId === riderId)
+      if (!row || row.paid === nowPaid) return s
+      const delta = row.amount
+      return {
+        collected: s.collected + (nowPaid ? delta : -delta),
+        pending: s.pending + (nowPaid ? -delta : delta),
+        paidCount: s.paidCount + (nowPaid ? 1 : -1),
+        unpaidCount: s.unpaidCount + (nowPaid ? -1 : 1),
+      }
+    })
+  }
   const isToOffice = ride.ride_type === 'to_office'
   const statusColor = { active: '#16a34a', full: '#2563eb', cancelled: '#dc2626', completed: '#888' }
 
@@ -265,26 +239,40 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
     loadCount()
   }, [ride.id])
 
-  // For past rides, load a payment summary up-front so the driver sees at a
-  // glance how much they've collected vs how much is still pending — the whole
-  // point of keeping past rides visible.
+  // Load a lightweight per-rider payment list for the clean summary. Runs for
+  // BOTH active and past rides (active shows less detail). This is the core
+  // "did everyone pay me?" data — name, amount, paid/not, per rider.
   useEffect(() => {
-    if (!isPast) return
     supabase.from('bookings')
-      .select('payment_status, driver_confirmed, ride_fare, seats_booked')
+      .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, profiles(full_name, phone)')
       .eq('ride_id', ride.id).eq('status', 'confirmed')
       .then(({ data }) => {
         if (!data) return
-        let collected = 0, pending = 0, paidCount = 0, unpaidCount = 0
+        // Group multiple bookings by the same rider into one row.
+        const grouped = {}
         data.forEach(b => {
           const amt = b.ride_fare || ride.fare || 0
-          const isPaid = b.payment_status === 'paid' || b.driver_confirmed
-          if (isPaid) { collected += amt; paidCount++ }
-          else { pending += amt; unpaidCount++ }
+          if (grouped[b.rider_id]) {
+            grouped[b.rider_id].amount += amt
+            grouped[b.rider_id].seats += b.seats_booked
+            grouped[b.rider_id].paid = grouped[b.rider_id].paid && (b.payment_status === 'paid' || b.driver_confirmed)
+          } else {
+            grouped[b.rider_id] = {
+              bookingId: b.id, riderId: b.rider_id,
+              name: b.profiles?.full_name || 'Rider',
+              amount: amt, seats: b.seats_booked,
+              paid: b.payment_status === 'paid' || b.driver_confirmed,
+              driverConfirmed: b.driver_confirmed,
+            }
+          }
         })
-        setPaySummary({ collected, pending, paidCount, unpaidCount })
+        const rows = Object.values(grouped)
+        const collected = rows.filter(r => r.paid).reduce((s, r) => s + r.amount, 0)
+        const pending = rows.filter(r => !r.paid).reduce((s, r) => s + r.amount, 0)
+        setPayRows(rows)
+        setPaySummary({ collected, pending, paidCount: rows.filter(r => r.paid).length, unpaidCount: rows.filter(r => !r.paid).length })
       })
-  }, [isPast, ride.id])
+  }, [ride.id])
 
   const bookedCount = actualBookedCount ?? Math.max(0, ride.seats_total - ride.seats_available)
 
@@ -303,7 +291,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   }
 
   return (
-    <div style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12, borderLeft: `4px solid ${statusColor[ride.status] || '#ccc'}` }}>
+    <div style={{ background: isPast ? '#fafafa' : '#fff', borderRadius: 14, padding: 14, boxShadow: isPast ? 'none' : '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 12, border: isPast ? '1px solid #eee' : 'none', borderLeft: `4px solid ${isPast ? '#d1d5db' : (statusColor[ride.status] || '#ccc')}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 15 }}>{ride.from_location} → {ride.to_location}</div>
@@ -320,31 +308,46 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
         <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>💺 {ride.seats_available} left of {ride.seats_total}</span>
         {bookedCount > 0 && <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>👥 {bookedCount} passenger{bookedCount > 1 ? 's' : ''}</span>}
       </div>
-      {isPast && paySummary && (paySummary.paidCount + paySummary.unpaidCount) > 0 && (
-        <div style={{ marginTop: 10, background: paySummary.pending > 0 ? '#fffbeb' : '#f0fdf4', borderRadius: 8, padding: '10px 12px', border: `1px solid ${paySummary.pending > 0 ? '#fde68a' : '#bbf7d0'}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700 }}>
-            <span style={{ color: '#16a34a' }}>✓ Collected ₹{paySummary.collected}</span>
+      {/* ── Clean per-ride payment summary ──
+          The core "did everyone pay me?" view. Shows on active rides (compact)
+          and past rides (full). name · amount · paid/not, with Remind + Confirm
+          on unpaid rows. The detailed passenger cards live behind a toggle. */}
+      {payRows.length > 0 && paySummary && (
+        <div style={{ marginTop: 10, background: '#f9fafb', borderRadius: 10, border: '1px solid #eef0f2', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 12px', background: paySummary.pending > 0 ? '#fffbeb' : '#f0fdf4', fontSize: 12, fontWeight: 800 }}>
+            <span style={{ color: '#15803d' }}>✓ Collected ₹{paySummary.collected}</span>
             {paySummary.pending > 0
               ? <span style={{ color: '#c2410c' }}>⏳ Pending ₹{paySummary.pending}</span>
-              : <span style={{ color: '#16a34a' }}>All paid 🎉</span>}
+              : <span style={{ color: '#15803d' }}>All paid 🎉</span>}
           </div>
-          {paySummary.pending > 0 && (
-            <div style={{ fontSize: 11, color: '#92400e', marginTop: 3 }}>
-              {paySummary.unpaidCount} rider{paySummary.unpaidCount > 1 ? 's' : ''} haven't marked as paid — open passengers to remind them.
-            </div>
-          )}
-        </div>
-      )}
-      {bookedCount > 0 && !isPast && (
-        <div style={{ marginTop: 10, background: '#f0fdf4', borderRadius: 8, padding: '8px 12px', border: '1px solid #bbf7d0' }}>
-          <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>💰 You earn: ₹{(ride.fare - 2) * bookedCount} from {bookedCount} passenger{bookedCount > 1 ? 's' : ''}</div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>(₹{ride.fare - 2} per seat after ₹2 CarpoolKaro fee)</div>
+          <div>
+            {payRows.map(row => (
+              <div key={row.riderId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderTop: '1px solid #f1f2f4' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>₹{row.amount}{row.seats > 1 ? ` · ${row.seats} seats` : ''}</div>
+                </div>
+                {row.paid ? (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>
+                    {row.driverConfirmed ? '✓ Received' : '✓ Paid'}
+                  </span>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => remindRow(row)} disabled={busyRow === row.bookingId}
+                      style={{ padding: '5px 9px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>🔔</button>
+                    <button onClick={() => confirmRow(row)} disabled={busyRow === row.bookingId}
+                      style={{ padding: '5px 9px', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓ Got it</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
         {bookedCount > 0 && (
-          <button onClick={loadPassengers} style={{ flex: 1, padding: '8px', background: expanded ? '#111' : '#f0f0ff', color: expanded ? '#fff' : '#7c3aed', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
-            {expanded ? '▲ Hide Passengers' : `👥 View ${bookedCount} Passenger${bookedCount > 1 ? 's' : ''}`}
+          <button onClick={loadPassengers} style={{ flex: 1, padding: '8px', background: expanded ? '#111' : '#f3f4f6', color: expanded ? '#fff' : '#6b7280', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+            {expanded ? '▲ Hide details' : `💬 Chat & details`}
           </button>
         )}
         {(ride.status === 'active' || ride.status === 'full') && (
