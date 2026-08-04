@@ -25,8 +25,11 @@ export default function PostRide() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Pre-fill from/to/via/fare from the driver's most recent ride, so regular
-  // commuters don't retype the same route every time. They can still edit it.
+  const [lastRide, setLastRide] = useState(null)
+
+  // Fetch the driver's most recent ride, but DON'T auto-fill the boxes — instead
+  // offer it as a tappable suggestion so the user consciously chooses it rather
+  // than accidentally re-posting a pre-filled route.
   useEffect(() => {
     if (!user?.id) return
     supabase.from('rides')
@@ -35,19 +38,21 @@ export default function PostRide() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
-        if (!data) return
-        setForm(f => ({
-          ...f,
-          // only fill if the user hasn't already started typing
-          from_location: f.from_location || data.from_location || '',
-          to_location: f.to_location || data.to_location || '',
-          route_description: f.route_description || data.route_description || '',
-          fare: f.fare || (data.fare ? String(data.fare) : ''),
-          ride_type: data.ride_type || f.ride_type,
-        }))
-      })
+      .then(({ data }) => { if (data) setLastRide(data) })
   }, [user?.id])
+
+  function useLastRoute() {
+    if (!lastRide) return
+    setForm(f => ({
+      ...f,
+      from_location: lastRide.from_location || '',
+      to_location: lastRide.to_location || '',
+      route_description: lastRide.route_description || '',
+      fare: lastRide.fare ? String(lastRide.fare) : '',
+      ride_type: lastRide.ride_type || f.ride_type,
+    }))
+    setLastRide(null) // hide the chip once used
+  }
   const [posted, setPosted] = useState(false)
   const [waMessage, setWaMessage] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -116,6 +121,19 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
     if (fareNum < 10) { setError('Minimum fare is ₹10'); setFieldErrors({ fare: true }); focusField(fareRef); return }
     if (fareNum > 500) { setError('Maximum fare is ₹500 per seat'); setFieldErrors({ fare: true }); focusField(fareRef); return }
     if (form.ride_date < today) { setError('Cannot post rides for past dates'); return }
+    // If the ride is TODAY, the time must still be in the future. Compare in IST.
+    if (form.ride_date === today && form.ride_time) {
+      const nowIST = new Date(Date.now() + 5.5 * 3600000)
+      const [hh, mm] = form.ride_time.split(':').map(Number)
+      const rideMinutes = hh * 60 + mm
+      const nowMinutes = nowIST.getUTCHours() * 60 + nowIST.getUTCMinutes()
+      if (rideMinutes <= nowMinutes) {
+        setError('That time has already passed today. Pick a later time or a future date.')
+        setFieldErrors({ ride_time: true })
+        focusField(timeRef)
+        return
+      }
+    }
     if (!profile?.vehicle_model) {
       setError('Please add your vehicle details in Profile first')
       return
@@ -306,6 +324,22 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
             {fieldErrors.ride_time && <div style={errText}>⚠️ Required</div>}
           </div>
         </div>
+
+        {/* Tappable suggestion of the driver's last route — they CHOOSE to use
+            it rather than it silently pre-filling the boxes. */}
+        {lastRide && (
+          <button type="button" onClick={useLastRoute}
+            style={{ width: '100%', marginBottom: 12, padding: '10px 12px', background: '#faf5ff', border: '1px dashed #d8b4fe', borderRadius: 10, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>↩️</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700 }}>Use your last route</div>
+              <div style={{ fontSize: 12, color: '#0f172a', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {lastRide.from_location} → {lastRide.to_location} · ₹{lastRide.fare}
+              </div>
+            </div>
+            <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700, flexShrink: 0 }}>Tap to fill</span>
+          </button>
+        )}
 
         <LocationInput label="From (Starting point) *" value={form.from_location} onChange={v => set('from_location', v)} placeholder="e.g. Uppal Ring Road" city={profile?.city} error={fieldErrors.from_location} inputRef={fromRef} />
 
