@@ -1906,6 +1906,7 @@ function SubscriptionsTab({ supabase }) {
   const [subs, setSubs] = useState([])
   const [loading, setLoading] = useState(true)
   const [subRevenue, setSubRevenue] = useState(0)
+  const [promoDate, setPromoDate] = useState('2026-12-31')
   useEffect(() => { load() }, [])
   async function load() {
     setLoading(true)
@@ -1930,6 +1931,34 @@ function SubscriptionsTab({ supabase }) {
       return
     }
     alert('✅ Pro granted for 30 days')
+    load()
+  }
+
+  // Grant Pro to a SINGLE user until a chosen date (for targeting VIPs / active drivers).
+  async function grantProUntil(userId, dateStr) {
+    if (!dateStr) return
+    const expires = new Date(dateStr + 'T23:59:59').toISOString()
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: expires }).eq('id', userId).select('id')
+    if (error || !data?.length) { alert('Could not grant. Check the admin profile-update policy.'); return }
+    alert(`✅ Pro granted until ${new Date(dateStr).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}`)
+    load()
+  }
+
+  // LAUNCH PROMO: grant Pro to ALL users until a chosen date. This is the
+  // "free Pro until Dec 31 to attract early users" move.
+  async function grantProToAll(dateStr) {
+    if (!dateStr) return
+    const label = new Date(dateStr).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
+    if (!confirm(`Give FREE Pro to ALL users until ${label}?\n\nThis updates every user's account. Use for launch promos.`)) return
+    const expires = new Date(dateStr + 'T23:59:59').toISOString()
+    // Update every profile. RLS admin policy allows this.
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: expires })
+      .neq('id', '00000000-0000-0000-0000-000000000000') // matches all rows
+      .select('id')
+    if (error) { alert('Could not apply promo: ' + error.message); return }
+    alert(`✅ Free Pro granted to ${data?.length || 0} users until ${label}`)
     load()
   }
   async function revokePro(userId) {
@@ -1958,6 +1987,20 @@ function SubscriptionsTab({ supabase }) {
           </div>
         ))}
       </div>
+      {/* 🎁 Launch promo — grant free Pro to ALL users until a chosen date */}
+      <div style={{ background: 'linear-gradient(135deg,#1e1b4b,#312e81)', borderRadius: 12, padding: 14, marginBottom: 20, border: '1px solid #4f46e5' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#c7d2fe', marginBottom: 4 }}>🎁 Launch Promo</div>
+        <div style={{ fontSize: 11, color: '#a5b4fc', marginBottom: 10 }}>Give free Pro to every user until a date — to attract early users.</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="date" value={promoDate} onChange={e => setPromoDate(e.target.value)}
+            style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #4f46e5', background: '#1e1b4b', color: '#fff', fontSize: 12 }} />
+          <button onClick={() => grantProToAll(promoDate)}
+            style={{ padding: '9px 14px', background: '#facc15', color: '#111', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Grant to ALL
+          </button>
+        </div>
+      </div>
+
       <div style={{fontSize:11,fontWeight:800,color:'#facc15',marginBottom:10,letterSpacing:1}}>⭐ ACTIVE PRO MEMBERS</div>
       {active.length === 0 ? <div style={{color:'#555',textAlign:'center',padding:20}}>No active subscriptions</div> :
         active.map(s => (
@@ -1982,7 +2025,10 @@ function SubscriptionsTab({ supabase }) {
               <div style={{fontWeight:600,fontSize:13,color:'#888'}}>{s.full_name}</div>
               <div style={{fontSize:10,color:'#555',marginTop:2}}>Expired: {new Date(s.subscription_expires_at).toLocaleDateString('en-IN')}</div>
             </div>
-            <button onClick={() => grantPro(s.id)} style={{background:'#111',color:'#facc15',border:'1px solid #facc15',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>Grant 30d</button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button onClick={() => grantPro(s.id)} style={{background:'#111',color:'#facc15',border:'1px solid #facc15',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>Grant 30d</button>
+              <button onClick={() => grantProUntil(s.id, promoDate)} style={{background:'#111',color:'#c7d2fe',border:'1px solid #4f46e5',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}} title={`Grant until ${promoDate}`}>Until {new Date(promoDate).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</button>
+            </div>
           </div>
         ))}
       </>}
