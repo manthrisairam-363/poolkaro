@@ -712,7 +712,7 @@ export default function MyRides() {
 
   return (
     <div style={{ paddingBottom: 90, background: '#f5f6fa', minHeight: '100vh' }}>
-      <div style={{ background: '#111', padding: '20px 16px 0' }}>
+      <div style={{ background: '#111', padding: '20px 16px 0', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>📋 My Rides</div>
         <div style={{ display: 'flex', borderBottom: '1px solid #222' }}>
           <button style={tabStyle(tab === 'posted')} onClick={() => setTab('posted')}>🚗 I Posted ({rides.filter(r => ['active','full'].includes(r.status)).length})</button>
