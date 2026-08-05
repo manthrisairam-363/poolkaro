@@ -375,6 +375,8 @@ export default function AdminDashboard() {
     const [topupAmount, setTopupAmount] = useState('')
     const [topupNote, setTopupNote] = useState('')
     const [topupLoading, setTopupLoading] = useState(false)
+    const [proDate, setProDate] = useState('2026-12-31')
+    const [proLoading, setProLoading] = useState(false)
     const [txns, setTxns] = useState(null)   // wallet transaction history
 
     // Load this user's full wallet transaction history when the panel opens.
@@ -387,6 +389,33 @@ export default function AdminDashboard() {
         .limit(100)
         .then(({ data }) => setTxns(data || []))
     }, [u?.id])
+
+    // Grant this user Pro until a chosen date, right from their panel.
+    async function grantProToUser(dateStr) {
+      if (!u || !dateStr) return
+      setProLoading(true)
+      const expires = new Date(dateStr + 'T23:59:59').toISOString()
+      const { data, error } = await supabase.from('profiles')
+        .update({ subscription_expires_at: expires }).eq('id', u.id).select('id')
+      setProLoading(false)
+      if (error || !data?.length) { alert('Could not grant Pro. Check the admin profile-update policy.'); return }
+      await supabase.from('notifications').insert({
+        user_id: u.id, title: '⭐ You got Pro!',
+        message: `You've been given free CarpoolKaro Pro until ${new Date(dateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}. Enjoy zero platform fees!`,
+        type: 'booking', is_read: false,
+      })
+      u.subscription_expires_at = expires
+      alert(`✅ ${u.full_name} now has Pro until ${new Date(dateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}`)
+    }
+    async function revokeProFromUser() {
+      if (!u || !confirm(`Revoke Pro from ${u.full_name}?`)) return
+      const yesterday = new Date(Date.now() - 86400000).toISOString()
+      const { data, error } = await supabase.from('profiles')
+        .update({ subscription_expires_at: yesterday }).eq('id', u.id).select('id')
+      if (error || !data?.length) { alert('Could not revoke.'); return }
+      u.subscription_expires_at = yesterday
+      alert('Pro revoked')
+    }
 
     async function handleTopup() {
       if (!u || !topupAmount || !topupNote) return
@@ -537,6 +566,45 @@ export default function AdminDashboard() {
               </button>
             )}
           </div>
+          {/* ── Pro subscription control ── */}
+          <div style={{ marginTop: 18, background: '#1e1b4b', borderRadius: 12, padding: 14, border: '1px solid #4f46e5' }}>
+            {(() => {
+              const isPro = u.subscription_expires_at && new Date(u.subscription_expires_at) > new Date()
+              return (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#c7d2fe', marginBottom: 6 }}>
+                    ⭐ Pro Subscription {isPro && <span style={{ color: '#4ade80', fontSize: 11 }}>· Active</span>}
+                  </div>
+                  {isPro && (
+                    <div style={{ fontSize: 11, color: '#a5b4fc', marginBottom: 8 }}>
+                      Expires {new Date(u.subscription_expires_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                    <input type="date" value={proDate} onChange={e => setProDate(e.target.value)}
+                      style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #4f46e5', background: '#111', color: '#fff', fontSize: 12 }} />
+                    <button onClick={() => grantProToUser(proDate)} disabled={proLoading}
+                      style={{ padding: '9px 14px', background: '#facc15', color: '#111', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {proLoading ? '…' : 'Grant Pro'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => grantProToUser(new Date(Date.now() + 30*86400000).toISOString().split('T')[0])}
+                      style={{ flex: 1, padding: '7px', background: '#111', color: '#facc15', border: '1px solid #4f46e5', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      +30 days
+                    </button>
+                    {isPro && (
+                      <button onClick={revokeProFromUser}
+                        style={{ flex: 1, padding: '7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+
           {/* ── Wallet transaction history ── */}
           <div style={{ marginTop: 18, marginBottom: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#facc15', marginBottom: 8 }}>
@@ -983,19 +1051,24 @@ export default function AdminDashboard() {
             {/* BOOKINGS */}
             {tab === 'bookings' && (
               <div>
-                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{bookings.length} recent bookings</div>
-                {bookings.map(b => (
-                  <div key={b.id} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{b.profiles?.full_name || 'Unknown'}</div>
-                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
-                        <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>CarpoolKaro earned: ₹4 · {new Date(b.created_at).toLocaleDateString('en-IN')}</div>
+                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{bookings.length} recent bookings · tap to see the ride</div>
+                {bookings.map(b => {
+                  const parentRide = rides.find(r => r.id === b.ride_id)
+                  return (
+                    <div key={b.id} onClick={() => parentRide && setSelectedRide(parentRide)}
+                      style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: parentRide ? 'pointer' : 'default' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>🎫 {b.profiles?.full_name || 'Unknown'} <span style={{ color: '#666', fontWeight: 400 }}>booked</span></div>
+                          {parentRide && <div style={{ color: '#93c5fd', fontSize: 12, marginTop: 3 }}>{parentRide.from_location} → {parentRide.to_location}</div>}
+                          <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
+                          <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{new Date(b.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })} · payment: {b.payment_status || 'pending'}</div>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
