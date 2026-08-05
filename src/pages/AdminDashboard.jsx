@@ -51,8 +51,8 @@ export default function AdminDashboard() {
     try {
       const [usersRes, ridesRes, bookingsRes, txnRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('rides').select('*, profiles(full_name, phone, vehicle_model, vehicle_number)').order('created_at', { ascending: false }).limit(200),
-        supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(200),
+        supabase.from('rides').select('*, profiles(full_name, phone, vehicle_model, vehicle_number)').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(1000),
         supabase.from('wallet_transactions').select('created_at, type, amount').in('type', ['booking_fee', 'posting_fee', 'razorpay', 'subscription']),
       ])
 
@@ -587,7 +587,7 @@ export default function AdminDashboard() {
     <>
     <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', paddingBottom: 40 }}>
       {/* Header */}
-      <div style={{ background: '#111', padding: '20px 16px 16px', borderBottom: '1px solid #222' }}>
+      <div style={{ background: '#111', padding: '20px 16px 16px', borderBottom: '1px solid #222', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer' }}>←</button>
           <div>
@@ -916,14 +916,24 @@ export default function AdminDashboard() {
                       if (rideFilter === 'past') return r.ride_date < todayIST || ['completed','cancelled'].includes(r.status)
                       return true
                     })
-                  // Upcoming → soonest first (today evening, then tomorrow morning,
-                  // then tomorrow evening…). Past → most recent first. All → newest posted.
+                  // Upcoming → soonest first. Past → most recent first.
+                  // All → also chronological (upcoming first, then past).
                   if (rideFilter === 'upcoming') {
                     visible = [...visible].sort((a, b) =>
                       (a.ride_date + (a.ride_time || '')).localeCompare(b.ride_date + (b.ride_time || '')))
                   } else if (rideFilter === 'past') {
                     visible = [...visible].sort((a, b) =>
                       (b.ride_date + (b.ride_time || '')).localeCompare(a.ride_date + (a.ride_time || '')))
+                  } else {
+                    // All: upcoming rides first (soonest→latest), then past (recent→old)
+                    const todayKey = todayIST + nowTime
+                    visible = [...visible].sort((a, b) => {
+                      const ka = a.ride_date + (a.ride_time || ''), kb = b.ride_date + (b.ride_time || '')
+                      const aUp = ka >= todayKey, bUp = kb >= todayKey
+                      if (aUp && bUp) return ka.localeCompare(kb)      // both upcoming: soonest first
+                      if (!aUp && !bUp) return kb.localeCompare(ka)    // both past: recent first
+                      return aUp ? -1 : 1                              // upcoming before past
+                    })
                   }
                   return (
                     <>
@@ -1900,7 +1910,10 @@ function SubscriptionsTab({ supabase }) {
   }
   async function revokePro(userId) {
     if (!confirm('Revoke Pro access?')) return
-    await supabase.from('profiles').update({ subscription_expires_at: null }).eq('id', userId)
+    // Set expiry to yesterday (not null) so the user still appears in the list
+    // under "Expired" — setting null would make them vanish entirely.
+    const yesterday = new Date(Date.now() - 86400000).toISOString()
+    await supabase.from('profiles').update({ subscription_expires_at: yesterday }).eq('id', userId)
     load()
   }
   const now = new Date()
