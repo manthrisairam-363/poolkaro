@@ -161,7 +161,7 @@ export default function Profile() {
     <div style={{ paddingBottom: 90, background: '#f5f6fa', minHeight: '100vh' }}>
 
       {/* ── Header ── */}
-      <div style={{ background: '#111', padding: '20px 16px 24px' }}>
+      <div style={{ background: '#111', padding: '20px 16px 24px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ color: '#fff', fontWeight: 800, fontSize: 20 }}>My Profile</div>
           <NotificationBell onNotificationClick={(n) => {
