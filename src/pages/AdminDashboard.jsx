@@ -755,14 +755,31 @@ export default function AdminDashboard() {
                   {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#666', fontSize: 18, cursor: 'pointer' }}>✕</button>}
                 </div>
 
-                {/* Filter chips */}
-                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10, paddingBottom: 4, scrollbarWidth: 'none' }}>
+                {/* Filter dropdown (was a long row of chips) */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#555', flexShrink: 0 }}>Filter:</span>
+                  <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600 }}>
+                    {[
+                      ['all', 'All users'],
+                      ['pro', '⭐ Pro'],
+                      ['free', '🆓 Free'],
+                      ['verified', '✓ Verified'],
+                      ['active_week', '👁 Active this week'],
+                      ['low_balance', '⚠️ Low balance'],
+                      ['no_rides', '😴 No rides'],
+                      ['referred', '🎁 Referred'],
+                      ['ios', '🍎 iOS'],
+                      ['android', '🤖 Android'],
+                      ['desktop', '💻 Desktop'],
+                      ['installed', '📲 Installed app'],
+                      ['browser', '🌐 Browser only'],
+                      ['unknown_platform', '❓ Unknown device'],
+                    ].map(([f, label]) => <option key={f} value={f}>{label}</option>)}
+                  </select>
+                </div>
+                {false && (
+                <div style={{ display: 'none' }}>
                   {[
-                    ['all', 'All'],
-                    ['pro', '⭐ Pro'],
-                    ['free', '🆓 Free'],
-                    ['verified', '✓ Verified'],
-                    ['active_week', '👁 Active this week'],
                     ['low_balance', '⚠️ Low balance'],
                     ['no_rides', '😴 No rides'],
                     ['referred', '🎁 Referred'],
@@ -779,6 +796,7 @@ export default function AdminDashboard() {
                     }}>{label}</button>
                   ))}
                 </div>
+                )}
 
                 {/* Sort */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
@@ -1905,15 +1923,25 @@ function SubscriptionsTab({ supabase }) {
   }
   async function grantPro(userId) {
     const expires = new Date(Date.now() + 30 * 86400000).toISOString()
-    await supabase.from('profiles').update({ subscription_expires_at: expires }).eq('id', userId)
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: expires }).eq('id', userId).select('id')
+    if (error || !data?.length) {
+      alert('Could not grant Pro. The admin update policy may be missing — run the admin RLS SQL for profiles.')
+      return
+    }
+    alert('✅ Pro granted for 30 days')
     load()
   }
   async function revokePro(userId) {
     if (!confirm('Revoke Pro access?')) return
-    // Set expiry to yesterday (not null) so the user still appears in the list
-    // under "Expired" — setting null would make them vanish entirely.
+    // Set expiry to yesterday (not null) so the user still appears under "Expired".
     const yesterday = new Date(Date.now() - 86400000).toISOString()
-    await supabase.from('profiles').update({ subscription_expires_at: yesterday }).eq('id', userId)
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: yesterday }).eq('id', userId).select('id')
+    if (error || !data?.length) {
+      alert('Could not revoke. The admin update policy may be missing — run the admin RLS SQL for profiles.')
+      return
+    }
     load()
   }
   const now = new Date()
