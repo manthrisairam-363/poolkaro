@@ -686,7 +686,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -780,8 +780,7 @@ export default function AdminDashboard() {
                 {[
                   ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
                   ['suspicious','⚠️', 'Fraud',     suspiciousUsers.length > 0 ? `${suspiciousUsers.length} flagged` : 'Clean', '#ef4444'],
-                  ['rides',     '🚗', 'Rides',     'All rides',                '#d97706'],
-                  ['bookings',  '🎫', 'Bookings',  'History',                  '#0891b2'],
+                  ['rides',     '🚗', 'Rides & Bookings', 'All rides + bookings',  '#d97706'],
                   ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
                   ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
@@ -976,17 +975,40 @@ export default function AdminDashboard() {
             {/* RIDES */}
             {tab === 'rides' && (
               <div>
-                {/* Filter: All / Upcoming / Past — replaces the separate Live tab */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                  {[['all','All'],['upcoming','🟢 Upcoming'],['past','Past']].map(([v,l]) => (
+                {/* One tab for Rides + Bookings, segregated by filter */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {[['all','All rides'],['upcoming','🟢 Upcoming'],['past','Past'],['bookings','🎫 Bookings']].map(([v,l]) => (
                     <button key={v} onClick={() => setRideFilter(v)} style={{
-                      flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      flex: '1 1 auto', padding: '7px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
                       background: rideFilter === v ? '#facc15' : '#1a1a1a',
-                      color: rideFilter === v ? '#111' : '#888', fontSize: 12, fontWeight: 700,
+                      color: rideFilter === v ? '#111' : '#888', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                     }}>{l}</button>
                   ))}
                 </div>
-                {(() => {
+
+                {/* Bookings view — shows every booking, tappable to its ride */}
+                {rideFilter === 'bookings' ? (
+                  <div>
+                    <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{bookings.length} bookings · tap to see the ride</div>
+                    {bookings.map(b => {
+                      const parentRide = rides.find(r => r.id === b.ride_id)
+                      return (
+                        <div key={b.id} onClick={() => parentRide && setSelectedRide(parentRide)}
+                          style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: parentRide ? 'pointer' : 'default' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: 13 }}>🎫 {b.profiles?.full_name || 'Unknown'} <span style={{ color: '#666', fontWeight: 400 }}>booked</span></div>
+                              {parentRide && <div style={{ color: '#93c5fd', fontSize: 12, marginTop: 3 }}>{parentRide.from_location} → {parentRide.to_location}</div>}
+                              <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
+                              <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{new Date(b.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })} · payment: {b.payment_status || 'pending'}</div>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (() => {
                   const istNow = new Date(Date.now() + 5.5 * 3600000)
                   const todayIST = istNow.toISOString().split('T')[0]
                   const nowTime = istNow.toISOString().slice(11, 16) // HH:MM in IST
