@@ -51,7 +51,7 @@ export default function AdminDashboard() {
     try {
       const [usersRes, ridesRes, bookingsRes, txnRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('rides').select('*, profiles(full_name, phone)').order('created_at', { ascending: false }).limit(200),
+        supabase.from('rides').select('*, profiles(full_name, phone, vehicle_model, vehicle_number)').order('created_at', { ascending: false }).limit(200),
         supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(200),
         supabase.from('wallet_transactions').select('created_at, type, amount').in('type', ['booking_fee', 'posting_fee', 'razorpay', 'subscription']),
       ])
@@ -228,7 +228,11 @@ export default function AdminDashboard() {
     const t = r.ride_time?.slice(0, 5) || ''
     const [h, m] = t.split(':')
     const timeStr = h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : ''
-    const msg = `🚗 Carpool Available — ${dateStr}\n\n🕘 Ride Time: ${timeStr}\n👤 Name: ${r.profiles?.full_name || ''}\n🚘 Vehicle: ${r.profiles?.vehicle_model || ''}${r.profiles?.vehicle_number ? ` (${r.profiles.vehicle_number})` : ''}\n\n📍 From: ${r.from_location}\n📍 To: ${r.to_location}\n${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat\n💺 Seats Available: ${r.seats_available}\n\n🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
+    // Vehicle may live on the ride row or the driver's profile — use whichever has it.
+    const vModel = r.vehicle_model || r.profiles?.vehicle_model || ''
+    const vNumber = r.vehicle_number || r.profiles?.vehicle_number || ''
+    const vehicleLine = vModel || vNumber ? `\n🚘 Vehicle: ${vModel}${vNumber ? ` (${vNumber})` : ''}` : ''
+    const msg = `🚗 Carpool Available — ${dateStr}\n\n🕘 Ride Time: ${timeStr}\n👤 Name: ${r.profiles?.full_name || ''}${vehicleLine}\n\n📍 From: ${r.from_location}\n📍 To: ${r.to_location}\n${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat\n💺 Seats Available: ${r.seats_available}\n\n🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -899,13 +903,28 @@ export default function AdminDashboard() {
                 {(() => {
                   const istNow = new Date(Date.now() + 5.5 * 3600000)
                   const todayIST = istNow.toISOString().split('T')[0]
-                  const visible = rides
+                  const nowTime = istNow.toISOString().slice(11, 16) // HH:MM in IST
+                  let visible = rides
                     .filter(r => !r.from_location?.startsWith('TEST_'))
                     .filter(r => {
-                      if (rideFilter === 'upcoming') return ['active','full'].includes(r.status) && r.ride_date >= todayIST
+                      if (rideFilter === 'upcoming') {
+                        if (!['active','full'].includes(r.status)) return false
+                        if (r.ride_date > todayIST) return true          // future day
+                        if (r.ride_date === todayIST) return (r.ride_time || '') >= nowTime // today, not yet passed
+                        return false                                      // past day
+                      }
                       if (rideFilter === 'past') return r.ride_date < todayIST || ['completed','cancelled'].includes(r.status)
                       return true
                     })
+                  // Upcoming → soonest first (today evening, then tomorrow morning,
+                  // then tomorrow evening…). Past → most recent first. All → newest posted.
+                  if (rideFilter === 'upcoming') {
+                    visible = [...visible].sort((a, b) =>
+                      (a.ride_date + (a.ride_time || '')).localeCompare(b.ride_date + (b.ride_time || '')))
+                  } else if (rideFilter === 'past') {
+                    visible = [...visible].sort((a, b) =>
+                      (b.ride_date + (b.ride_time || '')).localeCompare(a.ride_date + (a.ride_time || '')))
+                  }
                   return (
                     <>
                       <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{visible.length} rides</div>
