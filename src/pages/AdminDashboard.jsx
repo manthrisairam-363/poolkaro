@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState(null)
   const [selectedRide, setSelectedRide] = useState(null)
   const [rideFilter, setRideFilter] = useState('all')
+  const [safetyView, setSafetyView] = useState('fraud')
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
   const [search, setSearch] = useState('')
   const [broadcastTitle, setBroadcastTitle] = useState('')
@@ -51,8 +52,8 @@ export default function AdminDashboard() {
     try {
       const [usersRes, ridesRes, bookingsRes, txnRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('rides').select('*, profiles(full_name, phone, vehicle_model, vehicle_number)').order('created_at', { ascending: false }).limit(200),
-        supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(200),
+        supabase.from('rides').select('*, profiles(full_name, phone, vehicle_model, vehicle_number)').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(1000),
         supabase.from('wallet_transactions').select('created_at, type, amount').in('type', ['booking_fee', 'posting_fee', 'razorpay', 'subscription']),
       ])
 
@@ -375,11 +376,15 @@ export default function AdminDashboard() {
     const [topupAmount, setTopupAmount] = useState('')
     const [topupNote, setTopupNote] = useState('')
     const [topupLoading, setTopupLoading] = useState(false)
+    const [proDate, setProDate] = useState('2026-12-31')
+    const [proLoading, setProLoading] = useState(false)
     const [txns, setTxns] = useState(null)   // wallet transaction history
+    const [panelView, setPanelView] = useState('main')  // 'main' | 'recharge' | 'transactions'
 
     // Load this user's full wallet transaction history when the panel opens.
     useEffect(() => {
       if (!u?.id) return
+      setPanelView('main')
       supabase.from('wallet_transactions')
         .select('*')
         .eq('user_id', u.id)
@@ -387,6 +392,33 @@ export default function AdminDashboard() {
         .limit(100)
         .then(({ data }) => setTxns(data || []))
     }, [u?.id])
+
+    // Grant this user Pro until a chosen date, right from their panel.
+    async function grantProToUser(dateStr) {
+      if (!u || !dateStr) return
+      setProLoading(true)
+      const expires = new Date(dateStr + 'T23:59:59').toISOString()
+      const { data, error } = await supabase.from('profiles')
+        .update({ subscription_expires_at: expires }).eq('id', u.id).select('id')
+      setProLoading(false)
+      if (error || !data?.length) { alert('Could not grant Pro. Check the admin profile-update policy.'); return }
+      await supabase.from('notifications').insert({
+        user_id: u.id, title: '⭐ You got Pro!',
+        message: `You've been given free CarpoolKaro Pro until ${new Date(dateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}. Enjoy zero platform fees!`,
+        type: 'booking', is_read: false,
+      })
+      u.subscription_expires_at = expires
+      alert(`✅ ${u.full_name} now has Pro until ${new Date(dateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}`)
+    }
+    async function revokeProFromUser() {
+      if (!u || !confirm(`Revoke Pro from ${u.full_name}?`)) return
+      const yesterday = new Date(Date.now() - 86400000).toISOString()
+      const { data, error } = await supabase.from('profiles')
+        .update({ subscription_expires_at: yesterday }).eq('id', u.id).select('id')
+      if (error || !data?.length) { alert('Could not revoke.'); return }
+      u.subscription_expires_at = yesterday
+      alert('Pro revoked')
+    }
 
     async function handleTopup() {
       if (!u || !topupAmount || !topupNote) return
@@ -488,7 +520,10 @@ export default function AdminDashboard() {
             Member since {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
 
-          {/* Wallet Top-up */}
+          {/* Wallet Top-up — full focused view */}
+          {panelView === 'recharge' && (
+          <>
+          <button onClick={() => setPanelView('main')} style={{ background: 'none', border: 'none', color: '#facc15', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 12, padding: 0 }}>‹ Back to user</button>
           <div style={{ background: '#0a1a0a', borderRadius: 12, padding: 14, marginBottom: 12, border: '1px solid #166534' }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: '#4ade80', marginBottom: 10 }}>💰 Add Wallet Credit</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -519,6 +554,19 @@ export default function AdminDashboard() {
               {topupLoading ? 'Adding...' : `✓ Add ₹${topupAmount || '0'} to Wallet`}
             </button>
           </div>
+          </>
+          )}
+
+          {/* Main view: two focused entry buttons + actions + Pro */}
+          {panelView === 'main' && (<>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button onClick={() => setPanelView('recharge')} style={{ flex: 1, padding: 14, borderRadius: 12, border: '1px solid #166534', background: '#0a1a0a', color: '#4ade80', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+              💰 Recharge
+            </button>
+            <button onClick={() => setPanelView('transactions')} style={{ flex: 1, padding: 14, borderRadius: 12, border: '1px solid #333', background: '#111', color: '#facc15', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+              💳 Transactions {txns ? `(${txns.length})` : ''}
+            </button>
+          </div>
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -537,8 +585,50 @@ export default function AdminDashboard() {
               </button>
             )}
           </div>
-          {/* ── Wallet transaction history ── */}
-          <div style={{ marginTop: 18, marginBottom: 14 }}>
+          {/* ── Pro subscription control ── */}
+          <div style={{ marginTop: 18, background: '#1e1b4b', borderRadius: 12, padding: 14, border: '1px solid #4f46e5' }}>
+            {(() => {
+              const isPro = u.subscription_expires_at && new Date(u.subscription_expires_at) > new Date()
+              return (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#c7d2fe', marginBottom: 6 }}>
+                    ⭐ Pro Subscription {isPro && <span style={{ color: '#4ade80', fontSize: 11 }}>· Active</span>}
+                  </div>
+                  {isPro && (
+                    <div style={{ fontSize: 11, color: '#a5b4fc', marginBottom: 8 }}>
+                      Expires {new Date(u.subscription_expires_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                    <input type="date" value={proDate} onChange={e => setProDate(e.target.value)}
+                      style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #4f46e5', background: '#111', color: '#fff', fontSize: 12 }} />
+                    <button onClick={() => grantProToUser(proDate)} disabled={proLoading}
+                      style={{ padding: '9px 14px', background: '#facc15', color: '#111', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {proLoading ? '…' : 'Grant Pro'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => grantProToUser(new Date(Date.now() + 30*86400000).toISOString().split('T')[0])}
+                      style={{ flex: 1, padding: '7px', background: '#111', color: '#facc15', border: '1px solid #4f46e5', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      +30 days
+                    </button>
+                    {isPro && (
+                      <button onClick={revokeProFromUser}
+                        style={{ flex: 1, padding: '7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+          </>)}
+
+          {/* ── Wallet transaction history — full focused view ── */}
+          {panelView === 'transactions' && (
+          <div style={{ marginTop: 4, marginBottom: 14 }}>
+            <button onClick={() => setPanelView('main')} style={{ background: 'none', border: 'none', color: '#facc15', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 12, padding: 0 }}>‹ Back to user</button>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#facc15', marginBottom: 8 }}>
               💳 Transaction History {txns ? `(${txns.length})` : ''}
             </div>
@@ -547,7 +637,7 @@ export default function AdminDashboard() {
             ) : txns.length === 0 ? (
               <div style={{ color: '#666', fontSize: 12, padding: 10, textAlign: 'center' }}>No transactions yet</div>
             ) : (
-              <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {txns.map(t => {
                   const credit = t.amount > 0
                   const label = {
@@ -574,6 +664,7 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+          )}
 
           <button onClick={() => setSelectedUser(null)} style={{ width: '100%', padding: 10, background: 'none', border: '1px solid #333', borderRadius: 10, color: '#666', fontSize: 13, cursor: 'pointer' }}>
             Close
@@ -587,7 +678,7 @@ export default function AdminDashboard() {
     <>
     <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', paddingBottom: 40 }}>
       {/* Header */}
-      <div style={{ background: '#111', padding: '20px 16px 16px', borderBottom: '1px solid #222' }}>
+      <div style={{ background: '#111', padding: '20px 16px 16px', borderBottom: '1px solid #222', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer' }}>←</button>
           <div>
@@ -618,7 +709,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -711,11 +802,9 @@ export default function AdminDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
                   ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
-                  ['suspicious','⚠️', 'Fraud',     suspiciousUsers.length > 0 ? `${suspiciousUsers.length} flagged` : 'Clean', '#ef4444'],
-                  ['rides',     '🚗', 'Rides',     'All rides',                '#d97706'],
-                  ['bookings',  '🎫', 'Bookings',  'History',                  '#0891b2'],
-                  ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
-                  ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
+                  ['suspicious','🛡️', 'Safety',    (suspiciousUsers.length + reports.length) > 0 ? `${suspiciousUsers.length + reports.length} to review` : 'Clean', '#ef4444'],
+                  ['rides',     '🚗', 'Rides & Bookings', 'All rides + bookings',  '#d97706'],
+                  ['notify',    '📢', 'Send Notification', 'Message users',       '#7c3aed'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
                   ['subs',      '⭐', 'Subscriptions', 'Pro members',           '#f59e0b'],
                   ['recharges', '💳', 'Recharges', 'Wallet top-ups',           '#22c55e'],
@@ -723,7 +812,6 @@ export default function AdminDashboard() {
                   ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
-                  ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
                   ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
                   ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
                 ].map(([v, icon, label, sub, color]) => (
@@ -755,14 +843,31 @@ export default function AdminDashboard() {
                   {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#666', fontSize: 18, cursor: 'pointer' }}>✕</button>}
                 </div>
 
-                {/* Filter chips */}
-                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10, paddingBottom: 4, scrollbarWidth: 'none' }}>
+                {/* Filter dropdown (was a long row of chips) */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#555', flexShrink: 0 }}>Filter:</span>
+                  <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600 }}>
+                    {[
+                      ['all', 'All users'],
+                      ['pro', '⭐ Pro'],
+                      ['free', '🆓 Free'],
+                      ['verified', '✓ Verified'],
+                      ['active_week', '👁 Active this week'],
+                      ['low_balance', '⚠️ Low balance'],
+                      ['no_rides', '😴 No rides'],
+                      ['referred', '🎁 Referred'],
+                      ['ios', '🍎 iOS'],
+                      ['android', '🤖 Android'],
+                      ['desktop', '💻 Desktop'],
+                      ['installed', '📲 Installed app'],
+                      ['browser', '🌐 Browser only'],
+                      ['unknown_platform', '❓ Unknown device'],
+                    ].map(([f, label]) => <option key={f} value={f}>{label}</option>)}
+                  </select>
+                </div>
+                {false && (
+                <div style={{ display: 'none' }}>
                   {[
-                    ['all', 'All'],
-                    ['pro', '⭐ Pro'],
-                    ['free', '🆓 Free'],
-                    ['verified', '✓ Verified'],
-                    ['active_week', '👁 Active this week'],
                     ['low_balance', '⚠️ Low balance'],
                     ['no_rides', '😴 No rides'],
                     ['referred', '🎁 Referred'],
@@ -779,6 +884,7 @@ export default function AdminDashboard() {
                     }}>{label}</button>
                   ))}
                 </div>
+                )}
 
                 {/* Sort */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
@@ -858,6 +964,17 @@ export default function AdminDashboard() {
             {/* SUSPICIOUS */}
             {tab === 'suspicious' && (
               <div>
+                {/* Safety tab = Fraud detection + Reported messages, toggled */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                  {[['fraud',`⚠️ Fraud${suspiciousUsers.length?` (${suspiciousUsers.length})`:''}`],['reports',`🚨 Reports${reports.length?` (${reports.length})`:''}`]].map(([v,l]) => (
+                    <button key={v} onClick={() => setSafetyView(v)} style={{
+                      flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: safetyView === v ? '#facc15' : '#1a1a1a',
+                      color: safetyView === v ? '#111' : '#888', fontSize: 12, fontWeight: 700,
+                    }}>{l}</button>
+                  ))}
+                </div>
+                {safetyView === 'fraud' && (<>
                 <div style={{ background: '#2a0a0a', borderRadius: 12, padding: 14, marginBottom: 16, border: '1px solid #7f1d1d' }}>
                   <div style={{ fontWeight: 700, color: '#fca5a5', marginBottom: 8 }}>⚠️ Fraud Detection</div>
                   <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
@@ -884,23 +1001,47 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+                </>)}
               </div>
             )}
 
             {/* RIDES */}
             {tab === 'rides' && (
               <div>
-                {/* Filter: All / Upcoming / Past — replaces the separate Live tab */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                  {[['all','All'],['upcoming','🟢 Upcoming'],['past','Past']].map(([v,l]) => (
+                {/* One tab for Rides + Bookings, segregated by filter */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {[['all','All rides'],['upcoming','🟢 Upcoming'],['past','Past'],['bookings','🎫 Bookings']].map(([v,l]) => (
                     <button key={v} onClick={() => setRideFilter(v)} style={{
-                      flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      flex: '1 1 auto', padding: '7px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
                       background: rideFilter === v ? '#facc15' : '#1a1a1a',
-                      color: rideFilter === v ? '#111' : '#888', fontSize: 12, fontWeight: 700,
+                      color: rideFilter === v ? '#111' : '#888', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                     }}>{l}</button>
                   ))}
                 </div>
-                {(() => {
+
+                {/* Bookings view — shows every booking, tappable to its ride */}
+                {rideFilter === 'bookings' ? (
+                  <div>
+                    <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{bookings.length} bookings · tap to see the ride</div>
+                    {bookings.map(b => {
+                      const parentRide = rides.find(r => r.id === b.ride_id)
+                      return (
+                        <div key={b.id} onClick={() => parentRide && setSelectedRide(parentRide)}
+                          style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: parentRide ? 'pointer' : 'default' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: 13 }}>🎫 {b.profiles?.full_name || 'Unknown'} <span style={{ color: '#666', fontWeight: 400 }}>booked</span></div>
+                              {parentRide && <div style={{ color: '#93c5fd', fontSize: 12, marginTop: 3 }}>{parentRide.from_location} → {parentRide.to_location}</div>}
+                              <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
+                              <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{new Date(b.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })} · payment: {b.payment_status || 'pending'}</div>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (() => {
                   const istNow = new Date(Date.now() + 5.5 * 3600000)
                   const todayIST = istNow.toISOString().split('T')[0]
                   const nowTime = istNow.toISOString().slice(11, 16) // HH:MM in IST
@@ -916,14 +1057,24 @@ export default function AdminDashboard() {
                       if (rideFilter === 'past') return r.ride_date < todayIST || ['completed','cancelled'].includes(r.status)
                       return true
                     })
-                  // Upcoming → soonest first (today evening, then tomorrow morning,
-                  // then tomorrow evening…). Past → most recent first. All → newest posted.
+                  // Upcoming → soonest first. Past → most recent first.
+                  // All → also chronological (upcoming first, then past).
                   if (rideFilter === 'upcoming') {
                     visible = [...visible].sort((a, b) =>
                       (a.ride_date + (a.ride_time || '')).localeCompare(b.ride_date + (b.ride_time || '')))
                   } else if (rideFilter === 'past') {
                     visible = [...visible].sort((a, b) =>
                       (b.ride_date + (b.ride_time || '')).localeCompare(a.ride_date + (a.ride_time || '')))
+                  } else {
+                    // All: upcoming rides first (soonest→latest), then past (recent→old)
+                    const todayKey = todayIST + nowTime
+                    visible = [...visible].sort((a, b) => {
+                      const ka = a.ride_date + (a.ride_time || ''), kb = b.ride_date + (b.ride_time || '')
+                      const aUp = ka >= todayKey, bUp = kb >= todayKey
+                      if (aUp && bUp) return ka.localeCompare(kb)      // both upcoming: soonest first
+                      if (!aUp && !bUp) return kb.localeCompare(ka)    // both past: recent first
+                      return aUp ? -1 : 1                              // upcoming before past
+                    })
                   }
                   return (
                     <>
@@ -955,19 +1106,24 @@ export default function AdminDashboard() {
             {/* BOOKINGS */}
             {tab === 'bookings' && (
               <div>
-                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{bookings.length} recent bookings</div>
-                {bookings.map(b => (
-                  <div key={b.id} style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{b.profiles?.full_name || 'Unknown'}</div>
-                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
-                        <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>CarpoolKaro earned: ₹4 · {new Date(b.created_at).toLocaleDateString('en-IN')}</div>
+                <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{bookings.length} recent bookings · tap to see the ride</div>
+                {bookings.map(b => {
+                  const parentRide = rides.find(r => r.id === b.ride_id)
+                  return (
+                    <div key={b.id} onClick={() => parentRide && setSelectedRide(parentRide)}
+                      style={{ background: '#1a1a1a', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid #222', cursor: parentRide ? 'pointer' : 'default' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>🎫 {b.profiles?.full_name || 'Unknown'} <span style={{ color: '#666', fontWeight: 400 }}>booked</span></div>
+                          {parentRide && <div style={{ color: '#93c5fd', fontSize: 12, marginTop: 3 }}>{parentRide.from_location} → {parentRide.to_location}</div>}
+                          <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
+                          <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{new Date(b.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })} · payment: {b.payment_status || 'pending'}</div>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -1015,7 +1171,7 @@ export default function AdminDashboard() {
             )}
 
             {/* REPORTS */}
-            {tab === 'reports' && (
+            {(tab === 'reports' || (tab === 'suspicious' && safetyView === 'reports')) && (
               <div>
                 <div style={{ background: '#2a0a0a', borderRadius: 12, padding: 14, marginBottom: 16, border: '1px solid #7f1d1d' }}>
                   <div style={{ fontWeight: 700, color: '#fca5a5', marginBottom: 4 }}>🚨 Reported Messages</div>
@@ -1796,9 +1952,32 @@ function NotifyTab({ supabase, users }) {
         </div>
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>QUICK TEMPLATES</div>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-            {[['🎉 Feature Update','We just launched a new feature! Open the app to check it out.'],['🏙️ New City','CarpoolKaro is now in your city! Start sharing rides today.'],['💰 Offer','Recharge ₹100 and get ₹20 bonus this week only!'],['🚗 Post a Ride','Driving tomorrow? Post your ride and earn on your commute!']].map(([t,m])=>(
-              <button key={t} onClick={()=>{setTitle(t);setMessage(m)}} style={{padding:'5px 10px',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,color:'#888',fontSize:10,cursor:'pointer'}}>{t}</button>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',maxHeight:170,overflowY:'auto'}}>
+            {[
+              // Launch & growth
+              ['🎉 We\'re on Play Store!','CarpoolKaro is now live on the Google Play Store! Update or download the app for the best experience.'],
+              ['📲 Add to Home Screen','Add CarpoolKaro to your home screen for quick access and to receive ride notifications. Tap the menu in your browser → "Add to Home Screen".'],
+              ['🚗 New Routes Available','New carpool routes are available near you. Open the app to find a ride for your commute!'],
+              ['🏙️ Now in Your City','CarpoolKaro is now active in your city! Start sharing rides and save on your daily commute.'],
+              // Engagement
+              ['🙋 Post a Ride','Driving to work tomorrow? Post your ride in 30 seconds and earn on your commute.'],
+              ['🎫 Book Early','Book your ride for tomorrow now — seats fill up fast during peak hours!'],
+              ['⭐ Rate Your Rides','Please rate your recent co-riders. Good ratings build trust in our community!'],
+              ['💬 Complete Your Profile','Add your work email and vehicle details to get more bookings and build trust.'],
+              // Money / referral
+              ['💰 Recharge Bonus','Recharge ₹100 and get ₹20 bonus this week only. Top up your wallet now!'],
+              ['🎁 Refer & Earn','Invite a colleague to CarpoolKaro and both of you earn wallet credits. Share your referral code!'],
+              ['⭐ Go Pro','Upgrade to Pro for zero platform fees on every ride. Limited-time launch offer!'],
+              ['🔔 Low Balance','Your wallet balance is low. Recharge now so you never miss booking a ride.'],
+              // Payment nudges
+              ['💵 Pending Payments','Have you paid your driver for recent rides? Open "My Rides" to complete any pending payments.'],
+              // Green / community
+              ['🌿 Go Green','Every carpool saves ~2kg of CO₂. Post or book a ride today and help reduce traffic!'],
+              ['📅 Weekend Rides','Heading out this weekend? Find or post a carpool and split the cost.'],
+              // Safety
+              ['🛡️ Stay Safe','Reminder: keep all chats and payments inside the app. Never share personal contact details.'],
+            ].map(([t,m])=>(
+              <button key={t} onClick={()=>{setTitle(t);setMessage(m)}} style={{padding:'5px 10px',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,color:'#aaa',fontSize:10,cursor:'pointer'}}>{t}</button>
             ))}
           </div>
         </div>
@@ -1878,6 +2057,7 @@ function SubscriptionsTab({ supabase }) {
   const [subs, setSubs] = useState([])
   const [loading, setLoading] = useState(true)
   const [subRevenue, setSubRevenue] = useState(0)
+  const [promoDate, setPromoDate] = useState('2026-12-31')
   useEffect(() => { load() }, [])
   async function load() {
     setLoading(true)
@@ -1895,12 +2075,53 @@ function SubscriptionsTab({ supabase }) {
   }
   async function grantPro(userId) {
     const expires = new Date(Date.now() + 30 * 86400000).toISOString()
-    await supabase.from('profiles').update({ subscription_expires_at: expires }).eq('id', userId)
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: expires }).eq('id', userId).select('id')
+    if (error || !data?.length) {
+      alert('Could not grant Pro. The admin update policy may be missing — run the admin RLS SQL for profiles.')
+      return
+    }
+    alert('✅ Pro granted for 30 days')
+    load()
+  }
+
+  // Grant Pro to a SINGLE user until a chosen date (for targeting VIPs / active drivers).
+  async function grantProUntil(userId, dateStr) {
+    if (!dateStr) return
+    const expires = new Date(dateStr + 'T23:59:59').toISOString()
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: expires }).eq('id', userId).select('id')
+    if (error || !data?.length) { alert('Could not grant. Check the admin profile-update policy.'); return }
+    alert(`✅ Pro granted until ${new Date(dateStr).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}`)
+    load()
+  }
+
+  // LAUNCH PROMO: grant Pro to ALL users until a chosen date. This is the
+  // "free Pro until Dec 31 to attract early users" move.
+  async function grantProToAll(dateStr) {
+    if (!dateStr) return
+    const label = new Date(dateStr).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
+    if (!confirm(`Give FREE Pro to ALL users until ${label}?\n\nThis updates every user's account. Use for launch promos.`)) return
+    const expires = new Date(dateStr + 'T23:59:59').toISOString()
+    // Update every profile. RLS admin policy allows this.
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: expires })
+      .neq('id', '00000000-0000-0000-0000-000000000000') // matches all rows
+      .select('id')
+    if (error) { alert('Could not apply promo: ' + error.message); return }
+    alert(`✅ Free Pro granted to ${data?.length || 0} users until ${label}`)
     load()
   }
   async function revokePro(userId) {
     if (!confirm('Revoke Pro access?')) return
-    await supabase.from('profiles').update({ subscription_expires_at: null }).eq('id', userId)
+    // Set expiry to yesterday (not null) so the user still appears under "Expired".
+    const yesterday = new Date(Date.now() - 86400000).toISOString()
+    const { data, error } = await supabase.from('profiles')
+      .update({ subscription_expires_at: yesterday }).eq('id', userId).select('id')
+    if (error || !data?.length) {
+      alert('Could not revoke. The admin update policy may be missing — run the admin RLS SQL for profiles.')
+      return
+    }
     load()
   }
   const now = new Date()
@@ -1917,6 +2138,20 @@ function SubscriptionsTab({ supabase }) {
           </div>
         ))}
       </div>
+      {/* 🎁 Launch promo — grant free Pro to ALL users until a chosen date */}
+      <div style={{ background: 'linear-gradient(135deg,#1e1b4b,#312e81)', borderRadius: 12, padding: 14, marginBottom: 20, border: '1px solid #4f46e5' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#c7d2fe', marginBottom: 4 }}>🎁 Launch Promo</div>
+        <div style={{ fontSize: 11, color: '#a5b4fc', marginBottom: 10 }}>Give free Pro to every user until a date — to attract early users.</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="date" value={promoDate} onChange={e => setPromoDate(e.target.value)}
+            style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #4f46e5', background: '#1e1b4b', color: '#fff', fontSize: 12 }} />
+          <button onClick={() => grantProToAll(promoDate)}
+            style={{ padding: '9px 14px', background: '#facc15', color: '#111', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Grant to ALL
+          </button>
+        </div>
+      </div>
+
       <div style={{fontSize:11,fontWeight:800,color:'#facc15',marginBottom:10,letterSpacing:1}}>⭐ ACTIVE PRO MEMBERS</div>
       {active.length === 0 ? <div style={{color:'#555',textAlign:'center',padding:20}}>No active subscriptions</div> :
         active.map(s => (
@@ -1941,7 +2176,10 @@ function SubscriptionsTab({ supabase }) {
               <div style={{fontWeight:600,fontSize:13,color:'#888'}}>{s.full_name}</div>
               <div style={{fontSize:10,color:'#555',marginTop:2}}>Expired: {new Date(s.subscription_expires_at).toLocaleDateString('en-IN')}</div>
             </div>
-            <button onClick={() => grantPro(s.id)} style={{background:'#111',color:'#facc15',border:'1px solid #facc15',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>Grant 30d</button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button onClick={() => grantPro(s.id)} style={{background:'#111',color:'#facc15',border:'1px solid #facc15',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>Grant 30d</button>
+              <button onClick={() => grantProUntil(s.id, promoDate)} style={{background:'#111',color:'#c7d2fe',border:'1px solid #4f46e5',borderRadius:8,padding:'6px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}} title={`Grant until ${promoDate}`}>Until {new Date(promoDate).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</button>
+            </div>
           </div>
         ))}
       </>}
