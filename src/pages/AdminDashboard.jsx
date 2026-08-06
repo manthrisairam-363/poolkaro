@@ -379,10 +379,12 @@ export default function AdminDashboard() {
     const [proDate, setProDate] = useState('2026-12-31')
     const [proLoading, setProLoading] = useState(false)
     const [txns, setTxns] = useState(null)   // wallet transaction history
+    const [panelView, setPanelView] = useState('main')  // 'main' | 'recharge' | 'transactions'
 
     // Load this user's full wallet transaction history when the panel opens.
     useEffect(() => {
       if (!u?.id) return
+      setPanelView('main')
       supabase.from('wallet_transactions')
         .select('*')
         .eq('user_id', u.id)
@@ -518,7 +520,10 @@ export default function AdminDashboard() {
             Member since {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
 
-          {/* Wallet Top-up */}
+          {/* Wallet Top-up — full focused view */}
+          {panelView === 'recharge' && (
+          <>
+          <button onClick={() => setPanelView('main')} style={{ background: 'none', border: 'none', color: '#facc15', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 12, padding: 0 }}>‹ Back to user</button>
           <div style={{ background: '#0a1a0a', borderRadius: 12, padding: 14, marginBottom: 12, border: '1px solid #166534' }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: '#4ade80', marginBottom: 10 }}>💰 Add Wallet Credit</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -547,6 +552,19 @@ export default function AdminDashboard() {
               background: (!topupAmount || !topupNote) ? '#333' : '#16a34a', color: '#fff',
             }}>
               {topupLoading ? 'Adding...' : `✓ Add ₹${topupAmount || '0'} to Wallet`}
+            </button>
+          </div>
+          </>
+          )}
+
+          {/* Main view: two focused entry buttons + actions + Pro */}
+          {panelView === 'main' && (<>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button onClick={() => setPanelView('recharge')} style={{ flex: 1, padding: 14, borderRadius: 12, border: '1px solid #166534', background: '#0a1a0a', color: '#4ade80', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+              💰 Recharge
+            </button>
+            <button onClick={() => setPanelView('transactions')} style={{ flex: 1, padding: 14, borderRadius: 12, border: '1px solid #333', background: '#111', color: '#facc15', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+              💳 Transactions {txns ? `(${txns.length})` : ''}
             </button>
           </div>
 
@@ -605,9 +623,12 @@ export default function AdminDashboard() {
               )
             })()}
           </div>
+          </>)}
 
-          {/* ── Wallet transaction history ── */}
-          <div style={{ marginTop: 18, marginBottom: 14 }}>
+          {/* ── Wallet transaction history — full focused view ── */}
+          {panelView === 'transactions' && (
+          <div style={{ marginTop: 4, marginBottom: 14 }}>
+            <button onClick={() => setPanelView('main')} style={{ background: 'none', border: 'none', color: '#facc15', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 12, padding: 0 }}>‹ Back to user</button>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#facc15', marginBottom: 8 }}>
               💳 Transaction History {txns ? `(${txns.length})` : ''}
             </div>
@@ -616,7 +637,7 @@ export default function AdminDashboard() {
             ) : txns.length === 0 ? (
               <div style={{ color: '#666', fontSize: 12, padding: 10, textAlign: 'center' }}>No transactions yet</div>
             ) : (
-              <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {txns.map(t => {
                   const credit = t.amount > 0
                   const label = {
@@ -643,6 +664,7 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+          )}
 
           <button onClick={() => setSelectedUser(null)} style={{ width: '100%', padding: 10, background: 'none', border: '1px solid #333', borderRadius: 10, color: '#666', fontSize: 13, cursor: 'pointer' }}>
             Close
