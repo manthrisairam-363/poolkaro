@@ -18,6 +18,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import TermsPrivacy from './pages/TermsPrivacy'
 import Install from './pages/Install'
 import Chat from './pages/Chat'
+import InstallGuide from './components/InstallGuide'
 import Subscription from './pages/Subscription'
 import Feedback from './pages/Feedback'
 import { usePushNotifications } from './lib/pushNotifications'
@@ -196,6 +197,7 @@ function AppRoutes() {
   if (profileError) return <ConnectionError onRetry={() => fetchProfile(user.id)} />
   if (!profile?.onboarding_complete) return <Onboarding />
   return (
+    <>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/post" element={<PostRide />} />
@@ -214,6 +216,8 @@ function AppRoutes() {
       <Route path="/feedback" element={<Feedback />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <InstallGuide />
+    </>
   )
 }
 
