@@ -11,6 +11,14 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
 }
 
+// Byte-compare two Uint8Arrays — used to check if an existing push subscription
+// was created with our current VAPID public key (mismatched keys silently drop).
+function keysEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
 // Save a subscription to the DB. Keyed by endpoint so a user's multiple devices
 // each get their own row (upsert on user_id alone would overwrite one device
 // with another). Requires a UNIQUE constraint on endpoint — see note below.
@@ -56,20 +64,27 @@ export async function registerPushNotifications(userId) {
       if (permission !== 'granted') return false
     }
 
-    // Permission is 'granted'. Reuse an existing subscription if we have one —
-    // do NOT tear it down every open. The old approach (unsubscribe + recreate
-    // each time) is fragile on iOS: if the re-subscribe hiccups after we've
-    // already deleted the old one, the device is left with NO subscription.
-    // Instead: keep a healthy subscription and just make sure the DB has it.
+    // Permission is 'granted'. Check for an existing subscription — but only
+    // reuse it if it was created with our CURRENT VAPID key. A subscription
+    // signed with an old key will be silently dropped by the device (Apple/FCM
+    // accept the push, but the device can't decrypt it) — which looks exactly
+    // like "sent:1 but no popup". If the key differs, we recreate it.
     const existing = await reg.pushManager.getSubscription()
     if (existing) {
-      // Make sure it was created with OUR current VAPID key. If the key matches,
-      // it's valid — just re-save (upsert) so the DB row is current.
-      await saveSubscription(userId, existing)
-      return true
+      const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      const existingKey = existing.options?.applicationServerKey
+      const matches = existingKey && keysEqual(new Uint8Array(existingKey), currentKey)
+      if (matches) {
+        await saveSubscription(userId, existing)  // healthy → just keep DB current
+        return true
+      }
+      // Key mismatch (or unknown) → tear down and recreate with the right key.
+      const oldEndpoint = existing.endpoint
+      try { await existing.unsubscribe() } catch (_) {}
+      if (oldEndpoint) await supabase.from('push_subscriptions').delete().eq('endpoint', oldEndpoint)
     }
 
-    // No subscription yet → create a fresh one.
+    // No (valid) subscription → create a fresh one with the current key.
     return await subscribeFresh(reg, userId)
   } catch (err) {
     console.error('Push registration failed:', err)
