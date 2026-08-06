@@ -43,20 +43,22 @@ export async function registerPushNotifications(userId) {
 
     if (Notification.permission === 'denied') return false
 
-    // Ask for permission if we've never asked (permission still 'default')
+    // If permission hasn't been granted yet, prompt once per device (don't nag).
+    // The key fix vs. the old code: we only gate the PROMPT on 'already asked',
+    // never the subscription itself. Previously a device left at 'default'
+    // returned early forever and NEVER subscribed — which is why Android had
+    // zero subscriptions.
     if (Notification.permission === 'default') {
       const alreadyAsked = localStorage.getItem('push_permission_asked')
-      if (alreadyAsked) return false
-      const permission = await Notification.requestPermission()
+      if (alreadyAsked) return false   // don't re-prompt; user can enable in settings
       localStorage.setItem('push_permission_asked', '1')
+      const permission = await Notification.requestPermission()
       if (permission !== 'granted') return false
     }
 
-    // Permission is granted. CRITICAL: an existing subscription object can be
-    // STALE — the browser rotates/expires push subscriptions, and the old code
-    // trusted getSubscription() forever, re-saving a dead endpoint that FCM
-    // rejects with 410. So we always tear down the old one and create a fresh,
-    // guaranteed-valid subscription. Also removes the dead row from the DB.
+    // Permission is 'granted' (either just now, or previously via the browser
+    // settings). ALWAYS (re)create a fresh subscription — this is the line the
+    // old code could skip, leaving granted devices with no subscription.
     const existing = await reg.pushManager.getSubscription()
     if (existing) {
       const oldEndpoint = existing.endpoint
