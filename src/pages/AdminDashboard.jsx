@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState(null)
   const [selectedRide, setSelectedRide] = useState(null)
   const [rideFilter, setRideFilter] = useState('all')
+  const [safetyView, setSafetyView] = useState('fraud')
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
   const [search, setSearch] = useState('')
   const [broadcastTitle, setBroadcastTitle] = useState('')
@@ -686,7 +687,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'⚠️ Fraud','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'🔔 Notify','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -779,10 +780,9 @@ export default function AdminDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
                   ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
-                  ['suspicious','⚠️', 'Fraud',     suspiciousUsers.length > 0 ? `${suspiciousUsers.length} flagged` : 'Clean', '#ef4444'],
+                  ['suspicious','🛡️', 'Safety',    (suspiciousUsers.length + reports.length) > 0 ? `${suspiciousUsers.length + reports.length} to review` : 'Clean', '#ef4444'],
                   ['rides',     '🚗', 'Rides & Bookings', 'All rides + bookings',  '#d97706'],
-                  ['broadcast', '📢', 'Broadcast', 'Message all',              '#7c3aed'],
-                  ['reports',   '🚨', 'Reports',   reports.length > 0 ? `${reports.length} open` : 'None', '#dc2626'],
+                  ['notify',    '📢', 'Send Notification', 'Message users',       '#7c3aed'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
                   ['subs',      '⭐', 'Subscriptions', 'Pro members',           '#f59e0b'],
                   ['recharges', '💳', 'Recharges', 'Wallet top-ups',           '#22c55e'],
@@ -790,7 +790,6 @@ export default function AdminDashboard() {
                   ['cities',    '🏙️', 'Cities',    '6 cities',                 '#06b6d4'],
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
-                  ['notify',    '🔔', 'Notify',    'Push',                     '#3b82f6'],
                   ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
                   ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
                 ].map(([v, icon, label, sub, color]) => (
@@ -943,6 +942,17 @@ export default function AdminDashboard() {
             {/* SUSPICIOUS */}
             {tab === 'suspicious' && (
               <div>
+                {/* Safety tab = Fraud detection + Reported messages, toggled */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                  {[['fraud',`⚠️ Fraud${suspiciousUsers.length?` (${suspiciousUsers.length})`:''}`],['reports',`🚨 Reports${reports.length?` (${reports.length})`:''}`]].map(([v,l]) => (
+                    <button key={v} onClick={() => setSafetyView(v)} style={{
+                      flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: safetyView === v ? '#facc15' : '#1a1a1a',
+                      color: safetyView === v ? '#111' : '#888', fontSize: 12, fontWeight: 700,
+                    }}>{l}</button>
+                  ))}
+                </div>
+                {safetyView === 'fraud' && (<>
                 <div style={{ background: '#2a0a0a', borderRadius: 12, padding: 14, marginBottom: 16, border: '1px solid #7f1d1d' }}>
                   <div style={{ fontWeight: 700, color: '#fca5a5', marginBottom: 8 }}>⚠️ Fraud Detection</div>
                   <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
@@ -969,6 +979,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+                </>)}
               </div>
             )}
 
@@ -1138,7 +1149,7 @@ export default function AdminDashboard() {
             )}
 
             {/* REPORTS */}
-            {tab === 'reports' && (
+            {(tab === 'reports' || (tab === 'suspicious' && safetyView === 'reports')) && (
               <div>
                 <div style={{ background: '#2a0a0a', borderRadius: 12, padding: 14, marginBottom: 16, border: '1px solid #7f1d1d' }}>
                   <div style={{ fontWeight: 700, color: '#fca5a5', marginBottom: 4 }}>🚨 Reported Messages</div>
@@ -1919,9 +1930,32 @@ function NotifyTab({ supabase, users }) {
         </div>
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,color:'#888',marginBottom:6,fontWeight:700}}>QUICK TEMPLATES</div>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-            {[['🎉 Feature Update','We just launched a new feature! Open the app to check it out.'],['🏙️ New City','CarpoolKaro is now in your city! Start sharing rides today.'],['💰 Offer','Recharge ₹100 and get ₹20 bonus this week only!'],['🚗 Post a Ride','Driving tomorrow? Post your ride and earn on your commute!']].map(([t,m])=>(
-              <button key={t} onClick={()=>{setTitle(t);setMessage(m)}} style={{padding:'5px 10px',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,color:'#888',fontSize:10,cursor:'pointer'}}>{t}</button>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',maxHeight:170,overflowY:'auto'}}>
+            {[
+              // Launch & growth
+              ['🎉 We\'re on Play Store!','CarpoolKaro is now live on the Google Play Store! Update or download the app for the best experience.'],
+              ['📲 Add to Home Screen','Add CarpoolKaro to your home screen for quick access and to receive ride notifications. Tap the menu in your browser → "Add to Home Screen".'],
+              ['🚗 New Routes Available','New carpool routes are available near you. Open the app to find a ride for your commute!'],
+              ['🏙️ Now in Your City','CarpoolKaro is now active in your city! Start sharing rides and save on your daily commute.'],
+              // Engagement
+              ['🙋 Post a Ride','Driving to work tomorrow? Post your ride in 30 seconds and earn on your commute.'],
+              ['🎫 Book Early','Book your ride for tomorrow now — seats fill up fast during peak hours!'],
+              ['⭐ Rate Your Rides','Please rate your recent co-riders. Good ratings build trust in our community!'],
+              ['💬 Complete Your Profile','Add your work email and vehicle details to get more bookings and build trust.'],
+              // Money / referral
+              ['💰 Recharge Bonus','Recharge ₹100 and get ₹20 bonus this week only. Top up your wallet now!'],
+              ['🎁 Refer & Earn','Invite a colleague to CarpoolKaro and both of you earn wallet credits. Share your referral code!'],
+              ['⭐ Go Pro','Upgrade to Pro for zero platform fees on every ride. Limited-time launch offer!'],
+              ['🔔 Low Balance','Your wallet balance is low. Recharge now so you never miss booking a ride.'],
+              // Payment nudges
+              ['💵 Pending Payments','Have you paid your driver for recent rides? Open "My Rides" to complete any pending payments.'],
+              // Green / community
+              ['🌿 Go Green','Every carpool saves ~2kg of CO₂. Post or book a ride today and help reduce traffic!'],
+              ['📅 Weekend Rides','Heading out this weekend? Find or post a carpool and split the cost.'],
+              // Safety
+              ['🛡️ Stay Safe','Reminder: keep all chats and payments inside the app. Never share personal contact details.'],
+            ].map(([t,m])=>(
+              <button key={t} onClick={()=>{setTitle(t);setMessage(m)}} style={{padding:'5px 10px',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,color:'#aaa',fontSize:10,cursor:'pointer'}}>{t}</button>
             ))}
           </div>
         </div>
