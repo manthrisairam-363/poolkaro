@@ -56,18 +56,20 @@ export async function registerPushNotifications(userId) {
       if (permission !== 'granted') return false
     }
 
-    // Permission is 'granted' (either just now, or previously via the browser
-    // settings). ALWAYS (re)create a fresh subscription — this is the line the
-    // old code could skip, leaving granted devices with no subscription.
+    // Permission is 'granted'. Reuse an existing subscription if we have one —
+    // do NOT tear it down every open. The old approach (unsubscribe + recreate
+    // each time) is fragile on iOS: if the re-subscribe hiccups after we've
+    // already deleted the old one, the device is left with NO subscription.
+    // Instead: keep a healthy subscription and just make sure the DB has it.
     const existing = await reg.pushManager.getSubscription()
     if (existing) {
-      const oldEndpoint = existing.endpoint
-      try { await existing.unsubscribe() } catch (_) {}
-      if (oldEndpoint) {
-        await supabase.from('push_subscriptions').delete().eq('endpoint', oldEndpoint)
-      }
+      // Make sure it was created with OUR current VAPID key. If the key matches,
+      // it's valid — just re-save (upsert) so the DB row is current.
+      await saveSubscription(userId, existing)
+      return true
     }
 
+    // No subscription yet → create a fresh one.
     return await subscribeFresh(reg, userId)
   } catch (err) {
     console.error('Push registration failed:', err)
