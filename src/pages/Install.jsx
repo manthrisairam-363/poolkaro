@@ -1,89 +1,154 @@
 import { useState, useEffect } from 'react'
-import { detectPlatform } from '../lib/platform'
+import { useNavigate } from 'react-router-dom'
 
-// Shows OS-specific "add to home screen" instructions to users who are still in
-// a browser (not the installed PWA). This is the bridge until the Play Store
-// listing is live — installed users get proper push and a real app feel.
-//
-// - Only shows on mobile (iOS/Android) AND only when NOT already installed.
-// - Dismissible; we remember the dismissal for this session (in-memory) so it
-//   doesn't nag on every navigation, but it returns next visit until they
-//   actually install (at which point isPWA flips true and it never shows).
-
-export default function InstallGuide() {
-  const [show, setShow] = useState(false)
-  const [expanded, setExpanded] = useState(false)
-  const [platform, setPlatform] = useState('android')
+export default function Install() {
+  const navigate = useNavigate()
+  const [device, setDevice] = useState('unknown')
+  const [browser, setBrowser] = useState('unknown')
+  const [step, setStep] = useState(1)
 
   useEffect(() => {
-    const { platform: p, isPWA } = detectPlatform()
-    // Already installed → never show. Desktop → not relevant.
-    if (isPWA || p === 'desktop') return
-    // Dismissed this session?
-    if (sessionStorage.getItem('installGuideDismissed') === '1') return
-    setPlatform(p)
-    setShow(true)
+    const ua = navigator.userAgent.toLowerCase()
+    if (/iphone|ipad|ipod/.test(ua)) setDevice('ios')
+    else if (/android/.test(ua)) setDevice('android')
+    else setDevice('desktop')
+
+    if (/crios/.test(ua)) setBrowser('chrome-ios')
+    else if (/fxios/.test(ua)) setBrowser('firefox-ios')
+    else if (/safari/.test(ua) && !/chrome/.test(ua)) setBrowser('safari')
+    else if (/chrome/.test(ua)) setBrowser('chrome')
+    else setBrowser('other')
+
+    // If already installed as PWA
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      navigate('/')
+    }
   }, [])
 
-  if (!show) return null
+  const iosSteps = [
+    { icon: '1️⃣', text: 'Open this page in Safari', note: 'Must use Safari, not Chrome' },
+    { icon: '2️⃣', text: 'Tap the Share button', note: '⬆️ at the bottom of Safari' },
+    { icon: '3️⃣', text: 'Scroll down and tap "Add to Home Screen"', note: 'Scroll in the share menu' },
+    { icon: '4️⃣', text: 'Tap "Add" in top right', note: 'CarpoolKaro icon appears on home screen!' },
+  ]
 
-  const isIOS = platform === 'ios'
+  const androidSteps = [
+    { icon: '1️⃣', text: 'Open this page in Chrome', note: 'Must use Chrome browser' },
+    { icon: '2️⃣', text: 'Tap the ⋮ menu (top right)', note: 'Three dots in Chrome' },
+    { icon: '3️⃣', text: 'Tap "Add to Home screen"', note: 'Or "Install App" if shown' },
+    { icon: '4️⃣', text: 'Tap "Add" or "Install"', note: 'CarpoolKaro icon appears on home screen!' },
+  ]
 
-  const steps = isIOS
-    ? [
-        { icon: '⬆️', text: 'Tap the Share button at the bottom of Safari' },
-        { icon: '➕', text: 'Scroll down and tap "Add to Home Screen"' },
-        { icon: '✅', text: 'Tap "Add" — CarpoolKaro appears on your home screen' },
-      ]
-    : [
-        { icon: '⋮', text: 'Tap the menu (⋮) in the top-right of Chrome' },
-        { icon: '📲', text: 'Tap "Add to Home screen" (or "Install app")' },
-        { icon: '✅', text: 'Tap "Add" — CarpoolKaro appears on your home screen' },
-      ]
-
-  function dismiss() {
-    sessionStorage.setItem('installGuideDismissed', '1')
-    setShow(false)
-  }
+  const steps = device === 'ios' ? iosSteps : androidSteps
 
   return (
-    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 74px)', zIndex: 900, padding: '0 12px', pointerEvents: 'none' }}>
-      <div style={{ maxWidth: 480, margin: '0 auto', background: '#111', borderRadius: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.4)', border: '1px solid #333', overflow: 'hidden', pointerEvents: 'auto' }}>
+    <div style={{ minHeight: '100vh', background: '#111', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px 40px' }}>
 
-        {/* Collapsed bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
-          <div style={{ fontSize: 22 }}>📲</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>Add CarpoolKaro to your home screen</div>
-            <div style={{ fontSize: 11, color: '#999' }}>Faster access + get ride notifications</div>
-          </div>
-          <button onClick={() => setExpanded(v => !v)} style={{ padding: '7px 12px', background: '#facc15', color: '#111', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
-            {expanded ? 'Hide' : 'How?'}
-          </button>
-          <button onClick={dismiss} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: '#666', fontSize: 18, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>×</button>
+      {/* Logo */}
+      <div style={{ marginTop: 20, textAlign: 'center', marginBottom: 28 }}>
+        <div style={{ width: 88, height: 88, borderRadius: 24, background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 50, margin: '0 auto 12px', boxShadow: '0 8px 32px rgba(250,204,21,0.3)' }}>
+          🚗
+        </div>
+        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-1px' }}>
+          <span style={{ color: '#facc15' }}>Pool</span>
+          <span style={{ color: '#fff' }}>Karo</span>
+        </div>
+        <div style={{ color: '#666', fontSize: 13, marginTop: 4 }}>
+          Hyderabad IT Carpool Community
+        </div>
+      </div>
+
+      {/* Install prompt */}
+      <div style={{ background: '#1a1a1a', borderRadius: 20, padding: 20, width: '100%', maxWidth: 400, marginBottom: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: '#fff', marginBottom: 4 }}>
+          📱 Add to Home Screen
+        </div>
+        <div style={{ color: '#888', fontSize: 13, marginBottom: 20 }}>
+          Install CarpoolKaro as an app — no App Store needed!
         </div>
 
-        {/* Expanded steps */}
-        {expanded && (
-          <div style={{ padding: '0 14px 14px' }}>
-            <div style={{ fontSize: 11, color: '#facc15', fontWeight: 700, marginBottom: 8 }}>
-              {isIOS ? '🍎 On your iPhone (Safari)' : '🤖 On your Android (Chrome)'}
+        {/* Device detected */}
+        {device !== 'desktop' && (
+          <>
+            <div style={{ background: '#facc15', borderRadius: 10, padding: '8px 14px', marginBottom: 20, display: 'inline-block' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>
+                {device === 'ios' ? '📱 iPhone / iPad detected' : '🤖 Android detected'}
+              </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+            {/* Safari warning for iOS Chrome users */}
+            {device === 'ios' && browser !== 'safari' && (
+              <div style={{ background: '#fef2f2', borderRadius: 10, padding: '12px 14px', marginBottom: 16, border: '1px solid #fecaca' }}>
+                <div style={{ fontSize: 13, color: '#dc2626', fontWeight: 700, marginBottom: 4 }}>⚠️ Switch to Safari first!</div>
+                <div style={{ fontSize: 12, color: '#888' }}>iPhone only allows home screen install from Safari. Copy and open this link in Safari:</div>
+                <div style={{ fontSize: 12, color: '#2563eb', marginTop: 6, fontWeight: 600, wordBreak: 'break-all' }}>
+                  app.carpoolkaro.com/install
+                </div>
+              </div>
+            )}
+
+            {/* Steps */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {steps.map((s, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#1a1a1a', borderRadius: 8, padding: '9px 11px' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#facc15', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{i + 1}</div>
-                  <div style={{ fontSize: 12.5, color: '#ddd' }}><span style={{ marginRight: 6 }}>{s.icon}</span>{s.text}</div>
+                <div key={i} onClick={() => setStep(i + 1)} style={{
+                  display: 'flex', gap: 12, padding: '12px', borderRadius: 12,
+                  background: step === i + 1 ? '#222' : 'transparent',
+                  border: `1px solid ${step === i + 1 ? '#facc15' : '#222'}`,
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}>
+                  <span style={{ fontSize: 22, flexShrink: 0 }}>{s.icon}</span>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{s.text}</div>
+                    <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{s.note}</div>
+                  </div>
                 </div>
               ))}
             </div>
-            {isIOS && (
-              <div style={{ fontSize: 10.5, color: '#777', marginTop: 8, lineHeight: 1.5 }}>
-                Note: on iPhone this only works in <b style={{ color: '#aaa' }}>Safari</b>, not Chrome. Notifications work once added to the home screen.
-              </div>
-            )}
+          </>
+        )}
+
+        {/* Desktop message */}
+        {device === 'desktop' && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>💻</div>
+            <div style={{ color: '#fff', fontWeight: 700, marginBottom: 8 }}>Open on your phone!</div>
+            <div style={{ color: '#888', fontSize: 13, marginBottom: 16 }}>Scan this QR code or share the link to install on mobile</div>
+            <div style={{ background: '#222', borderRadius: 10, padding: '12px', fontSize: 13, color: '#facc15', fontWeight: 600, wordBreak: 'break-all' }}>
+              app.carpoolkaro.com/install
+            </div>
           </div>
         )}
+      </div>
+
+      {/* App features */}
+      <div style={{ background: '#1a1a1a', borderRadius: 20, padding: 20, width: '100%', maxWidth: 400, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 14 }}>Why Install?</div>
+        {[
+          ['⚡', 'Opens instantly like a real app'],
+          ['🔔', 'Get notifications when rides are booked'],
+          ['📵', 'Works with no browser bar'],
+          ['🔒', 'Safe & secure — no App Store needed'],
+          ['💰', 'Save on commute costs daily'],
+        ].map(([icon, text]) => (
+          <div key={text} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center' }}>
+            <span style={{ fontSize: 20 }}>{icon}</span>
+            <span style={{ color: '#aaa', fontSize: 13 }}>{text}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Open app button */}
+      <button onClick={() => navigate('/')} style={{
+        width: '100%', maxWidth: 400, padding: 16,
+        background: '#facc15', color: '#111', border: 'none',
+        borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: 'pointer',
+        marginBottom: 12,
+      }}>
+        🚗 Open CarpoolKaro
+      </button>
+
+      <div style={{ color: '#444', fontSize: 11, textAlign: 'center' }}>
+        app.carpoolkaro.com · No App Store · No Subscription
       </div>
     </div>
   )
