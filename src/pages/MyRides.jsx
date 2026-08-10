@@ -233,7 +233,10 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
 
   useEffect(() => {
     async function loadCount() {
-      const { count } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('ride_id', ride.id).eq('status', 'confirmed')
+      // Count confirmed AND completed bookings — a past/expired ride's bookings
+      // become 'completed', so counting only 'confirmed' wrongly showed 0 and
+      // hid the passenger details for finished rides.
+      const { count } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('ride_id', ride.id).in('status', ['confirmed', 'completed'])
       setActualBookedCount(count || 0)
     }
     loadCount()
@@ -245,7 +248,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   useEffect(() => {
     supabase.from('bookings')
       .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, profiles(full_name, phone)')
-      .eq('ride_id', ride.id).eq('status', 'confirmed')
+      .eq('ride_id', ride.id).in('status', ['confirmed', 'completed'])
       .then(({ data }) => {
         if (!data) return
         // Group multiple bookings by the same rider into one row.
@@ -280,7 +283,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
     if (expanded) { setExpanded(false); return }
     setExpanded(true)
     setLoadingPax(true)
-    const { data } = await supabase.from('bookings').select('*, profiles(full_name, phone, upi_id)').eq('ride_id', ride.id).eq('status', 'confirmed')
+    const { data } = await supabase.from('bookings').select('*, profiles(full_name, phone, upi_id)').eq('ride_id', ride.id).in('status', ['confirmed', 'completed'])
     const grouped = {}
     ;(data || []).forEach(b => {
       if (grouped[b.rider_id]) { grouped[b.rider_id].seats_booked += b.seats_booked; grouped[b.rider_id].ride_fare += b.ride_fare; grouped[b.rider_id].driver_receives += b.driver_receives }
