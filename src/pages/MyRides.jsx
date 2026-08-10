@@ -905,15 +905,36 @@ export default function MyRides() {
                   <summary style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', padding: '8px 0', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>▶</span> {completedBookings.length} completed ride{completedBookings.length > 1 ? 's' : ''} (tap to show)
                   </summary>
-                  {completedBookings.map(b => (
-                    <div key={b.id} style={{ background: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 8, border: '1px solid #e2e8f0', opacity: 0.8 }}>
+                  {completedBookings.map(b => {
+                    const isPaid = b.payment_status === 'paid' || b.driver_confirmed
+                    const fare = b.ride_fare || b.rides?.fare || 150
+                    const driverName = b.rides?.profiles?.full_name?.split(' ')[0] || 'Driver'
+                    return (
+                    <div key={b.id} style={{ background: isPaid ? '#f8fafc' : '#fff7ed', borderRadius: 12, padding: 12, marginTop: 8, border: isPaid ? '1px solid #e2e8f0' : '1px solid #fed7aa' }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: '#64748b' }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
                       <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
                         {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ✅ Completed
                       </div>
+
+                      {/* Payment status — a completed ride can still be UNPAID.
+                          Don't hide the pay option just because the ride is over. */}
+                      {isPaid ? (
+                        <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: '#15803d' }}>✓ You paid ₹{fare} to {driverName}</div>
+                      ) : (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#c2410c', marginBottom: 6 }}>⏳ You haven't paid ₹{fare} yet</div>
+                          {b.rides?.profiles?.upi_id && (
+                            <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, fare, driverName, b.id)} style={{ width: '100%', padding: '10px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                              💳 Pay ₹{fare} to {driverName}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
                       <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{ marginTop: 8, padding: '7px 14px', background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⭐ Rate</button>
                     </div>
-                  ))}
+                    )
+                  })}
                 </details>
               )}
             </>
