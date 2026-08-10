@@ -322,10 +322,12 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
           </div>
           <div>
             {payRows.map(row => (
-              <div key={row.riderId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderTop: '1px solid #f1f2f4' }}>
+              <div key={row.riderId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderTop: '1px solid #f1f2f4', background: row.paid ? 'transparent' : '#fff5f5' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>₹{row.amount}{row.seats > 1 ? ` · ${row.seats} seats` : ''}</div>
+                  <div style={{ fontSize: 12, fontWeight: row.paid ? 400 : 800, color: row.paid ? '#94a3b8' : '#dc2626' }}>
+                    {row.paid ? '' : '⏳ owes '}₹{row.amount}{row.seats > 1 ? ` · ${row.seats} seats` : ''}
+                  </div>
                 </div>
                 {row.paid ? (
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>
@@ -742,9 +744,9 @@ export default function MyRides() {
                   who hasn't, and follow up. This is the key "did everyone pay me?"
                   view that a ride expiring should never hide. */}
               {rides.filter(r => !['active','full'].includes(r.status)).length > 0 && (
-                <details style={{ marginTop: 12 }}>
+                <details open style={{ marginTop: 12 }}>
                   <summary style={{ fontSize: 12, color: '#888', cursor: 'pointer', padding: '8px 0', userSelect: 'none', fontWeight: 700, listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>▶</span> Past rides — {rides.filter(r => !['active','full'].includes(r.status)).length} (tap to review payments)
+                    <span>▾</span> Past rides — {rides.filter(r => !['active','full'].includes(r.status)).length} (payment status below)
                   </summary>
                   {rides.filter(r => !['active','full'].includes(r.status)).map(r => (
                     <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} isPast />
