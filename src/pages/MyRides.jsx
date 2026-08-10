@@ -732,29 +732,40 @@ export default function MyRides() {
               <div style={{ color: '#aaa', marginTop: 8 }}>No rides posted yet</div>
               <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Tap + below to post your first ride</div>
             </div>
-          ) : (
+          ) : (() => {
+            // A ride is "past" if cancelled/completed OR its date+time already
+            // passed. Nothing auto-flips an 'active' ride to completed when its
+            // time is gone, which is why time-passed rides wrongly stayed in the
+            // colourful current list instead of the grey past section.
+            const nowMs = Date.now()
+            const isPastRide = (r) => {
+              if (['cancelled', 'completed'].includes(r.status)) return true
+              const dt = new Date(`${r.ride_date}T${r.ride_time || '23:59'}`)
+              return dt.getTime() < nowMs - 30 * 60000
+            }
+            const currentRides = rides.filter(r => !isPastRide(r))
+            const pastRides = rides.filter(isPastRide)
+            return (
             <>
-              {/* Active rides — full colour */}
-              {rides.filter(r => ['active','full'].includes(r.status)).map(r => (
+              {/* Current/upcoming rides — full colour */}
+              {currentRides.map(r => (
                 <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} />
               ))}
 
-              {/* Past rides (completed/expired/cancelled) — collapsed, but each
-                  is a FULL card so the driver can still see who booked, who paid,
-                  who hasn't, and follow up. This is the key "did everyone pay me?"
-                  view that a ride expiring should never hide. */}
-              {rides.filter(r => !['active','full'].includes(r.status)).length > 0 && (
+              {/* Past rides — grey, open by default so payment shows at a glance. */}
+              {pastRides.length > 0 && (
                 <details open style={{ marginTop: 12 }}>
                   <summary style={{ fontSize: 12, color: '#888', cursor: 'pointer', padding: '8px 0', userSelect: 'none', fontWeight: 700, listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>▾</span> Past rides — {rides.filter(r => !['active','full'].includes(r.status)).length} (payment status below)
+                    <span>▾</span> Past rides — {pastRides.length} (payment status below)
                   </summary>
-                  {rides.filter(r => !['active','full'].includes(r.status)).map(r => (
+                  {pastRides.map(r => (
                     <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} isPast />
                   ))}
                 </details>
               )}
             </>
-          )
+            )
+          })()
         ) : (
           activeBookings.length === 0 && completedBookings.length === 0 && cancelledBookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
