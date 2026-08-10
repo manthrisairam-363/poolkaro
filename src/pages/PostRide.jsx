@@ -161,19 +161,22 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
         return
       }
 
-      // Recurring: we only require ONE day's worth up front, but warn about the rest
+      // Recurring (Mon–Fri): require the FULL week's fees up front, so the
+      // driver can't get every seat booked and go negative. Free users must
+      // fund it; Pro users skip all fees — so this doubles as a Pro nudge.
       if (form.recurring !== 'once') {
         const totalDays = form.recurring === 'weekdays' ? 5 : 7
         const fullCost = seats * 200 * totalDays
         if (balance < fullCost) {
-          const ok = confirm(
-            `ℹ️ Heads up\n\n` +
-            `You're posting ${totalDays} days × ${seats} seat${seats > 1 ? 's' : ''}. ` +
-            `If every seat gets booked, that's ₹${fullCost / 100} in platform fees.\n\n` +
+          alert(
+            `⚠️ Not enough balance for a weekly post\n\n` +
+            `Posting ${totalDays} days × ${seats} seat${seats > 1 ? 's' : ''} can cost up to ₹${fullCost / 100} in platform fees (₹2 per booked seat).\n\n` +
             `Your balance: ₹${balance / 100}\n\n` +
-            `You can post now and top up later. Continue?`
+            `Please recharge to ₹${fullCost / 100}, or get CarpoolKaro Pro to post unlimited rides with zero fees.`
           )
-          if (!ok) return
+          setError(`For a ${totalDays}-day post you need ₹${fullCost / 100} (or go Pro for unlimited posting). Your balance is ₹${balance / 100}.`)
+          setLoading(false)
+          return
         }
       }
     }
