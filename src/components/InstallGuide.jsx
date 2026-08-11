@@ -1,4 +1,3 @@
-```jsx
 import { useState, useEffect } from 'react'
 import { detectPlatform } from '../lib/platform'
 
@@ -226,4 +225,3 @@ export default function InstallGuide() {
     </div>
   )
 }
-```
