@@ -57,7 +57,7 @@ export default function InstallGuide() {
             <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>Add CarpoolKaro to your home screen</div>
             <div style={{ fontSize: 11, color: '#999' }}>Faster access + get ride notifications</div>
           </div>
-          <button onClick={() => setExpanded(v => !v)} style={{ padding: '7px 12px', background: '#facc15', color: '#111', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
+          <button onClick={() => setExpanded(v => !v)} style={{ padding: '7px 12px', background: '#facc15', color: 'rgba(17, 17, 17, 0.85)', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
             {expanded ? 'Hide' : 'How?'}
           </button>
           <button onClick={dismiss} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: '#666', fontSize: 18, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>×</button>
