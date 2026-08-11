@@ -48,7 +48,7 @@ export default function InstallGuide() {
 
   return (
     <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 74px)', zIndex: 900, padding: '0 12px', pointerEvents: 'none' }}>
-      <div style={{ maxWidth: 480, margin: '0 auto', background: '#111', borderRadius: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.4)', border: '1px solid #333', overflow: 'hidden', pointerEvents: 'auto' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', background: 'rgba(17,17,17,0.85)', borderRadius: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.4)', border: '1px solid #333', overflow: 'hidden', pointerEvents: 'auto' }}>
 
         {/* Collapsed bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>

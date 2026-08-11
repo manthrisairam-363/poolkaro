@@ -12,9 +12,14 @@ export default function Login() {
   async function googleLogin() {
     setError('')
     setLoading(true)
+    // Return to wherever the user was trying to go (e.g. a shared /book/{id}
+    // link from WhatsApp), not always the home page. window.location.href
+    // includes the path they landed on before being sent to login.
+    const returnTo = window.location.pathname + window.location.search
+    const redirectTo = window.location.origin + (returnTo && returnTo !== '/' ? returnTo : '')
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin }
+      options: { redirectTo }
     })
     setLoading(false)
     if (err) setError(err.message)

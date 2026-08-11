@@ -180,6 +180,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   const [actualBookedCount, setActualBookedCount] = useState(null)
   const [paySummary, setPaySummary] = useState(null)  // { collected, pending, paidCount, unpaidCount }
   const [payRows, setPayRows] = useState([])          // per-rider payment rows
+  const [payOpen, setPayOpen] = useState(false)       // past-ride payment expanded?
   const [busyRow, setBusyRow] = useState(null)        // bookingId being acted on
 
   // Confirm the driver received a rider's payment (marks paid + confirmed).
@@ -233,7 +234,10 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
 
   useEffect(() => {
     async function loadCount() {
-      const { count } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('ride_id', ride.id).eq('status', 'confirmed')
+      // Count confirmed AND completed bookings — a past/expired ride's bookings
+      // become 'completed', so counting only 'confirmed' wrongly showed 0 and
+      // hid the passenger details for finished rides.
+      const { count } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('ride_id', ride.id).in('status', ['confirmed', 'completed'])
       setActualBookedCount(count || 0)
     }
     loadCount()
@@ -245,7 +249,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   useEffect(() => {
     supabase.from('bookings')
       .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, profiles(full_name, phone)')
-      .eq('ride_id', ride.id).eq('status', 'confirmed')
+      .eq('ride_id', ride.id).in('status', ['confirmed', 'completed'])
       .then(({ data }) => {
         if (!data) return
         // Group multiple bookings by the same rider into one row.
@@ -260,6 +264,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
             grouped[b.rider_id] = {
               bookingId: b.id, riderId: b.rider_id,
               name: b.profiles?.full_name || 'Rider',
+              phone: b.profiles?.phone || '',
               amount: amt, seats: b.seats_booked,
               paid: b.payment_status === 'paid' || b.driver_confirmed,
               driverConfirmed: b.driver_confirmed,
@@ -280,7 +285,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
     if (expanded) { setExpanded(false); return }
     setExpanded(true)
     setLoadingPax(true)
-    const { data } = await supabase.from('bookings').select('*, profiles(full_name, phone, upi_id)').eq('ride_id', ride.id).eq('status', 'confirmed')
+    const { data } = await supabase.from('bookings').select('*, profiles(full_name, phone, upi_id)').eq('ride_id', ride.id).in('status', ['confirmed', 'completed'])
     const grouped = {}
     ;(data || []).forEach(b => {
       if (grouped[b.rider_id]) { grouped[b.rider_id].seats_booked += b.seats_booked; grouped[b.rider_id].ride_fare += b.ride_fare; grouped[b.rider_id].driver_receives += b.driver_receives }
@@ -308,11 +313,66 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
         <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>💺 {ride.seats_available} left of {ride.seats_total}</span>
         {bookedCount > 0 && <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>👥 {bookedCount} passenger{bookedCount > 1 ? 's' : ''}</span>}
       </div>
-      {/* ── Clean per-ride payment summary ──
-          The core "did everyone pay me?" view. Shows on active rides (compact)
-          and past rides (full). name · amount · paid/not, with Remind + Confirm
-          on unpaid rows. The detailed passenger cards live behind a toggle. */}
-      {payRows.length > 0 && paySummary && (
+      {/* ── Payment summary ──
+          PAST rides: collapsed by default — show a single status line the
+          driver can tap to expand. All-paid = quiet basic info; any unpaid =
+          highlight + reveal phone numbers so the driver can chase the money.
+          ACTIVE rides: keep the compact live summary always visible. */}
+      {payRows.length > 0 && paySummary && isPast && (
+        <div style={{ marginTop: 10 }}>
+          <button onClick={() => setPayOpen(o => !o)} style={{
+            width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+            background: paySummary.pending > 0 ? '#fef2f2' : '#f3f4f6',
+            border: paySummary.pending > 0 ? '1px solid #fecaca' : '1px solid #e5e7eb',
+          }}>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: paySummary.pending > 0 ? '#dc2626' : '#6b7280' }}>
+              {paySummary.pending > 0
+                ? `⚠️ ${paySummary.unpaidCount} unpaid · ₹${paySummary.pending} to collect`
+                : `✓ All ${paySummary.paidCount} paid · ₹${paySummary.collected}`}
+            </span>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>{payOpen ? '▲' : '▼'}</span>
+          </button>
+
+          {payOpen && (
+            <div style={{ marginTop: 6, background: '#fff', borderRadius: 10, border: '1px solid #eef0f2', overflow: 'hidden' }}>
+              {payRows.map(row => (
+                <div key={row.riderId} style={{ padding: '10px 12px', borderTop: '1px solid #f1f2f4', background: row.paid ? 'transparent' : '#fff5f5' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{row.name}</div>
+                      <div style={{ fontSize: 12, fontWeight: row.paid ? 400 : 800, color: row.paid ? '#94a3b8' : '#dc2626' }}>
+                        {row.paid ? `₹${row.amount}` : `⏳ owes ₹${row.amount}`}{row.seats > 1 ? ` · ${row.seats} seats` : ''}
+                      </div>
+                    </div>
+                    {row.paid ? (
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>
+                        {row.driverConfirmed ? '✓ Received' : '✓ Paid'}
+                      </span>
+                    ) : (
+                      <button onClick={() => confirmRow(row)} disabled={busyRow === row.bookingId}
+                        style={{ padding: '6px 10px', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>✓ Got it</button>
+                    )}
+                  </div>
+                  {/* Unpaid → give the driver the tools to chase: phone + remind */}
+                  {!row.paid && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      {row.phone && (
+                        <a href={`tel:${row.phone}`} style={{ flex: 1, textAlign: 'center', padding: '7px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>📞 {row.phone}</a>
+                      )}
+                      <button onClick={() => remindRow(row)} disabled={busyRow === row.bookingId}
+                        style={{ flex: 1, padding: '7px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🔔 Remind</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ACTIVE rides — compact always-visible summary (unchanged) */}
+      {payRows.length > 0 && paySummary && !isPast && (
         <div style={{ marginTop: 10, background: '#f9fafb', borderRadius: 10, border: '1px solid #eef0f2', overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 12px', background: paySummary.pending > 0 ? '#fffbeb' : '#f0fdf4', fontSize: 12, fontWeight: 800 }}>
             <span style={{ color: '#15803d' }}>✓ Collected ₹{paySummary.collected}</span>
@@ -322,10 +382,12 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
           </div>
           <div>
             {payRows.map(row => (
-              <div key={row.riderId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderTop: '1px solid #f1f2f4' }}>
+              <div key={row.riderId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderTop: '1px solid #f1f2f4', background: row.paid ? 'transparent' : '#fff5f5' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>₹{row.amount}{row.seats > 1 ? ` · ${row.seats} seats` : ''}</div>
+                  <div style={{ fontSize: 12, fontWeight: row.paid ? 400 : 800, color: row.paid ? '#94a3b8' : '#dc2626' }}>
+                    {row.paid ? '' : '⏳ owes '}₹{row.amount}{row.seats > 1 ? ` · ${row.seats} seats` : ''}
+                  </div>
                 </div>
                 {row.paid ? (
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>
@@ -730,29 +792,40 @@ export default function MyRides() {
               <div style={{ color: '#aaa', marginTop: 8 }}>No rides posted yet</div>
               <div style={{ color: '#bbb', fontSize: 12, marginTop: 4 }}>Tap + below to post your first ride</div>
             </div>
-          ) : (
+          ) : (() => {
+            // A ride is "past" if cancelled/completed OR its date+time already
+            // passed. Nothing auto-flips an 'active' ride to completed when its
+            // time is gone, which is why time-passed rides wrongly stayed in the
+            // colourful current list instead of the grey past section.
+            const nowMs = Date.now()
+            const isPastRide = (r) => {
+              if (['cancelled', 'completed'].includes(r.status)) return true
+              const dt = new Date(`${r.ride_date}T${r.ride_time || '23:59'}`)
+              return dt.getTime() < nowMs - 30 * 60000
+            }
+            const currentRides = rides.filter(r => !isPastRide(r))
+            const pastRides = rides.filter(isPastRide)
+            return (
             <>
-              {/* Active rides — full colour */}
-              {rides.filter(r => ['active','full'].includes(r.status)).map(r => (
+              {/* Current/upcoming rides — full colour */}
+              {currentRides.map(r => (
                 <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} />
               ))}
 
-              {/* Past rides (completed/expired/cancelled) — collapsed, but each
-                  is a FULL card so the driver can still see who booked, who paid,
-                  who hasn't, and follow up. This is the key "did everyone pay me?"
-                  view that a ride expiring should never hide. */}
-              {rides.filter(r => !['active','full'].includes(r.status)).length > 0 && (
+              {/* Past rides — grey, open by default so payment shows at a glance. */}
+              {pastRides.length > 0 && (
                 <details style={{ marginTop: 12 }}>
                   <summary style={{ fontSize: 12, color: '#888', cursor: 'pointer', padding: '8px 0', userSelect: 'none', fontWeight: 700, listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>▶</span> Past rides — {rides.filter(r => !['active','full'].includes(r.status)).length} (tap to review payments)
+                    <span>▶</span> Past rides — {pastRides.length} (tap to view)
                   </summary>
-                  {rides.filter(r => !['active','full'].includes(r.status)).map(r => (
+                  {pastRides.map(r => (
                     <DriverRideCard key={r.id} ride={r} onCancel={cancelRide} onEdit={id => navigate(`/edit-ride/${id}`)} onCancelAll={cancelAllRecurring} unreadCounts={unreadCounts} isPast />
                   ))}
                 </details>
               )}
             </>
-          )
+            )
+          })()
         ) : (
           activeBookings.length === 0 && completedBookings.length === 0 && cancelledBookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
@@ -832,15 +905,36 @@ export default function MyRides() {
                   <summary style={{ fontSize: 12, color: '#94a3b8', cursor: 'pointer', padding: '8px 0', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>▶</span> {completedBookings.length} completed ride{completedBookings.length > 1 ? 's' : ''} (tap to show)
                   </summary>
-                  {completedBookings.map(b => (
-                    <div key={b.id} style={{ background: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 8, border: '1px solid #e2e8f0', opacity: 0.8 }}>
+                  {completedBookings.map(b => {
+                    const isPaid = b.payment_status === 'paid' || b.driver_confirmed
+                    const fare = b.ride_fare || b.rides?.fare || 150
+                    const driverName = b.rides?.profiles?.full_name?.split(' ')[0] || 'Driver'
+                    return (
+                    <div key={b.id} style={{ background: isPaid ? '#f8fafc' : '#fff7ed', borderRadius: 12, padding: 12, marginTop: 8, border: isPaid ? '1px solid #e2e8f0' : '1px solid #fed7aa' }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: '#64748b' }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
                       <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
                         {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ✅ Completed
                       </div>
+
+                      {/* Payment status — a completed ride can still be UNPAID.
+                          Don't hide the pay option just because the ride is over. */}
+                      {isPaid ? (
+                        <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: '#15803d' }}>✓ You paid ₹{fare} to {driverName}</div>
+                      ) : (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#c2410c', marginBottom: 6 }}>⏳ You haven't paid ₹{fare} yet</div>
+                          {b.rides?.profiles?.upi_id && (
+                            <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, fare, driverName, b.id)} style={{ width: '100%', padding: '10px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                              💳 Pay ₹{fare} to {driverName}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
                       <button onClick={() => navigate(`/live/${b.id}?rate=true`)} style={{ marginTop: 8, padding: '7px 14px', background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⭐ Rate</button>
                     </div>
-                  ))}
+                    )
+                  })}
                 </details>
               )}
             </>

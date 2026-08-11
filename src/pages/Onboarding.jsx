@@ -216,6 +216,17 @@ export default function Onboarding() {
         return
       }
     }
+    if (STEPS[step] === 'vehicle') {
+      // Indian plate: 2 letters + 1-2 digits + 1-3 letters + 4 digits
+      // e.g. TS09AB1234, AP16TG5678. Spaces removed, case-insensitive.
+      const plate = (form.vehicle_number || '').replace(/[\s-]/g, '').toUpperCase()
+      if (!form.vehicle_model?.trim()) { setError('Enter your vehicle model'); return }
+      if (!plate) { setError('Enter your vehicle number'); return }
+      if (!/^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/.test(plate)) {
+        setError('Enter a valid vehicle number (e.g. TS09AB1234)'); return
+      }
+    }
+
     setError('')
     setStep(s => s + 1)
   }
@@ -380,6 +391,14 @@ export default function Onboarding() {
               cursor: form.consent_given ? 'pointer' : 'default',
             }} onClick={() => {
               if (!form.consent_given) { setError('Please read and accept the terms to continue'); return }
+              // Validate UPI for drivers — a wrong UPI silently breaks every
+              // rider's payment. Format: something@bank (letters/digits/.-_ then
+              // @ then letters). e.g. 9876543210@paytm, name@okaxis.
+              const upi = (form.upi_id || '').trim()
+              if (!upi) { setError('Enter your UPI ID so riders can pay you'); return }
+              if (!/^[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{2,}$/.test(upi)) {
+                setError('Enter a valid UPI ID (e.g. 9876543210@paytm or name@okaxis)'); return
+              }
               finish()
             }} disabled={loading}>
               {loading ? 'Setting up...' : '🎉 Enter CarpoolKaro'}
