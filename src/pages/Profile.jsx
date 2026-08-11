@@ -425,30 +425,6 @@ export default function Profile() {
           </a>
         </div>
 
-        {/* Test notification — diagnoses whether the device can DISPLAY a push.
-            Fires a notification through the service worker locally (same display
-            path a real push uses). If this shows, SW + permission are fine and
-            any missing push is a delivery issue; if it doesn't, the problem is
-            permission/SW on this device. */}
-        <button onClick={async () => {
-          try {
-            if (Notification.permission !== 'granted') {
-              const p = await Notification.requestPermission()
-              if (p !== 'granted') { alert('Notifications are blocked. Enable them in your device settings for CarpoolKaro.'); return }
-            }
-            const reg = await navigator.serviceWorker.ready
-            await reg.showNotification('🔔 Test notification', {
-              body: 'If you can see this, notifications work on this device!',
-              icon: '/icon-192.png', badge: '/icon-192.png',
-              tag: 'test', data: { url: '/' },
-            })
-          } catch (e) {
-            alert('Could not show notification: ' + e.message)
-          }
-        }} style={{ width: '100%', padding: 12, background: '#faf5ff', color: '#7c3aed', border: '2px solid #e9d5ff', borderRadius: 12, fontSize: 14, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
-          🔔 Send test notification
-        </button>
-
         {/* Logout */}
         <button onClick={async () => { await signOut(); navigate('/') }} style={{ width: '100%', padding: 14, background: '#fff', color: '#dc2626', border: '2px solid #fecaca', borderRadius: 12, fontSize: 15, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
           🚪 Logout
