@@ -22,6 +22,7 @@ export default function BookRide() {
   const [upiQr, setUpiQr] = useState(null)
   const [upiCopied, setUpiCopied] = useState(false)
   const [seatsToBook, setSeatsToBook] = useState(1)
+  const [guestNames, setGuestNames] = useState([])
 
   useEffect(() => { fetchRide() }, [id])
 
@@ -80,12 +81,19 @@ export default function BookRide() {
     }
     setBookingData(data.booking)
 
-    // Notify driver of new booking
+    // Save optional guest names on the booking so the driver knows who's coming.
+    const cleanGuests = guestNames.map(g => g.trim()).filter(Boolean)
+    if (cleanGuests.length > 0 && data.booking?.id) {
+      await supabase.from('bookings').update({ guest_names: cleanGuests.join(', ') }).eq('id', data.booking.id)
+    }
+
+    // Notify driver of new booking — name the guests if given.
     const { data: myProf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+    const guestSuffix = cleanGuests.length > 0 ? ` (with ${cleanGuests.join(', ')})` : ''
     const { error: notifErr } = await supabase.from('notifications').insert({
       user_id: ride.driver_id,
       type: 'booking', title: '🎉 New Booking!',
-      message: `${myProf?.full_name || 'Someone'} booked ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''} on your ${ride.from_location} → ${ride.to_location} ride.`,
+      message: `${myProf?.full_name || 'Someone'} booked ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''}${guestSuffix} on your ${ride.from_location} → ${ride.to_location} ride.`,
       is_read: false,
     })
     if (notifErr) console.error('Booking notification failed:', notifErr.message)
@@ -257,7 +265,7 @@ export default function BookRide() {
 
         {alreadyBooked && (
           <div style={{ background: '#f0f4ff', color: '#2563eb', padding: '12px 14px', borderRadius: 10, fontSize: 13, marginBottom: 14, fontWeight: 600 }}>
-            ℹ️ You already have a seat booked. You can book one more for a colleague.
+            ℹ️ You already have a seat on this ride. Need one more for a friend or family member? You can book this ride again to add another seat (a separate ₹2 applies for the extra seat).
           </div>
         )}
 
@@ -334,8 +342,18 @@ export default function BookRide() {
               ))}
             </div>
             {seatsToBook > 1 && (
-              <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
-                Booking for yourself + {seatsToBook - 1} colleague{seatsToBook > 2 ? 's' : ''}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
+                  Seat 1 is for you. Add names for the others so {owner?.full_name?.split(' ')[0] || 'the driver'} knows who's coming (optional):
+                </div>
+                {Array.from({ length: seatsToBook - 1 }).map((_, i) => (
+                  <input key={i} value={guestNames[i] || ''}
+                    onChange={e => {
+                      const next = [...guestNames]; next[i] = e.target.value; setGuestNames(next)
+                    }}
+                    placeholder={`Guest ${i + 1} name (optional)`}
+                    style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, marginBottom: 6, boxSizing: 'border-box' }} />
+                ))}
               </div>
             )}
           </div>
