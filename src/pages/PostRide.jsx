@@ -101,7 +101,7 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
   async function postRide() {
     setError('')
 
-    // ── Highlight EVERY missing mandatory field, focus the first one ──
+    // ── Highlight EVERY missing mandatory field, focus the first one ── 
     const missing = {
       ride_time: !form.ride_time,
       from_location: !form.from_location,
