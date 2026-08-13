@@ -126,6 +126,9 @@ function PassengerCard({ booking, unreadCount, onRate }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{rider?.full_name || 'Co-rider'}</div>
           <div style={{ color: '#888', fontSize: 12 }}>📱 {rider?.phone || 'No phone'}</div>
+          {booking.guest_names && (
+            <div style={{ color: '#7c3aed', fontSize: 12, fontWeight: 600, marginTop: 2 }}>👥 With: {booking.guest_names}</div>
+          )}
         </div>
         <span style={{ background: booking.status === 'completed' ? '#f0f0f0' : '#f0fdf4', color: booking.status === 'completed' ? '#888' : '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
           {booking.status === 'completed' ? '✓ Done' : '✅ Confirmed'}
