@@ -17,7 +17,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState('overview')
   function switchTab(v) {
     setTab(v)
-    // Refresh data when opening rides, bookings or overview
+    // Refresh data when opening rides, bookings or overview 
     if (['rides','bookings','overview','users'].includes(v)) fetchAll()
   }
   const [selectedUser, setSelectedUser] = useState(null)
@@ -233,7 +233,8 @@ export default function AdminDashboard() {
     const vModel = r.vehicle_model || r.profiles?.vehicle_model || ''
     const vNumber = r.vehicle_number || r.profiles?.vehicle_number || ''
     const vehicleLine = vModel || vNumber ? `\n🚘 Vehicle: ${vModel}${vNumber ? ` (${vNumber})` : ''}` : ''
-    const msg = `🚗 Carpool Available — ${dateStr}\n\n🕘 Ride Time: ${timeStr}\n👤 Name: ${r.profiles?.full_name || ''}${vehicleLine}\n\n📍 From: ${r.from_location}\n📍 To: ${r.to_location}\n${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat\n💺 Seats Available: ${r.seats_available}\n\n🔗 Book on CarpoolKaro: https://app.carpoolkaro.com`
+    const bookLink = r.ride_code ? `https://app.carpoolkaro.com/r/${r.ride_code}` : 'https://app.carpoolkaro.com'
+    const msg = `🚗 Carpool Available — ${dateStr}\n\n🕘 Ride Time: ${timeStr}\n👤 Name: ${r.profiles?.full_name || ''}${vehicleLine}\n\n📍 From: ${r.from_location}\n📍 To: ${r.to_location}\n${r.route_description ? `🛣️ Route: ${r.route_description}\n` : ''}💰 Fare: ₹${r.fare} per seat\n💺 Seats Available: ${r.seats_available}\n\n🔗 Book this ride: ${bookLink}`
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 

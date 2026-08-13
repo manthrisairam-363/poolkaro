@@ -657,12 +657,14 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Book button */}
+                  {/* Book button — opens the full booking page so the user can
+                      choose how many seats (for friends/family) and see the
+                      payment step. Booking 1 seat instantly here skipped seat
+                      selection entirely. */}
                   <button
-                    onClick={() => handleBook(sheetRide)}
-                    disabled={booking}
-                    style={{ width: '100%', padding: 16, background: booking ? '#e2e8f0' : 'linear-gradient(135deg,#facc15,#f59e0b)', color: '#111', border: 'none', borderRadius: 16, fontSize: 16, fontWeight: 900, cursor: booking ? 'default' : 'pointer', boxShadow: '0 6px 20px rgba(245,158,11,0.3)', letterSpacing: '-0.3px' }}>
-                    {booking ? '⏳ Booking...' : `Book Now — ₹${sheetRide.fare}`}
+                    onClick={() => { setSheetRide(null); navigate(`/book/${sheetRide.id}`) }}
+                    style={{ width: '100%', padding: 16, background: 'linear-gradient(135deg,#facc15,#f59e0b)', color: '#111', border: 'none', borderRadius: 16, fontSize: 16, fontWeight: 900, cursor: 'pointer', boxShadow: '0 6px 20px rgba(245,158,11,0.3)', letterSpacing: '-0.3px' }}>
+                    Book Now — ₹{sheetRide.fare}
                   </button>
                 </>
               )

@@ -11,6 +11,7 @@ import PostRide from './pages/PostRide'
 import MyRides from './pages/MyRides'
 import Profile from './pages/Profile'
 import BookRide from './pages/BookRide'
+import RideCode from './pages/RideCode'
 import LiveRide from './pages/LiveRide'
 import Wallet from './pages/Wallet'
 import EditRide from './pages/EditRide'
@@ -35,7 +36,7 @@ function Loader() {
   )
 }
 
-// ── Global offline banner ──
+// ── Global offline banner ── 
 // navigator.onLine only tells us a network interface exists — WiFi with no
 // internet still reports "online", and on iOS PWAs the offline event often
 // never fires. So we actively probe Supabase, which our service worker
@@ -205,6 +206,7 @@ function AppRoutes() {
       <Route path="/my-rides" element={<MyRides />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/book/:id" element={<BookRide />} />
+      <Route path="/r/:code" element={<RideCode />} />
       <Route path="/live/:bookingId" element={<LiveRide />} />
       <Route path="/wallet" element={<Wallet />} />
       <Route path="/edit-ride/:id" element={<EditRide />} />
