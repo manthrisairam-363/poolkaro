@@ -81,7 +81,7 @@ export default function PostRide() {
     // Link straight to THIS ride's booking page so tapping it opens exactly
     // this ride, ready to book — not the general rides list.
     const link = rideId
-      ? `https://app.carpoolkaro.com/book/${rideId}`
+      ? `https://app.carpoolkaro.com/r/${rideId}`
       : 'https://app.carpoolkaro.com'
     return `🚗 Carpool Available – ${dateStr}
 
@@ -246,15 +246,15 @@ ${form.route_description ? `🛣️ Route: ${form.route_description}\n` : ''}
       city: profile?.city || 'Hyderabad',
     }
     const rideObjects = dates.map(date => ({ ...rideBase, ride_date: date }))
-    const { data: insertedRides, error: err } = await supabase.from('rides').insert(rideObjects).select('id')
+    const { data: insertedRides, error: err } = await supabase.from('rides').insert(rideObjects).select('id, ride_code')
     setLoading(false)
     if (err) { setError(err.message); return }
     const ridesPosted = dates.length
     // Deep-link the share to THIS ride's booking page (the first one for a
     // recurring post), so tapping the link opens exactly this ride ready to
     // book — not the general rides list.
-    const firstRideId = insertedRides?.[0]?.id
-    setWaMessage(generateWhatsApp(firstRideId) + (form.recurring !== 'once' ? `
+    const firstRideCode = insertedRides?.[0]?.ride_code
+    setWaMessage(generateWhatsApp(firstRideCode) + (form.recurring !== 'once' ? `
 🔁 Recurring: ${form.recurring === 'weekdays' ? 'Mon-Fri' : 'Daily'} for 1 week (${ridesPosted} rides posted)` : ''))
     setPosted(true)
   }
