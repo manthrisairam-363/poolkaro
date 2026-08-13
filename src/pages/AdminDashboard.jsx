@@ -482,6 +482,7 @@ export default function AdminDashboard() {
               ['🚘 Vehicle', `${u.vehicle_model || '—'}${u.vehicle_number ? ' · ' + u.vehicle_number : ''}`],
               ['📲 Device', platformText(u)],
               ['💳 UPI', u.upi_id || '—'],
+              ['🏙️ City', u.city || 'Hyderabad'],
             ].map(([k, v]) => (
               <div key={k} style={{ background: '#1a1a1a', borderRadius: 8, padding: '8px 10px' }}>
                 <div style={{ fontSize: 10, color: '#666' }}>{k}</div>
