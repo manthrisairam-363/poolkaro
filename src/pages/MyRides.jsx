@@ -126,9 +126,6 @@ function PassengerCard({ booking, unreadCount, onRate }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{rider?.full_name || 'Co-rider'}</div>
           <div style={{ color: '#888', fontSize: 12 }}>📱 {rider?.phone || 'No phone'}</div>
-          {booking.guest_names && (
-            <div style={{ color: '#7c3aed', fontSize: 12, fontWeight: 600, marginTop: 2 }}>👥 With: {booking.guest_names}</div>
-          )}
         </div>
         <span style={{ background: booking.status === 'completed' ? '#f0f0f0' : '#f0fdf4', color: booking.status === 'completed' ? '#888' : '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
           {booking.status === 'completed' ? '✓ Done' : '✅ Confirmed'}
@@ -136,7 +133,6 @@ function PassengerCard({ booking, unreadCount, onRate }) {
       </div>
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[
-          ['💰 Platform fee', '₹2 (wallet)'],
           ['📥 Fare (via UPI)', `₹${booking.ride_fare || booking.fare}`],
           ['💺 Seats', booking.seats_booked],
           ['📅 Booked', new Date(booking.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })],
