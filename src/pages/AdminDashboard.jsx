@@ -17,7 +17,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState('overview')
   function switchTab(v) {
     setTab(v)
-    // Refresh data when opening rides, bookings or overview
+    // Refresh data when opening rides, bookings or overview 
     if (['rides','bookings','overview','users'].includes(v)) fetchAll()
   }
   const [selectedUser, setSelectedUser] = useState(null)
