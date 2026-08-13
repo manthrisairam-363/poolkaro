@@ -36,7 +36,7 @@ function Loader() {
   )
 }
 
-// ── Global offline banner ──
+// ── Global offline banner ── 
 // navigator.onLine only tells us a network interface exists — WiFi with no
 // internet still reports "online", and on iOS PWAs the offline event often
 // never fires. So we actively probe Supabase, which our service worker
