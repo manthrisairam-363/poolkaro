@@ -136,7 +136,6 @@ function PassengerCard({ booking, unreadCount, onRate }) {
       </div>
       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[
-          ['💰 Platform fee', '₹2 (wallet)'],
           ['📥 Fare (via UPI)', `₹${booking.ride_fare || booking.fare}`],
           ['💺 Seats', booking.seats_booked],
           ['📅 Booked', new Date(booking.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })],
