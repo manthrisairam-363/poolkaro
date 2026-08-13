@@ -489,7 +489,7 @@ export default function AdminDashboard() {
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginTop: 2 }}>{v}</div>
               </div>
             ))}
-          </div>
+          </div> 
 
           {u.work_email && (
             <div style={{ background: '#0a2e1a', borderRadius: 8, padding: '8px 12px', marginBottom: 10, border: '1px solid #166534' }}>
