@@ -17,12 +17,13 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState('overview')
   function switchTab(v) {
     setTab(v)
-    // Refresh data when opening rides, bookings or overview 
+    // Refresh data when opening rides, bookings or overview
     if (['rides','bookings','overview','users'].includes(v)) fetchAll()
   }
   const [selectedUser, setSelectedUser] = useState(null)
   const [selectedRide, setSelectedRide] = useState(null)
   const [rideFilter, setRideFilter] = useState('all')
+  const [rideCity, setRideCity] = useState('all')
   const [safetyView, setSafetyView] = useState('fraud')
   const [viewAdminPhoto, setViewAdminPhoto] = useState(null)
   const [search, setSearch] = useState('')
@@ -34,6 +35,7 @@ export default function AdminDashboard() {
   const [popularRoutes, setPopularRoutes] = useState([])
   const [reports, setReports] = useState([])
   const [userFilter, setUserFilter] = useState('all')
+  const [userCity, setUserCity] = useState('all')
   const [userSort, setUserSort] = useState('joined_desc')
   const [feedbackList, setFeedbackList] = useState([])
   const [replyText, setReplyText] = useState({})
@@ -316,6 +318,8 @@ export default function AdminDashboard() {
       const q = search.toLowerCase()
       const matchSearch = !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.phone?.includes(q)
       if (!matchSearch) return false
+      // City filter (independent of the category filter)
+      if (userCity !== 'all' && (u.city || 'Hyderabad') !== userCity) return false
       if (userFilter === 'pro') return u.subscription_expires_at && new Date(u.subscription_expires_at) > now
       if (userFilter === 'free') return !u.subscription_expires_at || new Date(u.subscription_expires_at) <= now
       if (userFilter === 'verified') return u.is_verified
@@ -844,9 +848,8 @@ export default function AdminDashboard() {
                   {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#666', fontSize: 18, cursor: 'pointer' }}>✕</button>}
                 </div>
 
-                {/* Filter dropdown (was a long row of chips) */}
+                {/* Filter + City dropdowns */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: '#555', flexShrink: 0 }}>Filter:</span>
                   <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600 }}>
                     {[
                       ['all', 'All users'],
@@ -864,6 +867,10 @@ export default function AdminDashboard() {
                       ['browser', '🌐 Browser only'],
                       ['unknown_platform', '❓ Unknown device'],
                     ].map(([f, label]) => <option key={f} value={f}>{label}</option>)}
+                  </select>
+                  <select value={userCity} onChange={e => setUserCity(e.target.value)} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600 }}>
+                    <option value="all">🏙️ All cities</option>
+                    {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 {false && (
@@ -946,7 +953,7 @@ export default function AdminDashboard() {
                         {u.subscription_expires_at && new Date(u.subscription_expires_at) > new Date() && <span style={{ background: '#facc15', color: '#111', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>⭐</span>}
                         {suspiciousUsers.find(s => s.id === u.id) && <span style={{ background: '#7f1d1d', color: '#fca5a5', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>⚠️</span>}
                       </div>
-                      <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{u.phone} · {u.email?.slice(0,25)}</div>
+                      <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{u.phone} · 🏙️ {u.city || 'Hyderabad'}</div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
                         <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 700 }}>₹{Math.round((wallets[u.id] || 0) / 100)}</span>
                         <span style={{ color: '#555', fontSize: 11 }}>🚗 {u.total_rides_given || 0} · 🙋 {u.total_rides_taken || 0}</span>
@@ -1019,12 +1026,23 @@ export default function AdminDashboard() {
                     }}>{l}</button>
                   ))}
                 </div>
+                <select value={rideCity} onChange={e => setRideCity(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+                  <option value="all">🏙️ All cities</option>
+                  {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
 
                 {/* Bookings view — shows every booking, tappable to its ride */}
                 {rideFilter === 'bookings' ? (
                   <div>
-                    <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{bookings.length} bookings · tap to see the ride</div>
-                    {bookings.map(b => {
+                    {(() => {
+                    const cityBookings = bookings.filter(b => {
+                      if (rideCity === 'all') return true
+                      const pr = rides.find(r => r.id === b.ride_id)
+                      return pr && (pr.city || 'Hyderabad') === rideCity
+                    })
+                    return (<>
+                    <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>{cityBookings.length} bookings · tap to see the ride</div>
+                    {cityBookings.map(b => {
                       const parentRide = rides.find(r => r.id === b.ride_id)
                       return (
                         <div key={b.id} onClick={() => parentRide && setSelectedRide(parentRide)}
@@ -1041,6 +1059,8 @@ export default function AdminDashboard() {
                         </div>
                       )
                     })}
+                    </>)
+                    })()}
                   </div>
                 ) : (() => {
                   const istNow = new Date(Date.now() + 5.5 * 3600000)
@@ -1048,6 +1068,7 @@ export default function AdminDashboard() {
                   const nowTime = istNow.toISOString().slice(11, 16) // HH:MM in IST
                   let visible = rides
                     .filter(r => !r.from_location?.startsWith('TEST_'))
+                    .filter(r => rideCity === 'all' || (r.city || 'Hyderabad') === rideCity)
                     .filter(r => {
                       if (rideFilter === 'upcoming') {
                         if (!['active','full'].includes(r.status)) return false
