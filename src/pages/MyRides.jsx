@@ -126,9 +126,6 @@ function PassengerCard({ booking, unreadCount, onRate }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{rider?.full_name || 'Co-rider'}</div>
           <div style={{ color: '#888', fontSize: 12 }}>📱 {rider?.phone || 'No phone'}</div>
-          {booking.guest_names && (
-            <div style={{ color: '#7c3aed', fontSize: 12, fontWeight: 600, marginTop: 2 }}>👥 With: {booking.guest_names}</div>
-          )}
         </div>
         <span style={{ background: booking.status === 'completed' ? '#f0f0f0' : '#f0fdf4', color: booking.status === 'completed' ? '#888' : '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
           {booking.status === 'completed' ? '✓ Done' : '✅ Confirmed'}
@@ -702,22 +699,42 @@ export default function MyRides() {
 
   async function fetchData() {
     setLoading(true)
-    const [ridesRes, bookingsRes] = await Promise.all([
-      supabase.from('rides').select('*').eq('driver_id', user.id).order('ride_date', { ascending: false }),
-      supabase.from('bookings').select('*, rides(driver_id, from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))').eq('rider_id', user.id).order('created_at', { ascending: true }),
-    ])
-    if (!ridesRes.error) setRides(ridesRes.data || [])
-    if (!bookingsRes.error) {
-      const allBookings = bookingsRes.data || []
-      const grouped = {}
-      allBookings.filter(b => b.status === 'confirmed' || b.status === 'completed').forEach(b => {
-        if (grouped[b.ride_id]) { grouped[b.ride_id].seats_booked += b.seats_booked; grouped[b.ride_id].total_paid += b.total_paid; grouped[b.ride_id].ride_fare += b.ride_fare }
-        else { grouped[b.ride_id] = { ...b } }
-      })
-      const cancelled = allBookings.filter(b => b.status === 'cancelled')
-      const finalBookings = [...Object.values(grouped), ...cancelled]
-      setBookings(finalBookings)
-      fetchUnreadCounts(finalBookings.map(b => b.id))
+    // Show cached data instantly (so offline users still see their history)
+    // while we try to refresh from the network.
+    try {
+      const cachedRides = localStorage.getItem(`myrides_rides_${user.id}`)
+      const cachedBookings = localStorage.getItem(`myrides_bookings_${user.id}`)
+      if (cachedRides) setRides(JSON.parse(cachedRides))
+      if (cachedBookings) {
+        const cb = JSON.parse(cachedBookings)
+        setBookings(cb)
+      }
+    } catch (_) {}
+
+    try {
+      const [ridesRes, bookingsRes] = await Promise.all([
+        supabase.from('rides').select('*').eq('driver_id', user.id).order('ride_date', { ascending: false }),
+        supabase.from('bookings').select('*, rides(driver_id, from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))').eq('rider_id', user.id).order('created_at', { ascending: true }),
+      ])
+      if (!ridesRes.error) {
+        setRides(ridesRes.data || [])
+        try { localStorage.setItem(`myrides_rides_${user.id}`, JSON.stringify(ridesRes.data || [])) } catch (_) {}
+      }
+      if (!bookingsRes.error) {
+        const allBookings = bookingsRes.data || []
+        const grouped = {}
+        allBookings.filter(b => b.status === 'confirmed' || b.status === 'completed').forEach(b => {
+          if (grouped[b.ride_id]) { grouped[b.ride_id].seats_booked += b.seats_booked; grouped[b.ride_id].total_paid += b.total_paid; grouped[b.ride_id].ride_fare += b.ride_fare }
+          else { grouped[b.ride_id] = { ...b } }
+        })
+        const cancelled = allBookings.filter(b => b.status === 'cancelled')
+        const finalBookings = [...Object.values(grouped), ...cancelled]
+        setBookings(finalBookings)
+        try { localStorage.setItem(`myrides_bookings_${user.id}`, JSON.stringify(finalBookings)) } catch (_) {}
+        fetchUnreadCounts(finalBookings.map(b => b.id))
+      }
+    } catch (_) {
+      // Offline or network failure — the cached data loaded above stays on screen.
     }
     setLoading(false)
   }
