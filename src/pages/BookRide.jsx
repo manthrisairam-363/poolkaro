@@ -257,7 +257,7 @@ export default function BookRide() {
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>
       <div style={{ background: '#111', padding: '20px 16px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
+        <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>Confirm Booking</div>
       </div>
 
@@ -411,7 +411,7 @@ export default function BookRide() {
           {booking ? 'Confirming...' : `✅ Confirm ${seatsToBook} Seat${seatsToBook > 1 ? 's' : ''} (₹${2 * seatsToBook} from wallet)`}
         </button>
 
-        <button onClick={() => navigate(-1)} style={{ width: '100%', padding: 12, background: '#f3f4f6', color: '#666', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}>
+        <button onClick={() => navigate('/')} style={{ width: '100%', padding: 12, background: '#f3f4f6', color: '#666', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}>
           Cancel
         </button>
 
