@@ -457,8 +457,8 @@ export default function Home() {
       {/* ── CONTENT ── */}
       <div style={{ padding: '10px 14px' }}>
 
-        {/* Your active ride request — visible with a one-tap cancel */}
-        {myRequest && (
+        {/* Your active ride request — banner on the All Rides tab only */}
+        {myRequest && filter === 'all' && (
           <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '12px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, marginBottom: 2 }}>🙋 YOUR ACTIVE REQUEST</div>
@@ -543,6 +543,11 @@ export default function Home() {
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{req.from_location} → {req.to_location}</div>
                   {req.note && <div style={{ fontSize: 11, color: '#888', fontStyle: 'italic', marginTop: 4 }}>"{req.note}"</div>}
+                  {req.rider_id === user?.id && (
+                    <button onClick={cancelMyRequest} style={{ marginTop: 10, width: '100%', padding: 9, background: '#fff', color: '#dc2626', border: '1.5px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      🗑️ Cancel My Request
+                    </button>
+                  )}
                 </div>
               )
             })}
