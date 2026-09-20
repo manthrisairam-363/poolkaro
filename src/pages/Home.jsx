@@ -209,6 +209,17 @@ export default function Home() {
     setMyRequest(mine || null)
   }
 
+  async function cancelMyRequest() {
+    if (!myRequest) return
+    if (!confirm('Cancel your ride request?\n\nCar owners will no longer see it.')) return
+    const { error } = await supabase.from('ride_requests')
+      .update({ status: 'cancelled' })
+      .eq('id', myRequest.id).eq('rider_id', user.id)
+    if (error) { alert('Could not cancel. Please try again.'); return }
+    setMyRequest(null)
+    fetchRequests()
+  }
+
   async function fetchRides() {
     setLoading(true)
 
@@ -445,6 +456,24 @@ export default function Home() {
 
       {/* ── CONTENT ── */}
       <div style={{ padding: '10px 14px' }}>
+
+        {/* Your active ride request — visible with a one-tap cancel */}
+        {myRequest && (
+          <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '12px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, marginBottom: 2 }}>🙋 YOUR ACTIVE REQUEST</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {myRequest.from_location} → {myRequest.to_location}
+              </div>
+              <div style={{ fontSize: 11, color: '#666', marginTop: 1 }}>
+                {myRequest.ride_date}{myRequest.ride_time ? ` · ${myRequest.ride_time}` : ''}
+              </div>
+            </div>
+            <button onClick={cancelMyRequest} style={{ flexShrink: 0, padding: '8px 14px', background: '#fff', color: '#dc2626', border: '1.5px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        )}
 
         {/* Usual routes */}
         {/* Usual routes — only worth showing when there are enough rides to
