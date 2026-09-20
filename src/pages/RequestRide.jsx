@@ -97,6 +97,21 @@ export default function RequestRide() {
     setPosted(true)
   }
 
+  async function cancelRequest() {
+    if (!existingId) return
+    if (!confirm('Cancel your ride request?\n\nCar owners will no longer see it. You can post a new one anytime.')) return
+    setLoading(true)
+    const { error: err } = await supabase.from('ride_requests')
+      .update({ status: 'cancelled' })
+      .eq('id', existingId).eq('rider_id', user.id)
+    setLoading(false)
+    if (err) { setError(err.message); return }
+    setExistingId(null)
+    setForm({ from_location: '', to_location: '', ride_date: today, ride_time: '', seats_needed: '1', note: '' })
+    setError('')
+    alert('Your ride request has been cancelled.')
+  }
+
   if (posted) return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa', paddingBottom: 90 }}>
       <div style={{ background: '#111', padding: '20px 16px' }}>
@@ -195,6 +210,15 @@ export default function RequestRide() {
         }}>
           {loading ? 'Saving...' : existingId ? '✏️ Update My Request' : '🙋 Post My Ride Request'}
         </button>
+
+        {existingId && (
+          <button onClick={cancelRequest} disabled={loading} style={{
+            width: '100%', padding: 12, marginTop: 10, background: '#fff', color: '#dc2626',
+            border: '2px solid #fecaca', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          }}>
+            🗑️ Cancel My Request
+          </button>
+        )}
 
         <div style={{ marginTop: 12, background: '#f0f4ff', borderRadius: 10, padding: '12px 14px', fontSize: 12, color: '#2563eb' }}>
           💡 Car owners will see your request on the home screen. Only 1 active request allowed at a time.
