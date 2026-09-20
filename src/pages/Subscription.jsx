@@ -61,7 +61,7 @@ export default function Subscription() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-          body: JSON.stringify({ action: 'create_order', amount: plan.price, purpose: 'subscription' })
+          body: JSON.stringify({ action: 'create_order', purpose: 'subscription', plan_id: plan.id })
         }
       )
       const order = await orderRes.json()
@@ -85,17 +85,18 @@ export default function Subscription() {
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
               body: JSON.stringify({
                 action: 'verify_payment',
-                amount: plan.price,
                 payment_id: response.razorpay_payment_id,
                 order_id: response.razorpay_order_id,
                 signature: response.razorpay_signature,
-                purpose: 'subscription',
               })
             }
           )
           const result = await verifyRes.json()
           if (result.success) {
-            await activateSubscription(plan, response.razorpay_payment_id)
+            // Pro is granted server-side by the razorpay-order function.
+            await fetchSubscription()
+            const until = result.expires_at ? new Date(result.expires_at).toLocaleDateString('en-IN') : ''
+            alert(`🎉 Welcome to CarpoolKaro Pro!\n\nYour ${plan.label} subscription is active.${until ? `\nZero platform fees until ${until}.` : ''}`)
           } else {
             alert('Payment verification failed. Contact support@carpoolkaro.com')
           }
@@ -108,49 +109,6 @@ export default function Subscription() {
       alert('Payment error: ' + err.message)
       setPaying(false)
     }
-  }
-
-  async function activateSubscription(plan, paymentId) {
-    const now = new Date()
-    const expiresAt = new Date(now)
-    expiresAt.setDate(expiresAt.getDate() + plan.days)
-
-    // Save subscription
-    await supabase.from('subscriptions').insert({
-      user_id: user.id,
-      plan: plan.id,
-      starts_at: now.toISOString(),
-      expires_at: expiresAt.toISOString(),
-      amount_paid: plan.price * 100,
-      payment_id: paymentId,
-      status: 'active',
-    })
-
-    // Update profile
-    await supabase.from('profiles').update({
-      subscription_expires_at: expiresAt.toISOString(),
-      subscription_plan: plan.id,
-    }).eq('id', user.id)
-
-    // Add transaction record
-    await supabase.from('wallet_transactions').insert({
-      user_id: user.id,
-      amount: -(plan.price * 100),
-      type: 'subscription',
-      description: `CarpoolKaro Pro ${plan.label} subscription`,
-    })
-
-    // Notify user
-    await supabase.from('notifications').insert({
-      user_id: user.id,
-      title: '🎉 You\'re now Pro!',
-      message: `Your ${plan.label} subscription is active until ${expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}. Enjoy zero platform fees!`,
-      type: 'booking',
-      is_read: false,
-    })
-
-    await fetchSubscription()
-    alert(`🎉 Welcome to CarpoolKaro Pro!\n\nYour ${plan.label} subscription is active.\nZero platform fees until ${expiresAt.toLocaleDateString('en-IN')}.`)
   }
 
   function daysLeft(expiresAt) {
@@ -235,7 +193,6 @@ export default function Subscription() {
             ['🆓', 'Zero platform fee per booking', 'Save ₹2 every time — both as rider and driver'],
             ['♾️', 'Unlimited rides & cancellations', 'No restrictions, no counting rides'],
             ['🚗', 'Post rides + Book rides', 'Everything in one subscription'],
-            ['⭐', 'Pro badge on your profile', 'Builds trust with co-riders'],
             ['📊', 'Cheaper than every other carpool app', 'Built for daily IT commuters'],
           ].map(([icon, title, desc]) => (
             <div key={title} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'flex-start' }}>

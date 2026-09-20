@@ -429,6 +429,22 @@ export default function Profile() {
         <button onClick={async () => { await signOut(); navigate('/') }} style={{ width: '100%', padding: 14, background: '#fff', color: '#dc2626', border: '2px solid #fecaca', borderRadius: 12, fontSize: 15, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
           🚪 Logout
         </button>
+
+        {/* Delete account — required by Google Play. Calls the delete-user edge function,
+            which verifies the caller from the JWT and refuses if upcoming rides/bookings exist. */}
+        <button onClick={async () => {
+          if (!confirm('Delete your CarpoolKaro account permanently?\n\nYour profile, wallet balance, ride history and messages will be removed. This cannot be undone.')) return
+          if (!confirm('Last check — are you sure?')) return
+          const { data, error } = await supabase.functions.invoke('delete-user', { body: {} })
+          if (error || !data?.success) {
+            alert(data?.error || error?.message || 'Could not delete your account. Cancel any upcoming rides or bookings first, then try again.')
+            return
+          }
+          alert('Your account has been deleted.')
+          await signOut(); navigate('/')
+        }} style={{ width: '100%', padding: 12, background: 'transparent', color: '#9ca3af', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 13, fontWeight: 600, marginBottom: 8, cursor: 'pointer' }}>
+          Delete my account
+        </button>
         <div style={{ textAlign: 'center', fontSize: 11, color: '#ccc', marginTop: 8 }}>CarpoolKaro · Made with ❤️ in India</div>
       </div>
       {/* Photo fullscreen viewer */}

@@ -403,8 +403,8 @@ export default function AdminDashboard() {
       if (!u || !dateStr) return
       setProLoading(true)
       const expires = new Date(dateStr + 'T23:59:59').toISOString()
-      const { data, error } = await supabase.from('profiles')
-        .update({ subscription_expires_at: expires }).eq('id', u.id).select('id')
+      const { error } = await supabase.rpc('admin_set_subscription', { p_user_id: u.id, p_expires_at: expires })
+      const data = error ? null : [{ id: u.id }]
       setProLoading(false)
       if (error || !data?.length) { alert('Could not grant Pro. Check the admin profile-update policy.'); return }
       await supabase.from('notifications').insert({
@@ -418,8 +418,8 @@ export default function AdminDashboard() {
     async function revokeProFromUser() {
       if (!u || !confirm(`Revoke Pro from ${u.full_name}?`)) return
       const yesterday = new Date(Date.now() - 86400000).toISOString()
-      const { data, error } = await supabase.from('profiles')
-        .update({ subscription_expires_at: yesterday }).eq('id', u.id).select('id')
+      const { error } = await supabase.rpc('admin_set_subscription', { p_user_id: u.id, p_expires_at: yesterday })
+      const data = error ? null : [{ id: u.id }]
       if (error || !data?.length) { alert('Could not revoke.'); return }
       u.subscription_expires_at = yesterday
       alert('Pro revoked')
@@ -2098,8 +2098,8 @@ function SubscriptionsTab({ supabase }) {
   }
   async function grantPro(userId) {
     const expires = new Date(Date.now() + 30 * 86400000).toISOString()
-    const { data, error } = await supabase.from('profiles')
-      .update({ subscription_expires_at: expires }).eq('id', userId).select('id')
+    const { error } = await supabase.rpc('admin_set_subscription', { p_user_id: userId, p_expires_at: expires })
+    const data = error ? null : [{ id: userId }]
     if (error || !data?.length) {
       alert('Could not grant Pro. The admin update policy may be missing — run the admin RLS SQL for profiles.')
       return
@@ -2112,8 +2112,8 @@ function SubscriptionsTab({ supabase }) {
   async function grantProUntil(userId, dateStr) {
     if (!dateStr) return
     const expires = new Date(dateStr + 'T23:59:59').toISOString()
-    const { data, error } = await supabase.from('profiles')
-      .update({ subscription_expires_at: expires }).eq('id', userId).select('id')
+    const { error } = await supabase.rpc('admin_set_subscription', { p_user_id: userId, p_expires_at: expires })
+    const data = error ? null : [{ id: userId }]
     if (error || !data?.length) { alert('Could not grant. Check the admin profile-update policy.'); return }
     alert(`✅ Pro granted until ${new Date(dateStr).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}`)
     load()
@@ -2126,21 +2126,18 @@ function SubscriptionsTab({ supabase }) {
     const label = new Date(dateStr).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
     if (!confirm(`Give FREE Pro to ALL users until ${label}?\n\nThis updates every user's account. Use for launch promos.`)) return
     const expires = new Date(dateStr + 'T23:59:59').toISOString()
-    // Update every profile. RLS admin policy allows this.
-    const { data, error } = await supabase.from('profiles')
-      .update({ subscription_expires_at: expires })
-      .neq('id', '00000000-0000-0000-0000-000000000000') // matches all rows
-      .select('id')
+    // Server-side bulk grant, admin-gated. Requires 02_admin_bulk_pro.sql.
+    const { data, error } = await supabase.rpc('admin_set_subscription_all', { p_expires_at: expires })
     if (error) { alert('Could not apply promo: ' + error.message); return }
-    alert(`✅ Free Pro granted to ${data?.length || 0} users until ${label}`)
+    alert(`✅ Free Pro granted to ${data ?? 0} users until ${label}`)
     load()
   }
   async function revokePro(userId) {
     if (!confirm('Revoke Pro access?')) return
     // Set expiry to yesterday (not null) so the user still appears under "Expired".
     const yesterday = new Date(Date.now() - 86400000).toISOString()
-    const { data, error } = await supabase.from('profiles')
-      .update({ subscription_expires_at: yesterday }).eq('id', userId).select('id')
+    const { error } = await supabase.rpc('admin_set_subscription', { p_user_id: userId, p_expires_at: yesterday })
+    const data = error ? null : [{ id: userId }]
     if (error || !data?.length) {
       alert('Could not revoke. The admin update policy may be missing — run the admin RLS SQL for profiles.')
       return
