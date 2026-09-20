@@ -435,13 +435,20 @@ export default function Profile() {
         <button onClick={async () => {
           if (!confirm('Delete your CarpoolKaro account permanently?\n\nYour profile, wallet balance, ride history and messages will be removed. This cannot be undone.')) return
           if (!confirm('Last check — are you sure?')) return
-          const { data, error } = await supabase.functions.invoke('delete-user', { body: {} })
-          if (error || !data?.success) {
-            alert(data?.error || error?.message || 'Could not delete your account. Cancel any upcoming rides or bookings first, then try again.')
-            return
+          try {
+            const { data, error } = await supabase.functions.invoke('delete-user', { body: {} })
+            if (error) {
+              let msg = 'Could not delete your account. Cancel any upcoming rides or bookings first, then try again.'
+              try { const body = await error.context?.json?.(); if (body?.error) msg = body.error } catch (_) {}
+              alert(msg)
+              return
+            }
+            if (!data?.success) { alert(data?.error || 'Could not delete your account. Please try again.'); return }
+            alert('Your account has been deleted.')
+            await signOut(); navigate('/')
+          } catch (e) {
+            alert('Could not delete your account. Cancel any upcoming rides or bookings first, then try again.')
           }
-          alert('Your account has been deleted.')
-          await signOut(); navigate('/')
         }} style={{ width: '100%', padding: 12, background: 'transparent', color: '#9ca3af', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 13, fontWeight: 600, marginBottom: 8, cursor: 'pointer' }}>
           Delete my account
         </button>
