@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { detectPlatform } from './lib/platform'
 import RequestRide from './pages/RequestRide'
+import DeleteAccount from './pages/DeleteAccount'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
@@ -190,6 +191,11 @@ function AppRoutes() {
     }).eq('id', user.id).then(() => {})
   }, [user?.id])
 
+  // Public pages that must work WITHOUT login (Play requires a reachable
+  // account-deletion URL; legal pages are handy public too).
+  const publicPath = typeof window !== 'undefined' ? window.location.pathname : ''
+  if (publicPath === '/delete-account') return <DeleteAccount />
+
   if (loading) return <Loader />
   if (!user) return <Login />
   // Signed in, but we couldn't reach the server to load the profile.
@@ -212,6 +218,7 @@ function AppRoutes() {
       <Route path="/edit-ride/:id" element={<EditRide />} />
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/terms" element={<TermsPrivacy />} />
+      <Route path="/delete-account" element={<DeleteAccount />} />
       <Route path="/install" element={<Install />} />
       <Route path="/chat/:bookingId" element={<Chat />} />
       <Route path="/subscription" element={<Subscription />} />
