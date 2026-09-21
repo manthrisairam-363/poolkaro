@@ -1,11 +1,8 @@
-import { useNavigate } from 'react-router-dom'
-
 // PUBLIC page — reachable at /delete-account WITHOUT logging in.
 // Google Play requires a public URL where users (including those who
 // uninstalled or can't sign in) can find out how to delete their data.
 // No deletion happens here; this page explains the two ways to do it.
 export default function DeleteAccount() {
-  const navigate = useNavigate()
 
   const card = { background: '#fff', borderRadius: 14, padding: 18, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }
   const h = { fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#111' }
@@ -14,7 +11,7 @@ export default function DeleteAccount() {
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa', paddingBottom: 40 }}>
       <div style={{ background: '#111', padding: '20px 16px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
+        <button onClick={() => { window.location.href = '/' }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>Delete Your Account</div>
       </div>
 
