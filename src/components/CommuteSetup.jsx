@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { getZones } from '../lib/cities'
 
-// Map profile.city ("Hyderabad", "Delhi NCR") → cities.js key ("hyderabad","delhi")
 function cityKey(city) {
   if (!city) return 'hyderabad'
   const c = city.toLowerCase()
@@ -17,7 +16,6 @@ function cityKey(city) {
 const slug = s => (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const DAYS = [['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 7]]
 
-// One reusable area field: dropdown grouped by zone + "Other" free text.
 function AreaField({ label, zones, value, onChange }) {
   const isOther = value?.custom
   return (
@@ -29,7 +27,6 @@ function AreaField({ label, zones, value, onChange }) {
           const v = e.target.value
           if (v === '__other__') { onChange({ custom: true, label: '', area: '', zone: null }); return }
           if (!v) { onChange(null); return }
-          // find the zone for this area
           let zone = null
           for (const z of Object.keys(zones)) if (zones[z].includes(v)) { zone = z; break }
           onChange({ custom: false, label: v, area: slug(v), zone })
@@ -68,10 +65,10 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
   const [evening, setEvening] = useState('18:30')
   const [days, setDays] = useState([1, 2, 3, 4, 5])
   const [seats, setSeats] = useState(3)
+  const [fare, setFare] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Prefill if a schedule already exists (editing)
   useEffect(() => {
     if (!user?.id) return
     supabase.from('commute_schedules').select('*').eq('user_id', user.id).maybeSingle().then(({ data }) => {
@@ -82,6 +79,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
       if (data.evening_time) setEvening(data.evening_time.slice(0, 5))
       if (data.working_days?.length) setDays(data.working_days)
       if (data.seats_offered) setSeats(data.seats_offered)
+      if (data.usual_fare) setFare(String(data.usual_fare))
     })
   }, [user?.id])
 
@@ -92,6 +90,11 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
     if (!home?.label?.trim() || !office?.label?.trim()) { setError('Please choose your home and office areas'); return }
     if (home.area === office.area) { setError('Home and office areas cannot be the same'); return }
     if (days.length === 0) { setError('Select at least one working day'); return }
+    if (isCarOwner) {
+      const f = Number(fare)
+      if (!f || f <= 0) { setError('Enter the usual fare you charge per seat (₹)'); return }
+      if (f > 2000) { setError('That fare looks too high — enter the per-seat fare in ₹'); return }
+    }
     setSaving(true)
     const { error: err } = await supabase.from('commute_schedules').upsert({
       user_id: user.id,
@@ -99,6 +102,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
       office_area: office.area, office_label: office.label.trim(), office_zone: office.zone, office_custom: !!office.custom,
       morning_time: morning || null, evening_time: evening || null,
       working_days: days, seats_offered: isCarOwner ? seats : 3,
+      usual_fare: isCarOwner ? Number(fare) : null,
       auto_post: true, is_active: true, updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
     if (err) { setError(err.message); setSaving(false); return }
@@ -113,6 +117,8 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
     onDone?.()
   }
 
+  const fieldLabel = { fontSize: 12, fontWeight: 600, color: '#aaa', marginBottom: 5, display: 'block' }
+
   return (
     <div style={{ minHeight: '100vh', background: '#111', padding: 24, display: 'flex', flexDirection: 'column' }}>
       <div style={{ paddingTop: 20, marginBottom: 20 }}>
@@ -124,7 +130,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
         </div>
         <div style={{ fontSize: 13, color: '#888', marginTop: 6, lineHeight: 1.6 }}>
           {isCarOwner
-            ? 'Tell us your route and timings once. We’ll post your rides on your working days — you approve anyone who books. Nothing is confirmed without you.'
+            ? 'Tell us your route, timings and usual fare once. We’ll post your rides on your working days for the week ahead — you approve anyone who books. Nothing is confirmed without you, and you can edit or cancel any day’s ride.'
             : 'Tell us your route and timings once. We’ll show you matching rides for your commute automatically.'}
         </div>
       </div>
@@ -137,18 +143,18 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
 
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#aaa', marginBottom: 5, display: 'block' }}>🌅 Leave home</label>
+            <label style={fieldLabel}>🌅 Leave home</label>
             <input type="time" value={morning} onChange={e => setMorning(e.target.value)}
               style={{ width: '100%', padding: '11px 12px', background: '#222', border: '1.5px solid #333', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#aaa', marginBottom: 5, display: 'block' }}>🌆 Leave office</label>
+            <label style={fieldLabel}>🌆 Leave office</label>
             <input type="time" value={evening} onChange={e => setEvening(e.target.value)}
               style={{ width: '100%', padding: '11px 12px', background: '#222', border: '1.5px solid #333', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
           </div>
         </div>
 
-        <label style={{ fontSize: 12, fontWeight: 600, color: '#aaa', margin: '16px 0 8px', display: 'block' }}>📅 Working days</label>
+        <label style={{ ...fieldLabel, margin: '16px 0 8px' }}>📅 Working days</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {DAYS.map(([lbl, d]) => (
             <button key={d} onClick={() => toggleDay(d)} style={{
@@ -162,7 +168,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
 
         {isCarOwner && (
           <>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#aaa', margin: '16px 0 8px', display: 'block' }}>💺 Seats you can offer</label>
+            <label style={{ ...fieldLabel, margin: '16px 0 8px' }}>💺 Seats you can offer</label>
             <div style={{ display: 'flex', gap: 8 }}>
               {[1, 2, 3, 4].map(n => (
                 <button key={n} onClick={() => setSeats(n)} style={{
@@ -172,6 +178,14 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
                   color: seats === n ? '#facc15' : '#777',
                 }}>{n}</button>
               ))}
+            </div>
+
+            <label style={{ ...fieldLabel, margin: '16px 0 8px' }}>💰 Usual fare per seat (₹)</label>
+            <input type="number" inputMode="numeric" placeholder="e.g. 60" value={fare}
+              onChange={e => setFare(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              style={{ width: '100%', padding: '12px 14px', background: '#222', border: '1.5px solid #333', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
+            <div style={{ fontSize: 11, color: '#666', marginTop: 5 }}>
+              What each rider pays you for the trip (paid directly to you). You can change it on any ride later.
             </div>
           </>
         )}
