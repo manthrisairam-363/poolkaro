@@ -261,6 +261,18 @@ export default function Profile() {
           </button>
         )}
 
+        {/* ── My Commute & auto-posts ── */}
+        <button onClick={() => navigate('/commute')} style={{ width: '100%', padding: '14px 16px', background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+              <span style={{ fontSize: 16 }}>🗓️</span>
+              <span style={{ fontWeight: 800, fontSize: 14, color: '#1e3a8a' }}>My Commute & Auto-posts</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#3b82f6' }}>Edit your route, timings, days & fare</div>
+          </div>
+          <span style={{ color: '#1e3a8a', fontSize: 20 }}>›</span>
+        </button>
+
         {/* ── Group 1: Main sections ── */}
         <div style={card}>
 
