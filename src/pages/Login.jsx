@@ -42,17 +42,18 @@ export default function Login() {
 
   return (
     <div style={{
-      height: '100dvh',
+      minHeight: '100dvh',
       width: '100%',
-      overflow: 'hidden',
+      overflowY: 'auto',
       background: 'linear-gradient(180deg, #eef2ff 0%, #f0f4ff 50%, #fff 100%)',
       display: 'flex',
       flexDirection: 'column',
       paddingTop: 'env(safe-area-inset-top)',
+      paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
     }}>
 
       {/* Top section */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 24 }}>
         <div onClick={handleLogoTap} style={{ cursor: 'pointer', marginBottom: 12 }}>
           <img
             src="/logo.png"
@@ -77,16 +78,16 @@ export default function Login() {
       </div>
 
       {/* Illustration */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
         <img
           src="/login-illustration.png"
           alt="Carpool illustration"
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          style={{ maxWidth: '100%', maxHeight: '38vh', width: 'auto', height: 'auto', objectFit: 'contain' }}
         />
       </div>
 
       {/* Bottom section */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 24px' }}>
+      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '8px 24px 0' }}>
         {error && (
           <div style={{
             background: 'rgba(239,68,68,0.08)',

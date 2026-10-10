@@ -145,20 +145,8 @@ export default function Onboarding() {
       await supabase.from('profiles').update({ referral_code: newCode }).eq('id', session.user.id)
     }
 
-    // Give new user ₹10 signup bonus — upsert so it always works
-    await supabase.from('wallets').upsert(
-      { user_id: user.id, balance: 1000 },
-      { onConflict: 'user_id', ignoreDuplicates: false }
-    )
-    // Only add signup_bonus transaction if not already exists
-    const { count } = await supabase.from('wallet_transactions')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id).eq('type', 'signup_bonus')
-    if (!count || count === 0) {
-      await supabase.from('wallet_transactions').insert({
-        user_id: user.id, amount: 1000, type: 'signup_bonus', description: '₹10 signup bonus'
-      })
-    }
+    // ₹10 signup bonus is created server-side by the on_onboarding_complete
+    // trigger, exactly once. The client must not touch wallets.
 
     // Handle referral atomically via SQL function
     if (referralCode && referrerId) {

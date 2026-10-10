@@ -152,7 +152,6 @@ export default function Wallet() {
               },
               body: JSON.stringify({
                 action: 'verify_payment',
-                amount,
                 payment_id: response.razorpay_payment_id,
                 order_id: response.razorpay_order_id,
                 signature: response.razorpay_signature,

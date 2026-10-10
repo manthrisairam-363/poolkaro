@@ -742,13 +742,10 @@ export default function MyRides() {
   async function cancelRide(rideId) {
     if (!confirm('Cancel this ride?\n\nRiders will get ₹2 refund. You will not be refunded.')) return
     try {
-      const { data: bookingsData } = await supabase.from('bookings').select('id, rider_id, seats_booked').eq('ride_id', rideId).eq('status', 'confirmed')
-      await supabase.from('bookings').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('ride_id', rideId)
-      await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId)
-      for (const b of (bookingsData || [])) {
-        await supabase.rpc('refund_cancellation', { p_rider_id: b.rider_id, p_driver_id: user.id, p_amount: 200 })
-        await sendNotification(b.rider_id, '❌ Ride Cancelled', 'Your ride was cancelled by the driver. ₹2 refunded to your wallet.')
-      }
+      // One server-side call: cancels the ride + all confirmed bookings,
+      // refunds each rider, and notifies them. Driver is verified by auth.uid().
+      const { data, error } = await supabase.rpc('cancel_ride_by_driver', { p_ride_id: rideId, p_driver_id: user.id })
+      if (error || !data?.success) { alert(data?.message || 'Could not cancel the ride. Please try again.'); return }
       await fetchData()
     } catch (err) { alert('Something went wrong. Please try again.') }
   }
