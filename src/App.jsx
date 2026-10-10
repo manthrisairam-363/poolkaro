@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { detectPlatform } from './lib/platform'
@@ -176,6 +176,11 @@ function ConnectionError({ onRetry }) {
   )
 }
 
+function CommuteEdit() {
+  const navigate = useNavigate()
+  return <CommuteSetup mode="edit" onDone={() => navigate('/profile')} />
+}
+
 function AppRoutes() {
   const { user, profile, loading, profileError, fetchProfile } = useAuth()
   usePushNotifications(user?.id)
@@ -205,9 +210,9 @@ function AppRoutes() {
   // existing user just because they opened the app with no connection.
   if (profileError) return <ConnectionError onRetry={() => fetchProfile(user.id)} />
   if (!profile?.onboarding_complete) return <Onboarding />
-  // After onboarding, ask new AND existing users to set up their commute so we
-  // can auto-post rides and match routes. Skippable ("Maybe later") per session;
-  // re-prompts next open until they complete it (sets profiles.commute_setup_done).
+  // After onboarding, prompt new AND existing users to set up their commute so
+  // we can auto-post rides and match routes. Skippable per session; re-prompts
+  // next open until completed (profiles.commute_setup_done).
   if (!profile?.commute_setup_done && !commuteSkipped) {
     return <CommuteSetup mode="existing" onDone={() => { setCommuteSkipped(true); fetchProfile(user.id) }} />
   }
@@ -219,6 +224,7 @@ function AppRoutes() {
       <Route path="/request" element={<RequestRide />} />
       <Route path="/my-rides" element={<MyRides />} />
       <Route path="/profile" element={<Profile />} />
+      <Route path="/commute" element={<CommuteEdit />} />
       <Route path="/book/:id" element={<BookRide />} />
       <Route path="/r/:code" element={<RideCode />} />
       <Route path="/live/:bookingId" element={<LiveRide />} />
