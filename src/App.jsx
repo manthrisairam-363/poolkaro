@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import { detectPlatform } from './lib/platform'
 import RequestRide from './pages/RequestRide'
 import DeleteAccount from './pages/DeleteAccount'
+import CommuteSetup from './components/CommuteSetup'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
@@ -178,6 +179,7 @@ function ConnectionError({ onRetry }) {
 function AppRoutes() {
   const { user, profile, loading, profileError, fetchProfile } = useAuth()
   usePushNotifications(user?.id)
+  const [commuteSkipped, setCommuteSkipped] = useState(() => { try { return sessionStorage.getItem('commute_skip') === '1' } catch (_) { return false } })
 
   // Track last seen + what device/mode they're on (for admin install guidance)
   useEffect(() => {
@@ -203,6 +205,12 @@ function AppRoutes() {
   // existing user just because they opened the app with no connection.
   if (profileError) return <ConnectionError onRetry={() => fetchProfile(user.id)} />
   if (!profile?.onboarding_complete) return <Onboarding />
+  // After onboarding, ask new AND existing users to set up their commute so we
+  // can auto-post rides and match routes. Skippable ("Maybe later") per session;
+  // re-prompts next open until they complete it (sets profiles.commute_setup_done).
+  if (!profile?.commute_setup_done && !commuteSkipped) {
+    return <CommuteSetup mode="existing" onDone={() => { setCommuteSkipped(true); fetchProfile(user.id) }} />
+  }
   return (
     <>
     <Routes>
