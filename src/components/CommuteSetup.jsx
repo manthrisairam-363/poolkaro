@@ -113,7 +113,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
   }
 
   function skip() {
-    try { sessionStorage.setItem('commute_skip', '1') } catch (_) {}
+    if (mode !== 'edit') { try { sessionStorage.setItem('commute_skip', '1') } catch (_) {} }
     onDone?.()
   }
 
@@ -198,7 +198,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
         <button onClick={skip} style={{
           width: '100%', padding: 12, marginTop: 8, background: 'transparent', color: '#888',
           border: '1px solid #333', borderRadius: 10, fontSize: 13, cursor: 'pointer',
-        }}>Maybe later</button>
+        }}>{mode === 'edit' ? 'Cancel' : 'Maybe later'}</button>
       </div>
     </div>
   )
