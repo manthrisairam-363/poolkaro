@@ -100,6 +100,7 @@ export default function Home() {
   const [filterTo, setFilterTo] = useState('')
   const [filterDate, setFilterDate] = useState('all')
   const [filterTime, setFilterTime] = useState('all')
+  const [selectedDate, setSelectedDate] = useState(() => new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0])
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [showFromSug, setShowFromSug] = useState(false)
   const [showToSug, setShowToSug] = useState(false)
@@ -229,15 +230,15 @@ export default function Home() {
     const istNow = new Date(now.getTime() + istOffset)
     const today = istNow.toISOString().split('T')[0]
 
-    // Only show today and tomorrow — no future clutter
-    const tomorrow = new Date(istNow.getTime() + 86400000).toISOString().split('T')[0]
+    // Show the next 7 days so the date strip can browse the week
+    const weekEnd = new Date(istNow.getTime() + 6 * 86400000).toISOString().split('T')[0]
 
     const { data, error } = await supabase
       .from('rides')
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
       .in('status', ['active'])
       .gte('ride_date', today)
-      .lte('ride_date', tomorrow)
+      .lte('ride_date', weekEnd)
       .eq('city', profile?.city || 'Hyderabad')
       .order('ride_date', { ascending: true })
       .order('ride_time', { ascending: true })
@@ -272,8 +273,8 @@ export default function Home() {
       && !r.route_description?.toLowerCase().includes(filterFrom.toLowerCase())) return false
     if (filterTo && !r.to_location?.toLowerCase().includes(filterTo.toLowerCase())
       && !r.route_description?.toLowerCase().includes(filterTo.toLowerCase())) return false
-    if (filterDate === 'today' && r.ride_date !== today) return false
-    if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
+    // The date strip is the primary day selector
+    if (r.ride_date !== selectedDate) return false
     if (filterTime === 'morning') {
       const hr = parseInt(r.ride_time?.split(':')[0] || 0)
       if (hr >= 12) return false
@@ -434,11 +435,6 @@ export default function Home() {
               <LocationInput label="FROM" value={filterFrom} onChange={setFilterFrom} showSug={showFromSug} setShowSug={setShowFromSug} liveLocations={liveFromLocations} city={profile?.city} />
               <LocationInput label="TO" value={filterTo} onChange={setFilterTo} showSug={showToSug} setShowSug={setShowToSug} liveLocations={liveToLocations} city={profile?.city} />
             </div>
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
-              {[['all','Any Day'],['today','Today'],['tomorrow','Tomorrow']].map(([v,l]) => (
-                <button key={v} onClick={() => setFilterDate(v)} style={{ padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, background: filterDate === v ? '#0f172a' : '#f1f5f9', color: filterDate === v ? '#facc15' : '#64748b', fontWeight: filterDate === v ? 700 : 400 }}>{l}</button>
-              ))}
-            </div>
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
               {[['all','Any Time'],['morning','Morning'],['afternoon','Afternoon'],['evening','Evening']].map(([v,l]) => (
                 <button key={v} onClick={() => setFilterTime(v)} style={{ padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, background: filterTime === v ? '#0f172a' : '#f1f5f9', color: filterTime === v ? '#facc15' : '#64748b', fontWeight: filterTime === v ? 700 : 400 }}>{l}</button>
@@ -456,6 +452,32 @@ export default function Home() {
 
       {/* ── CONTENT ── */}
       <div style={{ padding: '10px 14px' }}>
+
+        {/* Date strip — browse rides across the week (Hopr-style) */}
+        {filter !== 'requests' && (
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, marginBottom: 2 }}>
+            {Array.from({ length: 7 }, (_, i) => {
+              const d = new Date(Date.now() + istOffset + i * 86400000)
+              const iso = d.toISOString().split('T')[0]
+              const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : d.toLocaleDateString('en-IN', { weekday: 'short' })
+              const count = rides.filter(r => r.ride_date === iso).length
+              const active = selectedDate === iso
+              return (
+                <button key={iso} onClick={() => setSelectedDate(iso)} style={{
+                  flex: '0 0 auto', minWidth: 58, padding: '8px 8px', borderRadius: 12, cursor: 'pointer',
+                  border: active ? '2px solid #111' : '1.5px solid #e5e7eb',
+                  background: active ? '#111' : '#fff', color: active ? '#facc15' : '#334155', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700 }}>{label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, margin: '1px 0' }}>{d.getUTCDate()}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: active ? '#facc15' : (count ? '#16a34a' : '#cbd5e1') }}>
+                    {count ? count + (count > 1 ? ' rides' : ' ride') : '—'}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Your active ride request — banner on the All Rides tab only */}
         {myRequest && filter === 'all' && (
