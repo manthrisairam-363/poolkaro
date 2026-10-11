@@ -213,6 +213,14 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
     setPendingReqs(reqs => reqs.filter(x => x.id !== r.id))
   }
 
+  function shareRide() {
+    const url = `${window.location.origin}/book/${ride.id}`
+    const d = new Date(ride.ride_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+    const text = `🚗 Ride available on CarpoolKaro\n${ride.from_location} → ${ride.to_location}\n📅 ${d} · 🕐 ${formatTime(ride.ride_time)}\n💺 ₹${ride.fare}/seat\n\nBook your seat here 👇\n${url}`
+    if (navigator.share) navigator.share({ title: 'CarpoolKaro ride', text, url }).catch(() => {})
+    else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
   // Confirm the driver received a rider's payment (marks paid + confirmed).
   async function confirmRow(row) {
     setBusyRow(row.bookingId)
@@ -477,8 +485,8 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
         {(ride.status === 'active' || ride.status === 'full') && (
           <button onClick={() => onEdit(ride.id)} style={{ padding: '8px 14px', background: '#f0f4ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ Edit</button>
         )}
-        {ride.is_recurring && ride.status === 'active' && (
-          <button onClick={() => onCancelAll(ride.id)} style={{ padding: '8px 10px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>🔁 Cancel Series</button>
+        {(ride.status === 'active' || ride.status === 'full') && (
+          <button onClick={shareRide} style={{ padding: '8px 12px', background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>📤 Share</button>
         )}
         {(ride.status === 'active' || ride.status === 'full') && (
           <button onClick={() => onCancel(ride.id)} style={{ padding: '8px 14px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🚫 Cancel</button>
