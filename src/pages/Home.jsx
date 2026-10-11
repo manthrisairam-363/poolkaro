@@ -816,6 +816,37 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
 // ── MY RIDE CARD (driver's own posted ride — slightly bigger) ──
 function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
   const seatsLeft = ride.seats_available || 0
+  const [pendingReqs, setPendingReqs] = useState([])
+  const [busyReq, setBusyReq] = useState(null)
+
+  // Load riders waiting on this ride so the owner can approve/decline here too.
+  useEffect(() => {
+    let alive = true
+    if (!['active', 'full'].includes(ride.status)) { setPendingReqs([]); return }
+    supabase.from('bookings')
+      .select('id, rider_id, seats_booked, guest_names, profiles(full_name)')
+      .eq('ride_id', ride.id).eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .then(({ data }) => { if (alive) setPendingReqs(data || []) })
+    return () => { alive = false }
+  }, [ride.id, ride.status])
+
+  async function approveReq(r) {
+    setBusyReq(r.id)
+    const { data, error } = await supabase.rpc('approve_booking', { p_booking_id: r.id, p_driver_id: ride.driver_id })
+    setBusyReq(null)
+    if (error || !data?.success) { alert(data?.error || error?.message || 'Could not approve'); return }
+    window.location.reload()   // seats + status shift — reload for a clean view
+  }
+  async function declineReq(r) {
+    if (!confirm(`Decline ${r.profiles?.full_name || 'this rider'}'s request?\n\nThe seat is released. No fee is charged.`)) return
+    setBusyReq(r.id)
+    const { data, error } = await supabase.rpc('decline_booking', { p_booking_id: r.id, p_driver_id: ride.driver_id })
+    setBusyReq(null)
+    if (error || !data?.success) { alert(data?.error || error?.message || 'Could not decline'); return }
+    setPendingReqs(reqs => reqs.filter(x => x.id !== r.id))
+  }
+
   return (
     <div style={{ background: ride.paused ? '#fafafa' : '#fff', opacity: ride.paused ? 0.7 : 1, borderRadius: 16, padding: '14px 14px', marginBottom: 10, border: ride.paused ? '2px solid #e5e7eb' : '2px solid #facc15', boxShadow: ride.paused ? 'none' : '0 2px 12px rgba(250,204,21,0.15)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -855,6 +886,35 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
         <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>📅 {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
         <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>💺 {seatsLeft}/{ride.seats_total || 3}</span>
       </div>
+      {/* Pending join-requests — approve or decline right here */}
+      {pendingReqs.length > 0 && (
+        <div style={{ marginTop: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '10px 12px' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#b45309', marginBottom: 8 }}>
+            🙋 {pendingReqs.length} request{pendingReqs.length > 1 ? 's' : ''} — ₹2 each side only when you approve
+          </div>
+          {pendingReqs.map(r => (
+            <div key={r.id} style={{ background: '#fff', borderRadius: 10, padding: '9px 11px', marginTop: 6, border: '1px solid #fef3c7' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{r.profiles?.full_name || 'Rider'}</div>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{r.seats_booked} seat{r.seats_booked > 1 ? 's' : ''}{r.guest_names ? ` · ${r.guest_names}` : ''}</div>
+                </div>
+                <button onClick={() => navigate(`/chat/${r.id}`)} style={{ flexShrink: 0, padding: '6px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>💬</button>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => approveReq(r)} disabled={busyReq === r.id}
+                  style={{ flex: 1, padding: '8px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: busyReq === r.id ? 0.6 : 1 }}>
+                  {busyReq === r.id ? '…' : '✅ Approve'}
+                </button>
+                <button onClick={() => declineReq(r)} disabled={busyReq === r.id}
+                  style={{ flex: 1, padding: '8px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  ❌ Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
