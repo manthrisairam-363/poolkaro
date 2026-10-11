@@ -869,19 +869,33 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
   }
 
   function shareRide() {
-    const url = `${window.location.origin}/book/${ride.id}`
-    const d = new Date(ride.ride_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
-    const text = `🚗 Ride available on CarpoolKaro\n${ride.from_location} → ${ride.to_location}\n📅 ${d} · 🕐 ${formatTime(ride.ride_time)}\n💺 ₹${ride.fare}/seat\n\nBook your seat here 👇\n${url}`
-    if (navigator.share) navigator.share({ title: 'CarpoolKaro ride', text, url }).catch(() => {})
-    else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+    const dateStr = new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const link = ride.ride_code ? `https://app.carpoolkaro.com/r/${ride.ride_code}` : `https://app.carpoolkaro.com/book/${ride.id}`
+    const p = ride.profiles || {}
+    const msg = `🚗 Carpool Available — ${dateStr}
+
+🕘 Ride Time: ${formatTime(ride.ride_time)}
+👤 Name: ${p.full_name || ''}
+🚘 Vehicle: ${p.vehicle_model || ''}${p.vehicle_number ? ` (${p.vehicle_number})` : ''}
+
+📍 From: ${ride.from_location}
+📍 To: ${ride.to_location}
+${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}💰 Fare: ₹${ride.fare} per seat
+💺 Seats Available: ${ride.seats_available}
+
+🔗 Book this ride: ${link}`
+    if (navigator.share) navigator.share({ text: msg }).catch(() => {})
+    else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   return (
     <div style={{ background: ride.paused ? '#fafafa' : '#fff', opacity: ride.paused ? 0.7 : 1, borderRadius: 16, padding: '14px 14px', marginBottom: 10, border: ride.paused ? '2px solid #e5e7eb' : '2px solid #facc15', boxShadow: ride.paused ? 'none' : '0 2px 12px rgba(250,204,21,0.15)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <span style={{ background: '#facc15', color: '#111', fontSize: 9, fontWeight: 900, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.5px' }}>⭐ YOUR POSTED RIDE</span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={shareRide} style={{ background: '#dcfce7', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#15803d', cursor: 'pointer', fontWeight: 700 }}>📤 Share</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {ride.status === 'full' && (
+            <span style={{ background: '#fef2f2', color: '#ef4444', fontSize: 10, padding: '4px 8px', borderRadius: 8, fontWeight: 700 }}>● Full</span>
+          )}
           <button onClick={() => navigate(`/edit-ride/${ride.id}`)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
           <div onClick={() => onTogglePause?.(ride)} title={ride.paused ? 'Turn ride ON' : 'Turn ride OFF for this day'} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: ride.paused ? '#9ca3af' : '#16a34a' }}>{ride.paused ? 'Off' : 'On'}</span>
@@ -889,9 +903,6 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
               <div style={{ position: 'absolute', top: 3, left: ride.paused ? 3 : 19, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .15s' }} />
             </div>
           </div>
-          <span style={{ background: ride.status === 'full' ? '#fef2f2' : '#f0fdf4', color: ride.status === 'full' ? '#ef4444' : '#16a34a', fontSize: 10, padding: '4px 8px', borderRadius: 8, fontWeight: 700 }}>
-            {ride.status === 'full' ? '● Full' : `${seatsLeft} left`}
-          </span>
         </div>
       </div>
       {/* Route */}
@@ -911,10 +922,11 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
         </div>
       </div>
       {/* Meta */}
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>🕐 {formatTime(ride.ride_time)}</span>
         <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>📅 {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
         <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>💺 {seatsLeft}/{ride.seats_total || 3}</span>
+        <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', background: '#dcfce7', border: 'none', borderRadius: 8, padding: '5px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>📤</button>
       </div>
       {/* Pending join-requests — approve or decline right here */}
       {pendingReqs.length > 0 && (
@@ -945,19 +957,15 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
           ))}
         </div>
       )}
-      {/* Confirmed riders — who's on board after approval */}
+      {/* Confirmed riders — one clean line each */}
       {confirmedPax.length > 0 && (
-        <div style={{ marginTop: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 12px' }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: '#15803d', marginBottom: 8 }}>
-            ✅ {confirmedPax.length} rider{confirmedPax.length > 1 ? 's' : ''} confirmed
-          </div>
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {confirmedPax.map(p => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid #dcfce7' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{p.profiles?.full_name || 'Rider'}</div>
-                <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{p.seats_booked} seat{p.seats_booked > 1 ? 's' : ''}{p.guest_names ? ` · ${p.guest_names}` : ''}</div>
-              </div>
-              <button onClick={() => navigate(`/chat/${p.id}`)} style={{ flexShrink: 0, padding: '6px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>💬</button>
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '7px 11px' }}>
+              <span style={{ fontSize: 12 }}>✅</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{p.profiles?.full_name || 'Rider'}</span>
+              <span style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {p.seats_booked} seat{p.seats_booked > 1 ? 's' : ''}{p.guest_names ? ` · ${p.guest_names}` : ''}</span>
+              <button onClick={() => navigate(`/chat/${p.id}`)} style={{ marginLeft: 'auto', flexShrink: 0, padding: '5px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}>💬</button>
             </div>
           ))}
         </div>
