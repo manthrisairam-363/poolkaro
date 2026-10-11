@@ -896,8 +896,11 @@ export default function MyRides() {
               const dt = new Date(`${r.ride_date}T${r.ride_time || '23:59'}`)
               return dt.getTime() < nowMs - 30 * 60000
             }
-            const currentRides = rides.filter(r => !isPastRide(r))
-            const pastRides = rides.filter(isPastRide)
+            // Soonest upcoming ride first (tomorrow before next week); for past
+            // rides, most-recent first. 'YYYY-MM-DD'+'HH:MM' sorts correctly as text.
+            const key = r => `${r.ride_date} ${r.ride_time || '23:59'}`
+            const currentRides = rides.filter(r => !isPastRide(r)).sort((a, b) => key(a).localeCompare(key(b)))
+            const pastRides = rides.filter(isPastRide).sort((a, b) => key(b).localeCompare(key(a)))
             return (
             <>
               {/* Current/upcoming rides — full colour */}
