@@ -173,6 +173,7 @@ function PassengerCard({ booking, unreadCount, onRate }) {
 }
 
 function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}, isPast = false }) {
+  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
@@ -357,9 +358,7 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
                     {r.seats_booked} seat{r.seats_booked > 1 ? 's' : ''}{r.guest_names ? ` · ${r.guest_names}` : ''}
                   </div>
                 </div>
-                {r.profiles?.phone && (
-                  <a href={`tel:${r.profiles.phone}`} style={{ flexShrink: 0, padding: '6px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 8, fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>📞</a>
-                )}
+                <button onClick={() => navigate(`/chat/${r.id}`)} style={{ flexShrink: 0, padding: '6px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>💬 Message</button>
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                 <button onClick={() => approveReq(r)} disabled={busyReq === r.id}
