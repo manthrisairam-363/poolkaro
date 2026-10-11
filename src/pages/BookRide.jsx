@@ -43,20 +43,21 @@ export default function BookRide() {
     setRide(data)
     setOwner(data.profiles)
 
-    // If this rider ALREADY has a confirmed booking on this ride, never show the
-    // Confirm screen again — go straight to payment. Prevents accidental double booking.
+    // If this rider ALREADY has a request or booking on this ride, don't show the
+    // Confirm screen again. Confirmed → go to payment. Pending → show the
+    // "waiting for approval" screen. Prevents double requests / double booking.
     const { data: existing } = await supabase
-      .from('bookings').select('id, seats_booked, ride_fare')
+      .from('bookings').select('id, seats_booked, ride_fare, status')
       .eq('ride_id', id)
       .eq('rider_id', user.id)
-      .eq('status', 'confirmed')
+      .in('status', ['pending', 'confirmed'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
     if (existing) {
-      setAlreadyBooked(true)
       setBookingData(existing)
-      setStep('pay')
+      if (existing.status === 'confirmed') { setAlreadyBooked(true); setStep('pay') }
+      else { setStep('requested') }   // pending — owner hasn't approved yet
     }
 
     const { data: wallet } = await supabase
@@ -81,24 +82,24 @@ export default function BookRide() {
     }
     setBookingData(data.booking)
 
-    // Save optional guest names on the booking so the driver knows who's coming.
+    // Save optional guest names on the booking so the owner knows who's coming.
     const cleanGuests = guestNames.map(g => g.trim()).filter(Boolean)
     if (cleanGuests.length > 0 && data.booking?.id) {
       await supabase.from('bookings').update({ guest_names: cleanGuests.join(', ') }).eq('id', data.booking.id)
     }
 
-    // Notify driver of new booking — name the guests if given.
-    const { data: myProf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
-    const guestSuffix = cleanGuests.length > 0 ? ` (with ${cleanGuests.join(', ')})` : ''
-    const { error: notifErr } = await supabase.from('notifications').insert({
-      user_id: ride.driver_id,
-      type: 'booking', title: '🎉 New Booking!',
-      message: `${myProf?.full_name || 'Someone'} booked ${seatsToBook} seat${seatsToBook > 1 ? 's' : ''}${guestSuffix} on your ${ride.from_location} → ${ride.to_location} ride.`,
-      is_read: false,
-    })
-    if (notifErr) console.error('Booking notification failed:', notifErr.message)
+    // book_ride_atomic already notified the owner ("🙋 New ride request").
+    // Do NOT insert a second notification here — it would double-notify.
 
-    setStep('pay')
+    setStep('requested')   // waiting for the owner to approve
+  }
+
+  async function withdrawRequest() {
+    if (!bookingData?.id) return
+    if (!confirm('Withdraw your request? The seat will be released. Nothing was charged.')) return
+    const { data, error: err } = await supabase.rpc('cancel_pending_request', { p_booking_id: bookingData.id })
+    if (err || !data?.success) { alert(data?.error || 'Could not withdraw. Please try again.'); return }
+    navigate('/my-rides?tab=booked')
   }
 
   // UPI deep links to open payment apps
@@ -123,7 +124,60 @@ export default function BookRide() {
     </div>
   )
 
-  // ── PAY FARE SCREEN ──
+  // ── REQUEST SENT SCREEN ── (pending owner approval)
+  if (step === 'requested') {
+    const firstName = owner?.full_name?.split(' ')[0] || 'the car owner'
+    return (
+      <div style={{ minHeight: '100vh', background: '#111', color: '#fff' }}>
+        <div style={{ background: '#b45309', padding: '20px 16px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 28 }}>⏳</div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 18 }}>Request Sent</div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>Waiting for {firstName} to approve</div>
+          </div>
+        </div>
+
+        <div style={{ padding: 16 }}>
+          <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#888', fontWeight: 700, marginBottom: 12, letterSpacing: 1 }}>YOUR REQUEST</div>
+            {[
+              ['📍 Route', `${ride.from_location} → ${ride.to_location}`],
+              ['🕐 Time', `${formatTime(ride.ride_time)} · ${formatDate(ride.ride_date)}`],
+              ['💺 Seats', `${bookingData?.seats_booked || seatsToBook}`],
+            ].map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                <span style={{ fontSize: 12, color: '#888' }}>{k}</span>
+                <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 12, border: '1px solid #b45309' }}>
+            <div style={{ fontSize: 13, color: '#fbbf24', fontWeight: 700, marginBottom: 6 }}>What happens next</div>
+            <div style={{ fontSize: 12.5, color: '#bbb', lineHeight: 1.7 }}>
+              {firstName} gets a notification to approve or decline. <b style={{ color: '#fff' }}>The ₹2 platform fee is charged only if they approve</b> — nothing has been deducted yet.
+              You'll be notified either way. If they don't respond by the ride time, the request expires on its own.
+            </div>
+          </div>
+
+          {bookingData?.id && (
+            <button onClick={() => navigate(`/chat/${bookingData.id}`)}
+              style={{ display: 'block', width: '100%', background: '#facc15', color: '#111', borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, textAlign: 'center', border: 'none', cursor: 'pointer', marginBottom: 10 }}>
+              💬 Message {firstName}
+            </button>
+          )}
+          <button onClick={() => navigate('/my-rides?tab=booked')} style={{ width: '100%', padding: 14, background: '#222', color: '#ddd', border: '1px solid #333', borderRadius: 12, fontSize: 14, cursor: 'pointer', fontWeight: 600, marginBottom: 10 }}>
+            View My Rides
+          </button>
+          <button onClick={withdrawRequest} style={{ width: '100%', padding: 12, background: 'none', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: 12, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+            Withdraw request
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── PAY FARE SCREEN ── (owner already approved → booking is confirmed)
   if (step === 'pay') {
 
     return (
@@ -362,7 +416,7 @@ export default function BookRide() {
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #f5f5f5', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>CarpoolKaro Platform Fee</div>
-              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹2 × {seatsToBook} seat{seatsToBook > 1 ? 's' : ''} — from wallet</div>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>₹2 × {seatsToBook} seat{seatsToBook > 1 ? 's' : ''} — charged only if owner approves</div>
             </div>
             <span style={{ fontSize: 15, fontWeight: 700, color: '#16a34a' }}>₹{2 * seatsToBook}</span>
           </div>
@@ -386,7 +440,7 @@ export default function BookRide() {
 
           <div style={{ marginTop: 12, padding: '10px 12px', background: '#f8f9fa', borderRadius: 8 }}>
             <div style={{ fontSize: 11, color: '#888', lineHeight: 1.7 }}>
-              ℹ️ After confirming, you'll see the car owner's UPI ID to pay ₹{ride.fare * seatsToBook} directly.
+              ℹ️ You're <b>requesting</b> this ride. The ₹{2 * seatsToBook} fee is charged only if {owner?.full_name?.split(' ')[0] || 'the owner'} approves. After they approve, you'll pay the ₹{ride.fare * seatsToBook} fare directly to them.
             </div>
           </div>
         </div>
@@ -408,7 +462,7 @@ export default function BookRide() {
           border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700,
           cursor: booking ? 'not-allowed' : 'pointer', marginBottom: 10,
         }}>
-          {booking ? 'Confirming...' : `✅ Confirm ${seatsToBook} Seat${seatsToBook > 1 ? 's' : ''} (₹${2 * seatsToBook} from wallet)`}
+          {booking ? 'Sending request...' : `🙋 Request ${seatsToBook} Seat${seatsToBook > 1 ? 's' : ''}`}
         </button>
 
         <button onClick={() => navigate('/')} style={{ width: '100%', padding: 12, background: '#f3f4f6', color: '#666', border: 'none', borderRadius: 12, fontSize: 14, cursor: 'pointer' }}>
@@ -416,7 +470,7 @@ export default function BookRide() {
         </button>
 
         <div style={{ textAlign: 'center', fontSize: 11, color: '#bbb', marginTop: 12 }}>
-          🔒 ₹2 platform fee deducted from your CarpoolKaro wallet
+          🔒 ₹2 platform fee is charged only if the owner approves
         </div>
       </div>
     </div>

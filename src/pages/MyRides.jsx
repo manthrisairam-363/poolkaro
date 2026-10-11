@@ -173,6 +173,8 @@ function PassengerCard({ booking, unreadCount, onRate }) {
 }
 
 function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}, isPast = false }) {
+  const navigate = useNavigate()
+  const { profile } = useAuth()
   const [expanded, setExpanded] = useState(false)
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
@@ -181,6 +183,56 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   const [payRows, setPayRows] = useState([])          // per-rider payment rows
   const [payOpen, setPayOpen] = useState(false)       // past-ride payment expanded?
   const [busyRow, setBusyRow] = useState(null)        // bookingId being acted on
+  const [pendingReqs, setPendingReqs] = useState([])  // riders awaiting approval
+  const [busyReq, setBusyReq] = useState(null)        // request bookingId being acted on
+
+  // Load pending join-requests for this ride so the owner can approve/decline.
+  useEffect(() => {
+    if (!['active', 'full'].includes(ride.status)) { setPendingReqs([]); return }
+    supabase.from('bookings')
+      .select('id, rider_id, seats_booked, guest_names, created_at, profiles(full_name, phone)')
+      .eq('ride_id', ride.id).eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setPendingReqs(data || []))
+  }, [ride.id, ride.status])
+
+  async function approveReq(r) {
+    setBusyReq(r.id)
+    const { data, error } = await supabase.rpc('approve_booking', { p_booking_id: r.id, p_driver_id: ride.driver_id })
+    setBusyReq(null)
+    if (error || !data?.success) { alert(data?.error || error?.message || 'Could not approve'); return }
+    // Seats, counts and the payment summary all shift — reload for a clean state.
+    window.location.reload()
+  }
+
+  async function declineReq(r) {
+    if (!confirm(`Decline ${r.profiles?.full_name || 'this rider'}'s request?\n\nThe seat is released. No fee is charged to anyone.`)) return
+    setBusyReq(r.id)
+    const { data, error } = await supabase.rpc('decline_booking', { p_booking_id: r.id, p_driver_id: ride.driver_id })
+    setBusyReq(null)
+    if (error || !data?.success) { alert(data?.error || error?.message || 'Could not decline'); return }
+    setPendingReqs(reqs => reqs.filter(x => x.id !== r.id))
+  }
+
+  function shareRide() {
+    const dateStr = new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const link = ride.ride_code ? `https://app.carpoolkaro.com/r/${ride.ride_code}` : `https://app.carpoolkaro.com/book/${ride.id}`
+    const p = profile || {}
+    const msg = `🚗 Carpool Available — ${dateStr}
+
+🕘 Ride Time: ${formatTime(ride.ride_time)}
+👤 Name: ${p.full_name || ''}
+🚘 Vehicle: ${p.vehicle_model || ''}${p.vehicle_number ? ` (${p.vehicle_number})` : ''}
+
+📍 From: ${ride.from_location}
+📍 To: ${ride.to_location}
+${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}💰 Fare: ₹${ride.fare} per seat
+💺 Seats Available: ${ride.seats_available}
+
+🔗 Book this ride: ${link}`
+    if (navigator.share) navigator.share({ text: msg }).catch(() => {})
+    else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+  }
 
   // Confirm the driver received a rider's payment (marks paid + confirmed).
   async function confirmRow(row) {
@@ -307,11 +359,45 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
           <span style={{ background: '#f8f9fa', borderRadius: 20, padding: '2px 8px', fontSize: 10, fontWeight: 600, color: statusColor[ride.status] }}>● {ride.status}</span>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>₹{ride.fare}/seat</span>
-        <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>💺 {ride.seats_available} left of {ride.seats_total}</span>
-        {bookedCount > 0 && <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>👥 {bookedCount} passenger{bookedCount > 1 ? 's' : ''}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'nowrap' }}>
+        <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>₹{ride.fare}/seat</span>
+        <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{ride.seats_available > 0 ? `💺 ${ride.seats_available} seat${ride.seats_available > 1 ? 's' : ''} left` : '💺 Full'}</span>
+        {!isPast && (ride.status === 'active' || ride.status === 'full') && (
+          <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', flexShrink: 0, background: '#dcfce7', border: 'none', borderRadius: 20, padding: '4px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>📤</button>
+        )}
       </div>
+      {/* ── Pending join-requests — the owner approves or declines here. ── */}
+      {pendingReqs.length > 0 && (
+        <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: '#b45309', marginBottom: 8 }}>
+            🙋 {pendingReqs.length} request{pendingReqs.length > 1 ? 's' : ''} waiting — ₹2 charged to each side only when you approve
+          </div>
+          {pendingReqs.map(r => (
+            <div key={r.id} style={{ background: '#fff', borderRadius: 8, padding: '9px 11px', marginTop: 6, border: '1px solid #fef3c7' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{r.profiles?.full_name || 'Rider'}</div>
+                  <div style={{ fontSize: 11.5, color: '#888' }}>
+                    {r.seats_booked} seat{r.seats_booked > 1 ? 's' : ''}{r.guest_names ? ` · ${r.guest_names}` : ''}
+                  </div>
+                </div>
+                <button onClick={() => navigate(`/chat/${r.id}`)} style={{ flexShrink: 0, padding: '6px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>💬 Message</button>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => approveReq(r)} disabled={busyReq === r.id}
+                  style={{ flex: 1, padding: '8px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: busyReq === r.id ? 0.6 : 1 }}>
+                  {busyReq === r.id ? '…' : '✅ Approve'}
+                </button>
+                <button onClick={() => declineReq(r)} disabled={busyReq === r.id}
+                  style={{ flex: 1, padding: '8px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  ❌ Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Payment summary ──
           PAST rides: collapsed by default — show a single status line the
           driver can tap to expand. All-paid = quiet basic info; any unpaid =
@@ -413,9 +499,6 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
         )}
         {(ride.status === 'active' || ride.status === 'full') && (
           <button onClick={() => onEdit(ride.id)} style={{ padding: '8px 14px', background: '#f0f4ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ Edit</button>
-        )}
-        {ride.is_recurring && ride.status === 'active' && (
-          <button onClick={() => onCancelAll(ride.id)} style={{ padding: '8px 10px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>🔁 Cancel Series</button>
         )}
         {(ride.status === 'active' || ride.status === 'full') && (
           <button onClick={() => onCancel(ride.id)} style={{ padding: '8px 14px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🚫 Cancel</button>
@@ -727,8 +810,12 @@ export default function MyRides() {
           if (grouped[b.ride_id]) { grouped[b.ride_id].seats_booked += b.seats_booked; grouped[b.ride_id].total_paid += b.total_paid; grouped[b.ride_id].ride_fare += b.ride_fare }
           else { grouped[b.ride_id] = { ...b } }
         })
+        // Pending requests shown individually (never grouped) so each can be
+        // withdrawn on its own. Declined/expired go in a collapsed section.
+        const pending = allBookings.filter(b => b.status === 'pending')
         const cancelled = allBookings.filter(b => b.status === 'cancelled')
-        const finalBookings = [...Object.values(grouped), ...cancelled]
+        const declined = allBookings.filter(b => b.status === 'declined' || b.status === 'expired')
+        const finalBookings = [...Object.values(grouped), ...pending, ...cancelled, ...declined]
         setBookings(finalBookings)
         try { localStorage.setItem(`myrides_bookings_${user.id}`, JSON.stringify(finalBookings)) } catch (_) {}
         fetchUnreadCounts(finalBookings.map(b => b.id))
@@ -776,9 +863,19 @@ export default function MyRides() {
     } catch (err) { alert('Something went wrong: ' + err.message) }
   }
 
+  // Withdraw a still-pending request (owner hasn't approved). No fee was charged.
+  async function withdrawRequest(bookingId) {
+    if (!confirm('Withdraw your request?\n\nThe seat is released and nothing was charged.')) return
+    const { data, error } = await supabase.rpc('cancel_pending_request', { p_booking_id: bookingId })
+    if (error || !data?.success) { alert(data?.error || 'Could not withdraw. Please try again.'); return }
+    await fetchData()
+  }
+
   const activeBookings = bookings.filter(b => b.status === 'confirmed')
   const completedBookings = bookings.filter(b => b.status === 'completed')
   const cancelledBookings = bookings.filter(b => b.status === 'cancelled')
+  const pendingBookings = bookings.filter(b => b.status === 'pending')
+  const declinedBookings = bookings.filter(b => b.status === 'declined' || b.status === 'expired')
 
   const tabStyle = (active) => ({
     flex: 1, padding: '10px', background: 'none', border: 'none',
@@ -794,7 +891,7 @@ export default function MyRides() {
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 16 }}>📋 My Rides</div>
         <div style={{ display: 'flex', borderBottom: '1px solid #222' }}>
           <button style={tabStyle(tab === 'posted')} onClick={() => setTab('posted')}>🚗 I Posted ({rides.filter(r => ['active','full'].includes(r.status)).length})</button>
-          <button style={tabStyle(tab === 'booked')} onClick={() => setTab('booked')}>🎫 I Booked ({activeBookings.length + completedBookings.length})</button>
+          <button style={tabStyle(tab === 'booked')} onClick={() => setTab('booked')}>🎫 I Booked ({activeBookings.length + completedBookings.length + pendingBookings.length})</button>
         </div>
       </div>
 
@@ -819,8 +916,11 @@ export default function MyRides() {
               const dt = new Date(`${r.ride_date}T${r.ride_time || '23:59'}`)
               return dt.getTime() < nowMs - 30 * 60000
             }
-            const currentRides = rides.filter(r => !isPastRide(r))
-            const pastRides = rides.filter(isPastRide)
+            // Soonest upcoming ride first (tomorrow before next week); for past
+            // rides, most-recent first. 'YYYY-MM-DD'+'HH:MM' sorts correctly as text.
+            const key = r => `${r.ride_date} ${r.ride_time || '23:59'}`
+            const currentRides = rides.filter(r => !isPastRide(r)).sort((a, b) => key(a).localeCompare(key(b)))
+            const pastRides = rides.filter(isPastRide).sort((a, b) => key(b).localeCompare(key(a)))
             return (
             <>
               {/* Current/upcoming rides — full colour */}
@@ -843,7 +943,7 @@ export default function MyRides() {
             )
           })()
         ) : (
-          activeBookings.length === 0 && completedBookings.length === 0 && cancelledBookings.length === 0 ? (
+          activeBookings.length === 0 && completedBookings.length === 0 && cancelledBookings.length === 0 && pendingBookings.length === 0 && declinedBookings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 40 }}>🎫</div>
               <div style={{ color: '#aaa', marginTop: 8 }}>No bookings yet</div>
@@ -851,6 +951,28 @@ export default function MyRides() {
             </div>
           ) : (
             <>
+              {/* Pending requests — waiting for the owner to approve. */}
+              {pendingBookings.map(b => (
+                <div key={b.id} style={{ background: '#fffbeb', borderRadius: 14, padding: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10, borderLeft: '4px solid #f59e0b' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
+                      <div style={{ color: '#888', fontSize: 12, marginTop: 3 }}>
+                        {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {formatTime(b.rides?.ride_time)}
+                      </div>
+                    </div>
+                    <span style={{ background: '#fef3c7', color: '#b45309', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>⏳ Awaiting approval</span>
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#92400e', background: '#fef9ec', borderRadius: 8, padding: '8px 10px', lineHeight: 1.6 }}>
+                    Waiting for {b.rides?.profiles?.full_name?.split(' ')[0] || 'the owner'} to approve. <b>₹2 is charged only if they approve</b> — nothing yet.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <button onClick={() => navigate(`/chat/${b.id}`)} style={{ flex: 1, padding: 9, background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 Message owner</button>
+                    <button onClick={() => withdrawRequest(b.id)} style={{ flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Withdraw</button>
+                  </div>
+                </div>
+              ))}
+
               {activeBookings.map(b => (
                 <div key={b.id} style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10, borderLeft: `4px solid ${b.payment_status === 'paid' ? '#16a34a' : '#f59e0b'}` }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
@@ -910,6 +1032,23 @@ export default function MyRides() {
                     <div key={b.id} style={{ background: '#fafafa', borderRadius: 12, padding: 12, marginTop: 8, border: '1px solid #f0f0f0', opacity: 0.7 }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: '#888' }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
                       <div style={{ color: '#bbb', fontSize: 12, marginTop: 2 }}>{b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ❌ Cancelled</div>
+                    </div>
+                  ))}
+                </details>
+              )}
+
+              {/* Declined / expired requests — collapsed, no fee was ever charged */}
+              {declinedBookings.length > 0 && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ fontSize: 12, color: '#aaa', cursor: 'pointer', padding: '8px 0', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>▶</span> {declinedBookings.length} request{declinedBookings.length > 1 ? 's' : ''} not approved (tap to show)
+                  </summary>
+                  {declinedBookings.map(b => (
+                    <div key={b.id} style={{ background: '#fafafa', borderRadius: 12, padding: 12, marginTop: 8, border: '1px solid #f0f0f0', opacity: 0.75 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#888' }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
+                      <div style={{ color: '#bbb', fontSize: 12, marginTop: 2 }}>
+                        {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {b.status === 'expired' ? '⌛ Expired (owner didn’t respond)' : '❌ Declined by owner'} · no fee charged
+                      </div>
                     </div>
                   ))}
                 </details>

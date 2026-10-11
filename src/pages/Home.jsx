@@ -100,6 +100,22 @@ export default function Home() {
   const [filterTo, setFilterTo] = useState('')
   const [filterDate, setFilterDate] = useState('all')
   const [filterTime, setFilterTime] = useState('all')
+  const [selectedDate, setSelectedDate] = useState(() => new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0])
+  const didAutoDate = useRef(false)
+  // On first load, if the default day (today) has no rides — common on
+  // weekends when the commute engine doesn't post — jump to the soonest day
+  // in the next 7 that actually has rides, so we never open on a blank day.
+  useEffect(() => {
+    if (didAutoDate.current || loading) return
+    didAutoDate.current = true
+    const off = 5.5 * 60 * 60 * 1000
+    const dayCount = iso => rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
+    if (dayCount(selectedDate) > 0) return
+    for (let i = 0; i < 7; i++) {
+      const iso = new Date(Date.now() + off + i * 86400000).toISOString().split('T')[0]
+      if (dayCount(iso) > 0) { setSelectedDate(iso); break }
+    }
+  }, [loading])
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [showFromSug, setShowFromSug] = useState(false)
   const [showToSug, setShowToSug] = useState(false)
@@ -229,15 +245,15 @@ export default function Home() {
     const istNow = new Date(now.getTime() + istOffset)
     const today = istNow.toISOString().split('T')[0]
 
-    // Only show today and tomorrow — no future clutter
-    const tomorrow = new Date(istNow.getTime() + 86400000).toISOString().split('T')[0]
+    // Show the next 7 days so the date strip can browse the week
+    const weekEnd = new Date(istNow.getTime() + 6 * 86400000).toISOString().split('T')[0]
 
     const { data, error } = await supabase
       .from('rides')
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
       .in('status', ['active'])
       .gte('ride_date', today)
-      .lte('ride_date', tomorrow)
+      .lte('ride_date', weekEnd)
       .eq('city', profile?.city || 'Hyderabad')
       .order('ride_date', { ascending: true })
       .order('ride_time', { ascending: true })
@@ -264,7 +280,21 @@ export default function Home() {
   const today = new Date(Date.now() + istOffset).toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + istOffset + 86400000).toISOString().split('T')[0]
 
+  async function togglePause(ride) {
+    // Reversible on/off. Off = hidden from riders & not bookable; On = live again.
+    if (!ride.paused && ride.seats_available < ride.seats_total) {
+      if (!confirm('Someone has already booked this ride. Turn it off anyway? They will be refunded.')) return
+      const { data, error } = await supabase.rpc('cancel_ride_by_driver', { p_ride_id: ride.id, p_driver_id: user.id })
+      if (error || !data?.success) { alert('Could not update this ride. Please try again.'); return }
+      fetchRides(); return
+    }
+    const { error } = await supabase.from('rides').update({ paused: !ride.paused }).eq('id', ride.id).eq('driver_id', user.id)
+    if (error) { alert('Could not update this ride. Please try again.'); return }
+    fetchRides()
+  }
+
   const filtered = rides.filter(r => {
+    if (r.paused && r.driver_id !== user?.id) return false
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
     // Only apply MANUAL filters (from the filter panel) — never auto-hide based on request
@@ -272,8 +302,8 @@ export default function Home() {
       && !r.route_description?.toLowerCase().includes(filterFrom.toLowerCase())) return false
     if (filterTo && !r.to_location?.toLowerCase().includes(filterTo.toLowerCase())
       && !r.route_description?.toLowerCase().includes(filterTo.toLowerCase())) return false
-    if (filterDate === 'today' && r.ride_date !== today) return false
-    if (filterDate === 'tomorrow' && r.ride_date !== tomorrow) return false
+    // The date strip is the primary day selector
+    if (r.ride_date !== selectedDate) return false
     if (filterTime === 'morning') {
       const hr = parseInt(r.ride_time?.split(':')[0] || 0)
       if (hr >= 12) return false
@@ -321,20 +351,7 @@ export default function Home() {
 
   // Bottom sheet state
   const [sheetRide, setSheetRide] = useState(null)
-  const [booking, setBooking] = useState(false)
 
-  async function handleBook(ride) {
-    setBooking(true)
-    const { data } = await supabase.rpc('book_ride_atomic', { p_ride_id: ride.id, p_rider_id: user.id, p_seats: 1 })
-    setBooking(false)
-    if (data?.success) {
-      setSheetRide(null)
-      alert('🎉 Booking confirmed!')
-      navigate(`/book/${ride.id}`)
-    } else {
-      alert(data?.message || 'Booking failed. Please try again.')
-    }
-  }
 
   return (
     <div
@@ -434,11 +451,6 @@ export default function Home() {
               <LocationInput label="FROM" value={filterFrom} onChange={setFilterFrom} showSug={showFromSug} setShowSug={setShowFromSug} liveLocations={liveFromLocations} city={profile?.city} />
               <LocationInput label="TO" value={filterTo} onChange={setFilterTo} showSug={showToSug} setShowSug={setShowToSug} liveLocations={liveToLocations} city={profile?.city} />
             </div>
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
-              {[['all','Any Day'],['today','Today'],['tomorrow','Tomorrow']].map(([v,l]) => (
-                <button key={v} onClick={() => setFilterDate(v)} style={{ padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, background: filterDate === v ? '#0f172a' : '#f1f5f9', color: filterDate === v ? '#facc15' : '#64748b', fontWeight: filterDate === v ? 700 : 400 }}>{l}</button>
-              ))}
-            </div>
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
               {[['all','Any Time'],['morning','Morning'],['afternoon','Afternoon'],['evening','Evening']].map(([v,l]) => (
                 <button key={v} onClick={() => setFilterTime(v)} style={{ padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, background: filterTime === v ? '#0f172a' : '#f1f5f9', color: filterTime === v ? '#facc15' : '#64748b', fontWeight: filterTime === v ? 700 : 400 }}>{l}</button>
@@ -456,6 +468,32 @@ export default function Home() {
 
       {/* ── CONTENT ── */}
       <div style={{ padding: '10px 14px' }}>
+
+        {/* Date strip — browse rides across the week (Hopr-style) */}
+        {filter !== 'requests' && (
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, marginBottom: 2 }}>
+            {Array.from({ length: 7 }, (_, i) => {
+              const d = new Date(Date.now() + istOffset + i * 86400000)
+              const iso = d.toISOString().split('T')[0]
+              const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : d.toLocaleDateString('en-IN', { weekday: 'short' })
+              const count = rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
+              const active = selectedDate === iso
+              return (
+                <button key={iso} onClick={() => setSelectedDate(iso)} style={{
+                  flex: '0 0 auto', minWidth: 58, padding: '8px 8px', borderRadius: 12, cursor: 'pointer',
+                  border: active ? '2px solid #111' : '1.5px solid #e5e7eb',
+                  background: active ? '#111' : '#fff', color: active ? '#facc15' : '#334155', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700 }}>{label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, margin: '1px 0' }}>{d.getUTCDate()}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: active ? '#facc15' : (count ? '#16a34a' : '#cbd5e1') }}>
+                    {count ? count + (count > 1 ? ' rides' : ' ride') : '—'}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Your active ride request — banner on the All Rides tab only */}
         {myRequest && filter === 'all' && (
@@ -575,7 +613,7 @@ export default function Home() {
           <div>
             {/* MY RIDES shown at top — slightly bigger */}
             {filtered.filter(r => r.driver_id === user?.id).map(ride => (
-              <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} />
+              <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} onTogglePause={togglePause} />
             ))}
             {/* ALL OTHER RIDES — compact */}
             {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
@@ -687,7 +725,7 @@ export default function Home() {
                       <div style={{ fontSize: 10, color: '#86efac' }}>per seat</div>
                     </div>
                     <div style={{ fontSize: 11, color: '#6b7280', textAlign: 'right' }}>
-                      + ₹2 platform fee<br/>from wallet
+                      + ₹2 fee<br/>only if approved
                     </div>
                   </div>
 
@@ -778,17 +816,80 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
 }
 
 // ── MY RIDE CARD (driver's own posted ride — slightly bigger) ──
-function MyRideCard({ ride, navigate, getCompanyFromEmail }) {
+function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
   const seatsLeft = ride.seats_available || 0
+  const [pendingReqs, setPendingReqs] = useState([])
+  const [confirmedPax, setConfirmedPax] = useState([])
+  const [busyReq, setBusyReq] = useState(null)
+
+  // Load who's waiting (pending) and who's on board (confirmed) for this ride,
+  // so the owner can approve/decline AND still see approved riders afterwards.
+  useEffect(() => {
+    let alive = true
+    if (!['active', 'full'].includes(ride.status)) { setPendingReqs([]); setConfirmedPax([]); return }
+    supabase.from('bookings')
+      .select('id, rider_id, seats_booked, guest_names, status, profiles(full_name, phone)')
+      .eq('ride_id', ride.id).in('status', ['pending', 'confirmed'])
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (!alive) return
+        setPendingReqs((data || []).filter(b => b.status === 'pending'))
+        setConfirmedPax((data || []).filter(b => b.status === 'confirmed'))
+      })
+    return () => { alive = false }
+  }, [ride.id, ride.status])
+
+  async function approveReq(r) {
+    setBusyReq(r.id)
+    const { data, error } = await supabase.rpc('approve_booking', { p_booking_id: r.id, p_driver_id: ride.driver_id })
+    setBusyReq(null)
+    if (error || !data?.success) { alert(data?.error || error?.message || 'Could not approve'); return }
+    window.location.reload()   // seats + status shift — reload for a clean view
+  }
+  async function declineReq(r) {
+    if (!confirm(`Decline ${r.profiles?.full_name || 'this rider'}'s request?\n\nThe seat is released. No fee is charged.`)) return
+    setBusyReq(r.id)
+    const { data, error } = await supabase.rpc('decline_booking', { p_booking_id: r.id, p_driver_id: ride.driver_id })
+    setBusyReq(null)
+    if (error || !data?.success) { alert(data?.error || error?.message || 'Could not decline'); return }
+    setPendingReqs(reqs => reqs.filter(x => x.id !== r.id))
+  }
+
+  function shareRide() {
+    const dateStr = new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const link = ride.ride_code ? `https://app.carpoolkaro.com/r/${ride.ride_code}` : `https://app.carpoolkaro.com/book/${ride.id}`
+    const p = ride.profiles || {}
+    const msg = `🚗 Carpool Available — ${dateStr}
+
+🕘 Ride Time: ${formatTime(ride.ride_time)}
+👤 Name: ${p.full_name || ''}
+🚘 Vehicle: ${p.vehicle_model || ''}${p.vehicle_number ? ` (${p.vehicle_number})` : ''}
+
+📍 From: ${ride.from_location}
+📍 To: ${ride.to_location}
+${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}💰 Fare: ₹${ride.fare} per seat
+💺 Seats Available: ${ride.seats_available}
+
+🔗 Book this ride: ${link}`
+    if (navigator.share) navigator.share({ text: msg }).catch(() => {})
+    else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
   return (
-    <div style={{ background: '#fff', borderRadius: 16, padding: '14px 14px', marginBottom: 10, border: '2px solid #facc15', boxShadow: '0 2px 12px rgba(250,204,21,0.15)' }}>
+    <div style={{ background: ride.paused ? '#fafafa' : '#fff', opacity: ride.paused ? 0.7 : 1, borderRadius: 16, padding: '14px 14px', marginBottom: 10, border: ride.paused ? '2px solid #e5e7eb' : '2px solid #facc15', boxShadow: ride.paused ? 'none' : '0 2px 12px rgba(250,204,21,0.15)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <span style={{ background: '#facc15', color: '#111', fontSize: 9, fontWeight: 900, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.5px' }}>⭐ YOUR POSTED RIDE</span>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {ride.status === 'full' && (
+            <span style={{ background: '#fef2f2', color: '#ef4444', fontSize: 10, padding: '4px 8px', borderRadius: 8, fontWeight: 700 }}>● Full</span>
+          )}
           <button onClick={() => navigate(`/edit-ride/${ride.id}`)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-          <span style={{ background: ride.status === 'full' ? '#fef2f2' : '#f0fdf4', color: ride.status === 'full' ? '#ef4444' : '#16a34a', fontSize: 10, padding: '4px 8px', borderRadius: 8, fontWeight: 700 }}>
-            {ride.status === 'full' ? '● Full' : `${seatsLeft} left`}
-          </span>
+          <div onClick={() => onTogglePause?.(ride)} title={ride.paused ? 'Turn ride ON' : 'Turn ride OFF for this day'} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: ride.paused ? '#9ca3af' : '#16a34a' }}>{ride.paused ? 'Off' : 'On'}</span>
+            <div style={{ width: 38, height: 22, borderRadius: 999, background: ride.paused ? '#d1d5db' : '#16a34a', position: 'relative', transition: 'background .15s' }}>
+              <div style={{ position: 'absolute', top: 3, left: ride.paused ? 3 : 19, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .15s' }} />
+            </div>
+          </div>
         </div>
       </div>
       {/* Route */}
@@ -808,11 +909,54 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail }) {
         </div>
       </div>
       {/* Meta */}
-      <div style={{ display: 'flex', gap: 6 }}>
-        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>🕐 {formatTime(ride.ride_time)}</span>
-        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>📅 {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>💺 {seatsLeft}/{ride.seats_total || 3}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>🕐 {formatTime(ride.ride_time)}</span>
+        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>📅 {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>{seatsLeft > 0 ? `💺 ${seatsLeft} left` : '💺 Full'}</span>
+        <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', flexShrink: 0, background: '#dcfce7', border: 'none', borderRadius: 8, padding: '5px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>📤</button>
       </div>
+      {/* Pending join-requests — approve or decline right here */}
+      {pendingReqs.length > 0 && (
+        <div style={{ marginTop: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '10px 12px' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#b45309', marginBottom: 8 }}>
+            🙋 {pendingReqs.length} request{pendingReqs.length > 1 ? 's' : ''} — ₹2 each side only when you approve
+          </div>
+          {pendingReqs.map(r => (
+            <div key={r.id} style={{ background: '#fff', borderRadius: 10, padding: '9px 11px', marginTop: 6, border: '1px solid #fef3c7' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{r.profiles?.full_name || 'Rider'}</div>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{r.seats_booked} seat{r.seats_booked > 1 ? 's' : ''}{r.guest_names ? ` · ${r.guest_names}` : ''}</div>
+                </div>
+                <button onClick={() => navigate(`/chat/${r.id}`)} style={{ flexShrink: 0, padding: '6px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>💬</button>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => approveReq(r)} disabled={busyReq === r.id}
+                  style={{ flex: 1, padding: '8px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: busyReq === r.id ? 0.6 : 1 }}>
+                  {busyReq === r.id ? '…' : '✅ Approve'}
+                </button>
+                <button onClick={() => declineReq(r)} disabled={busyReq === r.id}
+                  style={{ flex: 1, padding: '8px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  ❌ Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Confirmed riders — one clean line each */}
+      {confirmedPax.length > 0 && (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {confirmedPax.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '7px 11px' }}>
+              <span style={{ fontSize: 12 }}>✅</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{p.profiles?.full_name || 'Rider'}</span>
+              <span style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {p.seats_booked} seat{p.seats_booked > 1 ? 's' : ''}{p.guest_names ? ` · ${p.guest_names}` : ''}</span>
+              <button onClick={() => navigate(`/chat/${p.id}`)} style={{ marginLeft: 'auto', flexShrink: 0, padding: '5px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}>💬</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
