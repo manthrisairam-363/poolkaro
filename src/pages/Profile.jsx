@@ -411,22 +411,66 @@ export default function Profile() {
           <Row id="about" icon="ℹ️" title="About CarpoolKaro" last />
           {openSection === 'about' && (
             <div style={{ padding: '4px 16px 16px' }}>
+              <p style={{ fontSize: 13, color: '#444', lineHeight: 1.7, margin: '4px 0 14px' }}>
+                CarpoolKaro helps Hyderabad's tech-park commuters share the ride to work. Car owners post the trips they're already making; co-riders book a seat, split the fuel cost and skip the traffic — fewer cars on the road, cleaner air, cheaper commutes for everyone.
+              </p>
+
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 0.5, margin: '2px 0 8px' }}>HOW IT WORKS</div>
+              {[
+                ['🚗', 'Car owners post their daily office commute'],
+                ['🙋', 'Co-riders request a seat — the owner approves'],
+                ['💳', 'Pay the fare directly by UPI. CarpoolKaro keeps just ₹2'],
+              ].map(([icon, text], i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
+                  <span style={{ fontSize: 15, lineHeight: 1.4 }}>{icon}</span>
+                  <span style={{ fontSize: 13, color: '#444', lineHeight: 1.5 }}>{text}</span>
+                </div>
+              ))}
+
+              <div style={{ height: 1, background: '#f1f1f1', margin: '12px 0' }} />
+
               {[['🚗', 'Version', '1.0.0 Beta'], ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f9f9f9' }}>
                   <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
                 </div>
               ))}
+
+              {/* Terms & Privacy — moved here under About */}
+              <button onClick={() => navigate('/terms')} style={{ width: '100%', padding: '14px 0', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>📄</span> Terms of Use & Privacy Policy</span>
+                <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
+              </button>
+
+              {/* Delete account — moved here under About. Calls the delete-user edge
+                  function, which verifies the caller from the JWT and refuses if
+                  upcoming rides/bookings exist. (Public /delete-account page remains.) */}
+              <button onClick={async () => {
+                if (!confirm('Delete your CarpoolKaro account permanently?\n\nYour profile, wallet balance, ride history and messages will be removed. This cannot be undone.')) return
+                if (!confirm('Last check — are you sure?')) return
+                try {
+                  const { data, error } = await supabase.functions.invoke('delete-user', { body: {} })
+                  if (error) {
+                    let msg = 'Could not delete your account. Cancel any upcoming rides or bookings first, then try again.'
+                    try { const body = await error.context?.json?.(); if (body?.error) msg = body.error } catch (_) {}
+                    alert(msg); return
+                  }
+                  if (!data?.success) { alert(data?.error || 'Could not delete your account. Please try again.'); return }
+                  alert('Your account has been deleted.')
+                  await signOut(); navigate('/')
+                } catch (e) {
+                  alert('Could not delete your account. Cancel any upcoming rides or bookings first, then try again.')
+                }
+              }} style={{ width: '100%', padding: '14px 0 2px', background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#dc2626' }}>
+                <span style={{ fontSize: 18 }}>🗑️</span> Delete my account
+              </button>
+              <div style={{ fontSize: 11, color: '#aaa', paddingLeft: 28, marginTop: 2 }}>Permanently removes your account and data.</div>
             </div>
           )}
         </div>
 
         {/* ── Group 2: Links ── */}
         <div style={card}>
-          <button onClick={() => navigate('/terms')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>📄</span> Terms of Use & Privacy Policy</span>
-            <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
-          </button>
           <button onClick={() => navigate('/feedback')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>💡</span> Suggest a Feature</span>
             <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
@@ -442,29 +486,10 @@ export default function Profile() {
           🚪 Logout
         </button>
 
-        {/* Delete account — required by Google Play. Calls the delete-user edge function,
-            which verifies the caller from the JWT and refuses if upcoming rides/bookings exist. */}
-        <button onClick={async () => {
-          if (!confirm('Delete your CarpoolKaro account permanently?\n\nYour profile, wallet balance, ride history and messages will be removed. This cannot be undone.')) return
-          if (!confirm('Last check — are you sure?')) return
-          try {
-            const { data, error } = await supabase.functions.invoke('delete-user', { body: {} })
-            if (error) {
-              let msg = 'Could not delete your account. Cancel any upcoming rides or bookings first, then try again.'
-              try { const body = await error.context?.json?.(); if (body?.error) msg = body.error } catch (_) {}
-              alert(msg)
-              return
-            }
-            if (!data?.success) { alert(data?.error || 'Could not delete your account. Please try again.'); return }
-            alert('Your account has been deleted.')
-            await signOut(); navigate('/')
-          } catch (e) {
-            alert('Could not delete your account. Cancel any upcoming rides or bookings first, then try again.')
-          }
-        }} style={{ width: '100%', padding: 12, background: 'transparent', color: '#9ca3af', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 13, fontWeight: 600, marginBottom: 8, cursor: 'pointer' }}>
-          Delete my account
-        </button>
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#ccc', marginTop: 8 }}>CarpoolKaro · Made with ❤️ in India</div>
+        <div style={{ textAlign: 'center', marginTop: 10, lineHeight: 1.8 }}>
+          <div style={{ fontSize: 11, color: '#bbb', fontWeight: 600 }}>CarpoolKaro · Made with ❤️ in India</div>
+          <div style={{ fontSize: 10.5, color: '#cfcfcf' }}>Crafted in Hyderabad · Ride Together, Save Together 🚗</div>
+        </div>
       </div>
       {/* Photo fullscreen viewer */}
       {viewPhoto && profile?.avatar_url && (
