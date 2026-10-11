@@ -363,7 +363,7 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
         <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>₹{ride.fare}/seat</span>
         <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{ride.seats_available > 0 ? `💺 ${ride.seats_available} seat${ride.seats_available > 1 ? 's' : ''} left` : '💺 Full'}</span>
         {!isPast && (ride.status === 'active' || ride.status === 'full') && (
-          <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', flexShrink: 0, background: '#dcfce7', border: 'none', borderRadius: 20, padding: '4px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>➦</button>
+          <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', flexShrink: 0, background: '#dcfce7', border: 'none', borderRadius: 20, padding: '4px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>📲</button>
         )}
       </div>
       {/* ── Pending join-requests — the owner approves or declines here. ── */}
