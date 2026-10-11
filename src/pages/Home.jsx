@@ -101,6 +101,21 @@ export default function Home() {
   const [filterDate, setFilterDate] = useState('all')
   const [filterTime, setFilterTime] = useState('all')
   const [selectedDate, setSelectedDate] = useState(() => new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0])
+  const didAutoDate = useRef(false)
+  // On first load, if the default day (today) has no rides — common on
+  // weekends when the commute engine doesn't post — jump to the soonest day
+  // in the next 7 that actually has rides, so we never open on a blank day.
+  useEffect(() => {
+    if (didAutoDate.current || loading) return
+    didAutoDate.current = true
+    const off = 5.5 * 60 * 60 * 1000
+    const dayCount = iso => rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
+    if (dayCount(selectedDate) > 0) return
+    for (let i = 0; i < 7; i++) {
+      const iso = new Date(Date.now() + off + i * 86400000).toISOString().split('T')[0]
+      if (dayCount(iso) > 0) { setSelectedDate(iso); break }
+    }
+  }, [loading])
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [showFromSug, setShowFromSug] = useState(false)
   const [showToSug, setShowToSug] = useState(false)
@@ -853,11 +868,20 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
     setPendingReqs(reqs => reqs.filter(x => x.id !== r.id))
   }
 
+  function shareRide() {
+    const url = `${window.location.origin}/book/${ride.id}`
+    const d = new Date(ride.ride_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+    const text = `🚗 Ride available on CarpoolKaro\n${ride.from_location} → ${ride.to_location}\n📅 ${d} · 🕐 ${formatTime(ride.ride_time)}\n💺 ₹${ride.fare}/seat\n\nBook your seat here 👇\n${url}`
+    if (navigator.share) navigator.share({ title: 'CarpoolKaro ride', text, url }).catch(() => {})
+    else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
   return (
     <div style={{ background: ride.paused ? '#fafafa' : '#fff', opacity: ride.paused ? 0.7 : 1, borderRadius: 16, padding: '14px 14px', marginBottom: 10, border: ride.paused ? '2px solid #e5e7eb' : '2px solid #facc15', boxShadow: ride.paused ? 'none' : '0 2px 12px rgba(250,204,21,0.15)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <span style={{ background: '#facc15', color: '#111', fontSize: 9, fontWeight: 900, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.5px' }}>⭐ YOUR POSTED RIDE</span>
         <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={shareRide} style={{ background: '#dcfce7', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#15803d', cursor: 'pointer', fontWeight: 700 }}>📤 Share</button>
           <button onClick={() => navigate(`/edit-ride/${ride.id}`)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
           <div onClick={() => onTogglePause?.(ride)} title={ride.paused ? 'Turn ride ON' : 'Turn ride OFF for this day'} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: ride.paused ? '#9ca3af' : '#16a34a' }}>{ride.paused ? 'Off' : 'On'}</span>
@@ -931,7 +955,7 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid #dcfce7' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{p.profiles?.full_name || 'Rider'}</div>
-                <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{p.seats_booked} seat{p.seats_booked > 1 ? 's' : ''}{p.guest_names ? ` · ${p.guest_names}` : ''}{p.profiles?.phone ? ` · ${p.profiles.phone}` : ''}</div>
+                <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{p.seats_booked} seat{p.seats_booked > 1 ? 's' : ''}{p.guest_names ? ` · ${p.guest_names}` : ''}</div>
               </div>
               <button onClick={() => navigate(`/chat/${p.id}`)} style={{ flexShrink: 0, padding: '6px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>💬</button>
             </div>
