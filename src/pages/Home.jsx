@@ -922,11 +922,11 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
         </div>
       </div>
       {/* Meta */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>🕐 {formatTime(ride.ride_time)}</span>
-        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>📅 {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600 }}>💺 {seatsLeft}/{ride.seats_total || 3}</span>
-        <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', background: '#dcfce7', border: 'none', borderRadius: 8, padding: '5px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>📤</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>🕐 {formatTime(ride.ride_time)}</span>
+        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>📅 {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+        <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>{seatsLeft > 0 ? `💺 ${seatsLeft} left` : '💺 Full'}</span>
+        <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', flexShrink: 0, background: '#dcfce7', border: 'none', borderRadius: 8, padding: '5px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>📤</button>
       </div>
       {/* Pending join-requests — approve or decline right here */}
       {pendingReqs.length > 0 && (
