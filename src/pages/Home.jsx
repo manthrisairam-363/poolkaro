@@ -265,22 +265,21 @@ export default function Home() {
   const today = new Date(Date.now() + istOffset).toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + istOffset + 86400000).toISOString().split('T')[0]
 
-  async function dayOffRide(rideId) {
-    if (!confirm('Turn off this ride?\n\nIf anyone has already booked, they will be refunded ₹2.')) return
-    const { data, error } = await supabase.rpc('cancel_ride_by_driver', { p_ride_id: rideId, p_driver_id: user.id })
-    if (error || !data?.success) { alert('Could not turn off this ride. Please try again.'); return }
-    fetchRides()
-  }
-
-  async function dayOff() {
-    const mine = filtered.filter(r => r.driver_id === user?.id && r.status === 'active')
-    if (!mine.length) return
-    if (!confirm('Take this day off?\n\nYour ' + mine.length + ' posted ride' + (mine.length > 1 ? 's' : '') + ' for this day will be turned off. Anyone already booked is refunded ₹2.')) return
-    for (const r of mine) await supabase.rpc('cancel_ride_by_driver', { p_ride_id: r.id, p_driver_id: user.id })
+  async function togglePause(ride) {
+    // Reversible on/off. Off = hidden from riders & not bookable; On = live again.
+    if (!ride.paused && ride.seats_available < ride.seats_total) {
+      if (!confirm('Someone has already booked this ride. Turn it off anyway? They will be refunded.')) return
+      const { data, error } = await supabase.rpc('cancel_ride_by_driver', { p_ride_id: ride.id, p_driver_id: user.id })
+      if (error || !data?.success) { alert('Could not update this ride. Please try again.'); return }
+      fetchRides(); return
+    }
+    const { error } = await supabase.from('rides').update({ paused: !ride.paused }).eq('id', ride.id).eq('driver_id', user.id)
+    if (error) { alert('Could not update this ride. Please try again.'); return }
     fetchRides()
   }
 
   const filtered = rides.filter(r => {
+    if (r.paused && r.driver_id !== user?.id) return false
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
     // Only apply MANUAL filters (from the filter panel) — never auto-hide based on request
@@ -475,7 +474,7 @@ export default function Home() {
               const d = new Date(Date.now() + istOffset + i * 86400000)
               const iso = d.toISOString().split('T')[0]
               const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : d.toLocaleDateString('en-IN', { weekday: 'short' })
-              const count = rides.filter(r => r.ride_date === iso).length
+              const count = rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
               const active = selectedDate === iso
               return (
                 <button key={iso} onClick={() => setSelectedDate(iso)} style={{
@@ -551,13 +550,6 @@ export default function Home() {
         )}
 
         {/* Requests tab */}
-        {filter !== 'requests' && filtered.some(r => r.driver_id === user?.id && r.status === 'active') && (
-          <div style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: 12, padding: '10px 14px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 12.5, color: '#9a3412', fontWeight: 600 }}>🌴 Not driving this day? Turn off your posted rides.</div>
-            <button onClick={dayOff} style={{ flexShrink: 0, padding: '7px 12px', background: '#c2410c', color: '#fff', border: 'none', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Day off</button>
-          </div>
-        )}
-
         {filter === 'requests' ? (
           <div>
             <button onClick={() => navigate('/request')} style={{ width: '100%', padding: 13, background: '#0f172a', color: '#facc15', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 12 }}>
@@ -619,7 +611,7 @@ export default function Home() {
           <div>
             {/* MY RIDES shown at top — slightly bigger */}
             {filtered.filter(r => r.driver_id === user?.id).map(ride => (
-              <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} onDayOff={dayOffRide} />
+              <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} onTogglePause={togglePause} />
             ))}
             {/* ALL OTHER RIDES — compact */}
             {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
@@ -822,15 +814,20 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
 }
 
 // ── MY RIDE CARD (driver's own posted ride — slightly bigger) ──
-function MyRideCard({ ride, navigate, getCompanyFromEmail, onDayOff }) {
+function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
   const seatsLeft = ride.seats_available || 0
   return (
-    <div style={{ background: '#fff', borderRadius: 16, padding: '14px 14px', marginBottom: 10, border: '2px solid #facc15', boxShadow: '0 2px 12px rgba(250,204,21,0.15)' }}>
+    <div style={{ background: ride.paused ? '#fafafa' : '#fff', opacity: ride.paused ? 0.7 : 1, borderRadius: 16, padding: '14px 14px', marginBottom: 10, border: ride.paused ? '2px solid #e5e7eb' : '2px solid #facc15', boxShadow: ride.paused ? 'none' : '0 2px 12px rgba(250,204,21,0.15)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <span style={{ background: '#facc15', color: '#111', fontSize: 9, fontWeight: 900, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.5px' }}>⭐ YOUR POSTED RIDE</span>
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={() => navigate(`/edit-ride/${ride.id}`)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#475569', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-          <button onClick={() => onDayOff?.(ride.id)} style={{ background: '#fff7ed', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#c2410c', cursor: 'pointer', fontWeight: 600 }}>Day off</button>
+          <div onClick={() => onTogglePause?.(ride)} title={ride.paused ? 'Turn ride ON' : 'Turn ride OFF for this day'} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: ride.paused ? '#9ca3af' : '#16a34a' }}>{ride.paused ? 'Off' : 'On'}</span>
+            <div style={{ width: 38, height: 22, borderRadius: 999, background: ride.paused ? '#d1d5db' : '#16a34a', position: 'relative', transition: 'background .15s' }}>
+              <div style={{ position: 'absolute', top: 3, left: ride.paused ? 3 : 19, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .15s' }} />
+            </div>
+          </div>
           <span style={{ background: ride.status === 'full' ? '#fef2f2' : '#f0fdf4', color: ride.status === 'full' ? '#ef4444' : '#16a34a', fontSize: 10, padding: '4px 8px', borderRadius: 8, fontWeight: 700 }}>
             {ride.status === 'full' ? '● Full' : `${seatsLeft} left`}
           </span>
