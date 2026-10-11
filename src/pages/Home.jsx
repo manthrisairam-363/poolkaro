@@ -817,17 +817,23 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
 function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
   const seatsLeft = ride.seats_available || 0
   const [pendingReqs, setPendingReqs] = useState([])
+  const [confirmedPax, setConfirmedPax] = useState([])
   const [busyReq, setBusyReq] = useState(null)
 
-  // Load riders waiting on this ride so the owner can approve/decline here too.
+  // Load who's waiting (pending) and who's on board (confirmed) for this ride,
+  // so the owner can approve/decline AND still see approved riders afterwards.
   useEffect(() => {
     let alive = true
-    if (!['active', 'full'].includes(ride.status)) { setPendingReqs([]); return }
+    if (!['active', 'full'].includes(ride.status)) { setPendingReqs([]); setConfirmedPax([]); return }
     supabase.from('bookings')
-      .select('id, rider_id, seats_booked, guest_names, profiles(full_name)')
-      .eq('ride_id', ride.id).eq('status', 'pending')
+      .select('id, rider_id, seats_booked, guest_names, status, profiles(full_name, phone)')
+      .eq('ride_id', ride.id).in('status', ['pending', 'confirmed'])
       .order('created_at', { ascending: true })
-      .then(({ data }) => { if (alive) setPendingReqs(data || []) })
+      .then(({ data }) => {
+        if (!alive) return
+        setPendingReqs((data || []).filter(b => b.status === 'pending'))
+        setConfirmedPax((data || []).filter(b => b.status === 'confirmed'))
+      })
     return () => { alive = false }
   }, [ride.id, ride.status])
 
@@ -911,6 +917,23 @@ function MyRideCard({ ride, navigate, getCompanyFromEmail, onTogglePause }) {
                   ❌ Decline
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Confirmed riders — who's on board after approval */}
+      {confirmedPax.length > 0 && (
+        <div style={{ marginTop: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 12px' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#15803d', marginBottom: 8 }}>
+            ✅ {confirmedPax.length} rider{confirmedPax.length > 1 ? 's' : ''} confirmed
+          </div>
+          {confirmedPax.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: '1px solid #dcfce7' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{p.profiles?.full_name || 'Rider'}</div>
+                <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{p.seats_booked} seat{p.seats_booked > 1 ? 's' : ''}{p.guest_names ? ` · ${p.guest_names}` : ''}{p.profiles?.phone ? ` · ${p.profiles.phone}` : ''}</div>
+              </div>
+              <button onClick={() => navigate(`/chat/${p.id}`)} style={{ flexShrink: 0, padding: '6px 10px', background: '#fefce8', border: '1px solid #fef08a', color: '#854d0e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>💬</button>
             </div>
           ))}
         </div>
