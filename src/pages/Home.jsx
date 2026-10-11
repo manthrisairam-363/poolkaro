@@ -351,20 +351,7 @@ export default function Home() {
 
   // Bottom sheet state
   const [sheetRide, setSheetRide] = useState(null)
-  const [booking, setBooking] = useState(false)
 
-  async function handleBook(ride) {
-    setBooking(true)
-    const { data } = await supabase.rpc('book_ride_atomic', { p_ride_id: ride.id, p_rider_id: user.id, p_seats: 1 })
-    setBooking(false)
-    if (data?.success) {
-      setSheetRide(null)
-      alert('🎉 Booking confirmed!')
-      navigate(`/book/${ride.id}`)
-    } else {
-      alert(data?.message || 'Booking failed. Please try again.')
-    }
-  }
 
   return (
     <div
@@ -738,7 +725,7 @@ export default function Home() {
                       <div style={{ fontSize: 10, color: '#86efac' }}>per seat</div>
                     </div>
                     <div style={{ fontSize: 11, color: '#6b7280', textAlign: 'right' }}>
-                      + ₹2 platform fee<br/>from wallet
+                      + ₹2 fee<br/>only if approved
                     </div>
                   </div>
 
