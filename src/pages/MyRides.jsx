@@ -359,12 +359,11 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
           <span style={{ background: '#f8f9fa', borderRadius: 20, padding: '2px 8px', fontSize: 10, fontWeight: 600, color: statusColor[ride.status] }}>● {ride.status}</span>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>₹{ride.fare}/seat</span>
-        <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>💺 {ride.seats_available} left of {ride.seats_total}</span>
-        {bookedCount > 0 && <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>👥 {bookedCount} passenger{bookedCount > 1 ? 's' : ''}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'nowrap' }}>
+        <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>₹{ride.fare}/seat</span>
+        <span style={{ background: '#fff7ed', color: '#c2410c', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{ride.seats_available > 0 ? `💺 ${ride.seats_available} seat${ride.seats_available > 1 ? 's' : ''} left` : '💺 Full'}</span>
         {!isPast && (ride.status === 'active' || ride.status === 'full') && (
-          <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', background: '#dcfce7', border: 'none', borderRadius: 20, padding: '4px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>📤</button>
+          <button onClick={shareRide} title="Share this ride" style={{ marginLeft: 'auto', flexShrink: 0, background: '#dcfce7', border: 'none', borderRadius: 20, padding: '4px 11px', fontSize: 14, color: '#15803d', cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>➦</button>
         )}
       </div>
       {/* ── Pending join-requests — the owner approves or declines here. ── */}
