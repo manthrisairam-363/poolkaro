@@ -66,6 +66,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
   const [days, setDays] = useState([1, 2, 3, 4, 5])
   const [seats, setSeats] = useState(3)
   const [fare, setFare] = useState('')
+  const [autoPost, setAutoPost] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -80,6 +81,7 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
       if (data.working_days?.length) setDays(data.working_days)
       if (data.seats_offered) setSeats(data.seats_offered)
       if (data.usual_fare) setFare(String(data.usual_fare))
+      if (typeof data.auto_post === 'boolean') setAutoPost(data.auto_post)
     })
   }, [user?.id])
 
@@ -103,10 +105,12 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
       morning_time: morning || null, evening_time: evening || null,
       working_days: days, seats_offered: isCarOwner ? seats : 3,
       usual_fare: isCarOwner ? Number(fare) : null,
-      auto_post: true, is_active: true, updated_at: new Date().toISOString(),
+      auto_post: isCarOwner ? autoPost : true, is_active: true, updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
     if (err) { setError(err.message); setSaving(false); return }
     await supabase.from('profiles').update({ commute_setup_done: true }).eq('id', user.id)
+    // If a car owner turned auto-post OFF, remove their upcoming unbooked auto rides.
+    if (isCarOwner && !autoPost) { try { await supabase.rpc('cancel_future_autoposts') } catch (_) {} }
     setSaving(false)
     await fetchProfile(user.id)
     onDone?.()
@@ -186,6 +190,18 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
               style={{ width: '100%', padding: '12px 14px', background: '#222', border: '1.5px solid #333', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
             <div style={{ fontSize: 11, color: '#666', marginTop: 5 }}>
               What each rider pays you for the trip (paid directly to you). You can change it on any ride later.
+            </div>
+
+            <div onClick={() => setAutoPost(a => !a)} style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#222', border: '1.5px solid #333', borderRadius: 12, padding: '12px 14px', cursor: 'pointer' }}>
+              <div style={{ paddingRight: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>🔄 Auto-post my rides</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                  {autoPost ? 'We post your rides on your working days for the week ahead.' : 'Off — we won’t post any rides. You can still post manually.'}
+                </div>
+              </div>
+              <div style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: autoPost ? '#facc15' : '#444', position: 'relative', transition: 'background .15s' }}>
+                <div style={{ position: 'absolute', top: 3, left: autoPost ? 21 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .15s' }} />
+              </div>
             </div>
           </>
         )}
