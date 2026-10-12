@@ -111,6 +111,10 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
     await supabase.from('profiles').update({ commute_setup_done: true }).eq('id', user.id)
     // If a car owner turned auto-post OFF, remove their upcoming unbooked auto rides.
     if (isCarOwner && !autoPost) { try { await supabase.rpc('cancel_future_autoposts') } catch (_) {} }
+    // Post this user's rides right now so they appear immediately instead of
+    // waiting for the nightly 4 AM job. Self-guards on role/fare/auto_post,
+    // so it's safe to call for anyone (riders generate nothing).
+    try { await supabase.rpc('generate_my_commute_rides') } catch (_) {}
     setSaving(false)
     await fetchProfile(user.id)
     onDone?.()

@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import WhatsAppChannel from '../components/WhatsAppChannel'
+import { enablePush, getPushState } from '../lib/pushNotifications'
 
 // City IT locations inline — no external import needed
 const CITY_LOCATIONS = {
@@ -86,6 +87,15 @@ function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocati
 
 export default function Home() {
   const { profile, user } = useAuth()
+  const [pushState, setPushState] = useState('on')   // 'on' default avoids a banner flash before the check resolves
+  const [pushBannerDismissed, setPushBannerDismissed] = useState(() => { try { return !!localStorage.getItem('push_banner_dismissed') } catch (_) { return false } })
+  useEffect(() => { getPushState().then(setPushState) }, [])
+  async function enableNotifs() {
+    const s = await enablePush(user.id)
+    setPushState(s)
+    if (s === 'blocked') alert('Notifications are blocked for this site.\n\nTurn them on in your browser settings, then try again.')
+  }
+  function dismissPushBanner() { try { localStorage.setItem('push_banner_dismissed', '1') } catch (_) {}; setPushBannerDismissed(true) }
   const navigate = useNavigate()
   const [rides, setRides] = useState([])
   const [myBookedRideIds, setMyBookedRideIds] = useState(new Set())
@@ -468,6 +478,20 @@ export default function Home() {
 
       {/* ── CONTENT ── */}
       <div style={{ padding: '10px 14px' }}>
+
+        {/* Enable-notifications nudge — the reliable (tap-based) way to subscribe,
+            especially on iOS where the auto-prompt can't work. */}
+        {pushState === 'off' && !pushBannerDismissed && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 22 }}>🔔</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#b45309' }}>Turn on ride alerts</div>
+              <div style={{ fontSize: 11.5, color: '#92400e', lineHeight: 1.5 }}>Know the moment someone requests your ride — or a car owner approves yours.</div>
+            </div>
+            <button onClick={enableNotifs} style={{ flexShrink: 0, background: '#111', color: '#facc15', border: 'none', borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Enable</button>
+            <button onClick={dismissPushBanner} aria-label="Dismiss" style={{ flexShrink: 0, background: 'none', border: 'none', color: '#b45309', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+        )}
 
         {/* Date strip — browse rides across the week (Hopr-style) */}
         {filter !== 'requests' && (

@@ -21,7 +21,7 @@ function keysEqual(a, b) {
 
 // Save a subscription to the DB. Keyed by endpoint so a user's multiple devices
 // each get their own row (upsert on user_id alone would overwrite one device
-// with another). Requires a UNIQUE constraint on endpoint — see note below.
+// with another). Requires a UNIQUE constraint on endpoint.
 async function saveSubscription(userId, subscription) {
   const j = subscription.toJSON()
   await supabase.from('push_subscriptions').upsert({
@@ -42,72 +42,79 @@ async function subscribeFresh(reg, userId) {
   return true
 }
 
-export async function registerPushNotifications(userId) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+const supported = () =>
+  'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 
+// Report the current state WITHOUT prompting: 'on' | 'off' | 'blocked' | 'unsupported'.
+// Used to render the right label on the Enable button / banner.
+export async function getPushState() {
+  if (!supported()) return 'unsupported'
+  if (Notification.permission === 'denied') return 'blocked'
+  if (Notification.permission !== 'granted') return 'off'
+  try {
+    const reg = await navigator.serviceWorker.getRegistration()
+    const sub = reg && (await reg.pushManager.getSubscription())
+    return sub ? 'on' : 'off'
+  } catch (_) { return 'off' }
+}
+
+// Permission is 'granted' here — reuse a healthy subscription, or (re)create one.
+async function ensureSubscribed(reg, userId) {
+  const existing = await reg.pushManager.getSubscription()
+  if (existing) {
+    const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    const existingKey = existing.options?.applicationServerKey
+    const matches = existingKey && keysEqual(new Uint8Array(existingKey), currentKey)
+    if (matches) { await saveSubscription(userId, existing); return true }
+    // Key mismatch → the device can't decrypt our pushes. Tear down + recreate.
+    const oldEndpoint = existing.endpoint
+    try { await existing.unsubscribe() } catch (_) {}
+    if (oldEndpoint) await supabase.from('push_subscriptions').delete().eq('endpoint', oldEndpoint)
+  }
+  return await subscribeFresh(reg, userId)
+}
+
+// Core register. interactive=true means this was triggered by a USER TAP, so we
+// always show the browser prompt (required on iOS, and the only reliable path on
+// Chrome). interactive=false is the quiet auto-attempt after login, which asks
+// at most once per device and never nags. Returns 'on' | 'off' | 'blocked' | 'unsupported'.
+export async function registerPushNotifications(userId, { interactive = false } = {}) {
+  if (!supported()) return 'unsupported'
   try {
     const reg = await navigator.serviceWorker.register('/sw.js')
     await navigator.serviceWorker.ready
 
-    if (Notification.permission === 'denied') return false
+    if (Notification.permission === 'denied') return 'blocked'
 
-    // If permission hasn't been granted yet, prompt once per device (don't nag).
-    // The key fix vs. the old code: we only gate the PROMPT on 'already asked',
-    // never the subscription itself. Previously a device left at 'default'
-    // returned early forever and NEVER subscribed — which is why Android had
-    // zero subscriptions.
     if (Notification.permission === 'default') {
-      const alreadyAsked = localStorage.getItem('push_permission_asked')
-      if (alreadyAsked) return false   // don't re-prompt; user can enable in settings
-      localStorage.setItem('push_permission_asked', '1')
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') return false
-    }
-
-    // Permission is 'granted'. Check for an existing subscription — but only
-    // reuse it if it was created with our CURRENT VAPID key. A subscription
-    // signed with an old key will be silently dropped by the device (Apple/FCM
-    // accept the push, but the device can't decrypt it) — which looks exactly
-    // like "sent:1 but no popup". If the key differs, we recreate it.
-    const existing = await reg.pushManager.getSubscription()
-    if (existing) {
-      const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      const existingKey = existing.options?.applicationServerKey
-      const matches = existingKey && keysEqual(new Uint8Array(existingKey), currentKey)
-      if (matches) {
-        await saveSubscription(userId, existing)  // healthy → just keep DB current
-        return true
+      if (!interactive) {
+        const alreadyAsked = localStorage.getItem('push_permission_asked')
+        if (alreadyAsked) return 'off'          // auto path: don't nag
+        localStorage.setItem('push_permission_asked', '1')
       }
-      // Key mismatch (or unknown) → tear down and recreate with the right key.
-      const oldEndpoint = existing.endpoint
-      try { await existing.unsubscribe() } catch (_) {}
-      if (oldEndpoint) await supabase.from('push_subscriptions').delete().eq('endpoint', oldEndpoint)
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') return permission === 'denied' ? 'blocked' : 'off'
     }
 
-    // No (valid) subscription → create a fresh one with the current key.
-    return await subscribeFresh(reg, userId)
+    await ensureSubscribed(reg, userId)
+    return 'on'
   } catch (err) {
     console.error('Push registration failed:', err)
-    return false
+    return 'off'
   }
 }
 
-export async function sendPushToUser(userId, title, body, url = '/') {
-  // This calls a Supabase Edge Function to send the push
-  // For now we log — will be activated when edge function is deployed
-
-  // Store notification in DB (already done by trigger)
-  // Edge function reads push_subscriptions and sends via web-push
+// Tap-initiated enable, for the "Enable notifications" button/banner.
+export async function enablePush(userId) {
+  return registerPushNotifications(userId, { interactive: true })
 }
 
-// Hook: auto-register on login
+// Hook: quiet auto-attempt a few seconds after login (helps Android/Chrome where
+// it can work without a tap; on iOS it no-ops and the Enable button takes over).
 export function usePushNotifications(userId) {
   useEffect(() => {
     if (!userId) return
-    // Ask for push permission after 3 seconds (not immediately)
-    const timer = setTimeout(() => {
-      registerPushNotifications(userId)
-    }, 3000)
+    const timer = setTimeout(() => { registerPushNotifications(userId) }, 3000)
     return () => clearTimeout(timer)
   }, [userId])
 }

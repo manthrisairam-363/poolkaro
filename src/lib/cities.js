@@ -91,28 +91,28 @@ export const CITIES = {
     name: 'Bengaluru',
     state: 'Karnataka',
     icon: '🌆',
-    active: false, // Coming soon
+    active: true,
     areas: []
   },
   pune: {
     name: 'Pune',
     state: 'Maharashtra',
     icon: '🏛️',
-    active: false,
+    active: true,
     areas: []
   },
   chennai: {
     name: 'Chennai',
     state: 'Tamil Nadu',
     icon: '🌊',
-    active: false,
+    active: true,
     areas: []
   },
   delhi: {
     name: 'Delhi NCR',
     state: 'Delhi',
     icon: '🏰',
-    active: false,
+    active: true,
     areas: []
   },
 }
