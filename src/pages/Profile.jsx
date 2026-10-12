@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { enablePush, getPushState } from '../lib/pushNotifications'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -9,6 +10,13 @@ import NotificationBell from '../components/NotificationBell'
 
 export default function Profile() {
   const { user, profile, signOut, fetchProfile } = useAuth()
+  const [pushState, setPushState] = useState('off')
+  useEffect(() => { getPushState().then(setPushState) }, [])
+  async function enableNotifs() {
+    const s = await enablePush(user.id)
+    setPushState(s)
+    if (s === 'blocked') alert('Notifications are blocked for this site.\n\nTurn them on in your browser settings (Site settings → Notifications), then tap Enable again.')
+  }
   const navigate = useNavigate()
   const fileRef = useRef(null)
 
@@ -412,7 +420,7 @@ export default function Profile() {
           {openSection === 'about' && (
             <div style={{ padding: '4px 16px 16px' }}>
               <p style={{ fontSize: 13, color: '#444', lineHeight: 1.7, margin: '4px 0 14px' }}>
-                CarpoolKaro helps Hyderabad's tech-park commuters share the ride to work. Car owners post the trips they're already making; co-riders book a seat, split the fuel cost and skip the traffic — fewer cars on the road, cleaner air, cheaper commutes for everyone.
+                CarpoolKaro helps India's tech-park commuters share the ride to work — live in Hyderabad, with more cities coming soon. Car owners post the trips they're already making; co-riders book a seat, split the fuel cost and skip the traffic — fewer cars on the road, cleaner air, cheaper commutes for everyone.
               </p>
 
               <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 0.5, margin: '2px 0 8px' }}>HOW IT WORKS</div>
@@ -429,7 +437,7 @@ export default function Profile() {
 
               <div style={{ height: 1, background: '#f1f1f1', margin: '12px 0' }} />
 
-              {[['🚗', 'Version', '1.0.0 Beta'], ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
+              {[['🚗', 'Version', '1.0.0'], ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f9f9f9' }}>
                   <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
@@ -471,6 +479,18 @@ export default function Profile() {
 
         {/* ── Group 2: Links ── */}
         <div style={card}>
+          {pushState !== 'unsupported' && (
+            <div style={{ width: '100%', padding: '14px 16px', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#111' }}><span style={{ fontSize: 18 }}>🔔</span> Notifications</span>
+              {pushState === 'on' ? (
+                <span style={{ color: '#16a34a', fontWeight: 700, fontSize: 12 }}>● On</span>
+              ) : pushState === 'blocked' ? (
+                <button onClick={enableNotifs} style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Blocked — fix</button>
+              ) : (
+                <button onClick={enableNotifs} style={{ background: '#111', color: '#facc15', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Enable</button>
+              )}
+            </div>
+          )}
           <button onClick={() => navigate('/feedback')} style={{ width: '100%', padding: '17px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#111' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 18 }}>💡</span> Suggest a Feature</span>
             <span style={{ color: '#bbb', fontSize: 20 }}>›</span>
