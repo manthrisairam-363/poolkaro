@@ -420,7 +420,7 @@ export default function Profile() {
           {openSection === 'about' && (
             <div style={{ padding: '4px 16px 16px' }}>
               <p style={{ fontSize: 13, color: '#444', lineHeight: 1.7, margin: '4px 0 14px' }}>
-                CarpoolKaro helps India's tech-park commuters share the ride to work — live in Hyderabad, with more cities coming soon. Car owners post the trips they're already making; co-riders book a seat, split the fuel cost and skip the traffic — fewer cars on the road, cleaner air, cheaper commutes for everyone.
+                CarpoolKaro helps office commuters across India share the ride to work — in Hyderabad, Bangalore, Chennai, Pune, Mumbai and Delhi NCR. Car owners post the trips they're already making; co-riders book a seat, split the fuel cost and skip the traffic — fewer cars on the road, cleaner air, cheaper commutes for everyone.
               </p>
 
               <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 0.5, margin: '2px 0 8px' }}>HOW IT WORKS</div>
