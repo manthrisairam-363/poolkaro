@@ -11,11 +11,13 @@ import NotificationBell from '../components/NotificationBell'
 export default function Profile() {
   const { user, profile, signOut, fetchProfile } = useAuth()
   const [pushState, setPushState] = useState('off')
+  const [justRefreshed, setJustRefreshed] = useState(false)
   useEffect(() => { getPushState().then(setPushState) }, [])
   async function enableNotifs() {
     const s = await enablePush(user.id)
     setPushState(s)
-    if (s === 'blocked') alert('Notifications are blocked for this site.\n\nTurn them on in your browser settings (Site settings → Notifications), then tap Enable again.')
+    if (s === 'blocked') { alert('Notifications are blocked for this site.\n\nTurn them on in your browser settings (Site settings → Notifications), then tap again.'); return }
+    if (s === 'on') { setJustRefreshed(true); setTimeout(() => setJustRefreshed(false), 2000) }
   }
   const navigate = useNavigate()
   const fileRef = useRef(null)
@@ -483,7 +485,7 @@ export default function Profile() {
             <div style={{ width: '100%', padding: '14px 16px', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#111' }}><span style={{ fontSize: 18 }}>🔔</span> Notifications</span>
               {pushState === 'on' ? (
-                <span style={{ color: '#16a34a', fontWeight: 700, fontSize: 12 }}>● On</span>
+                <button onClick={enableNotifs} title="Tap to refresh if alerts stop arriving" style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{justRefreshed ? '✓ Refreshed' : '● On · Refresh'}</button>
               ) : pushState === 'blocked' ? (
                 <button onClick={enableNotifs} style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Blocked — fix</button>
               ) : (
