@@ -101,6 +101,9 @@ export default function Home() {
   const [myBookedRideIds, setMyBookedRideIds] = useState(new Set())
   const [requests, setRequests] = useState([])
   const [bookedRideIds, setBookedRideIds] = useState(new Set())
+  const [requestedRideIds, setRequestedRideIds] = useState(new Set())
+  const [requestedMap, setRequestedMap] = useState({})   // ride_id -> pending booking_id
+  const [bookedMap, setBookedMap] = useState({})         // ride_id -> confirmed booking_id
   const [myRequest, setMyRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -147,12 +150,28 @@ export default function Home() {
 
   useEffect(() => { fetchSuggestedRoutes() }, [])
 
-  // Which rides has this user booked? Their plates get unmasked on the card.
-  useEffect(() => {
+  // What has this user already booked (confirmed) or requested (pending)?
+  // Used to badge the Home cards and to offer Message/Withdraw on a pending one.
+  async function fetchMyBookings() {
     if (!user?.id) return
-    supabase.from('bookings').select('ride_id').eq('rider_id', user.id).eq('status', 'confirmed')
-      .then(({ data }) => { if (data) setBookedRideIds(new Set(data.map(b => b.ride_id))) })
-  }, [user?.id])
+    const { data } = await supabase.from('bookings').select('id, ride_id, status')
+      .eq('rider_id', user.id).in('status', ['confirmed', 'pending'])
+    if (!data) return
+    const conf = data.filter(b => b.status === 'confirmed')
+    const pend = data.filter(b => b.status === 'pending')
+    setBookedRideIds(new Set(conf.map(b => b.ride_id)))
+    setRequestedRideIds(new Set(pend.map(b => b.ride_id)))
+    const rMap = {}; pend.forEach(b => { rMap[b.ride_id] = b.id }); setRequestedMap(rMap)
+    const bMap = {}; conf.forEach(b => { bMap[b.ride_id] = b.id }); setBookedMap(bMap)
+  }
+  useEffect(() => { fetchMyBookings() }, [user?.id])
+
+  async function withdrawRequest(bookingId) {
+    if (!confirm('Withdraw your request?\n\nThe seat is released and nothing was charged.')) return
+    const { data, error } = await supabase.rpc('cancel_pending_request', { p_booking_id: bookingId })
+    if (error || !data?.success) { alert(data?.error || 'Could not withdraw. Please try again.'); return }
+    await fetchMyBookings(); await fetchRides()
+  }
 
   const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
@@ -537,23 +556,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Usual routes */}
-        {/* Usual routes — only worth showing when there are enough rides to
-            filter through (otherwise applying a filter just empties the list). */}
-        {suggestedRoutes.length > 0 && rides.length >= 10 && filter === 'all' && !search && !hasActiveFilters && (
-          <div style={{ marginBottom: 10, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
-            {suggestedRoutes.map((r, i) => (
-              <button key={i} onClick={() => { setFilterFrom(r.from.split(' ')[0]); setFilterTo(r.to.split(' ')[0]) }} style={{
-                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20,
-                padding: '5px 10px', fontSize: 10, fontWeight: 600, color: '#334155',
-                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-              }}>
-                📍 {r.from.split(' ')[0]} → {r.to.split(' ')[0]}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Rider requests for drivers */}
         {filter !== 'requests' && requests.filter(r => r.rider_id !== user?.id).length > 0 && (
           <div style={{ background: '#eff6ff', borderRadius: 12, padding: '10px 12px', marginBottom: 10, border: '1px solid #bfdbfe' }}>
@@ -641,7 +643,7 @@ export default function Home() {
             ))}
             {/* ALL OTHER RIDES — compact */}
             {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} />
+              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id] || bookedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} onPay={() => navigate(`/book/${ride.id}`)} />
             ))}
           </div>
         )}
@@ -778,7 +780,7 @@ export default function Home() {
 }
 
 // ── COMPACT RIDE CARD (other rides) ──
-function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
+function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBookingId, onMessage, onWithdraw, onPay }) {
   const emailForBadge = ride.profiles?.work_email_verified ? ride.profiles?.work_email : ride.profiles?.email
   const co = getCompanyFromEmail(emailForBadge)
   const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
@@ -794,7 +796,14 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
 
   return (
     <div onClick={onTap}
-      style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.06)', cursor: 'pointer', border: '1px solid #f1f5f9' }}>
+      style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.06)', cursor: 'pointer', border: myStatus ? `1.5px solid ${myStatus === 'booked' ? '#86efac' : '#fde68a'}` : '1px solid #f1f5f9' }}>
+
+      {/* Your status on this ride — so you know you already requested/booked it */}
+      {myStatus && (
+        <div style={{ marginBottom: 8, display: 'inline-flex', alignItems: 'center', gap: 5, background: myStatus === 'booked' ? '#f0fdf4' : '#fffbeb', color: myStatus === 'booked' ? '#15803d' : '#b45309', border: `1px solid ${myStatus === 'booked' ? '#bbf7d0' : '#fde68a'}`, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 800 }}>
+          {myStatus === 'booked' ? '✅ You booked this' : '⏳ Requested · awaiting owner approval'}
+        </div>
+      )}
 
       {/* Driver + price row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -835,6 +844,20 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail }) {
           🚗 {carModel}{plate ? ` · ${plate}` : ''}
         </span>
       </div>
+
+      {/* Rider's actions — mirror the owner card so it's not a dead end */}
+      {myStatus === 'requested' && myBookingId && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button onClick={(e) => { e.stopPropagation(); onMessage?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 Message owner</button>
+          <button onClick={(e) => { e.stopPropagation(); onWithdraw?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Withdraw</button>
+        </div>
+      )}
+      {myStatus === 'booked' && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          {myBookingId && <button onClick={(e) => { e.stopPropagation(); onMessage?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 Message owner</button>}
+          <button onClick={(e) => { e.stopPropagation(); onPay?.() }} style={{ flex: 1, padding: 9, background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💳 Pay fare</button>
+        </div>
+      )}
     </div>
   )
 }
