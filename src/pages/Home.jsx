@@ -102,6 +102,7 @@ export default function Home() {
   const [requests, setRequests] = useState([])
   const [bookedRideIds, setBookedRideIds] = useState(new Set())
   const [requestedRideIds, setRequestedRideIds] = useState(new Set())
+  const [requestedMap, setRequestedMap] = useState({})   // ride_id -> pending booking_id
   const [myRequest, setMyRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -149,16 +150,26 @@ export default function Home() {
   useEffect(() => { fetchSuggestedRoutes() }, [])
 
   // What has this user already booked (confirmed) or requested (pending)?
-  // Used to badge the Home cards so a rider isn't confused into re-requesting.
-  useEffect(() => {
+  // Used to badge the Home cards and to offer Message/Withdraw on a pending one.
+  async function fetchMyBookings() {
     if (!user?.id) return
-    supabase.from('bookings').select('ride_id, status').eq('rider_id', user.id).in('status', ['confirmed', 'pending'])
-      .then(({ data }) => {
-        if (!data) return
-        setBookedRideIds(new Set(data.filter(b => b.status === 'confirmed').map(b => b.ride_id)))
-        setRequestedRideIds(new Set(data.filter(b => b.status === 'pending').map(b => b.ride_id)))
-      })
-  }, [user?.id])
+    const { data } = await supabase.from('bookings').select('id, ride_id, status')
+      .eq('rider_id', user.id).in('status', ['confirmed', 'pending'])
+    if (!data) return
+    setBookedRideIds(new Set(data.filter(b => b.status === 'confirmed').map(b => b.ride_id)))
+    const pend = data.filter(b => b.status === 'pending')
+    setRequestedRideIds(new Set(pend.map(b => b.ride_id)))
+    const map = {}; pend.forEach(b => { map[b.ride_id] = b.id })
+    setRequestedMap(map)
+  }
+  useEffect(() => { fetchMyBookings() }, [user?.id])
+
+  async function withdrawRequest(bookingId) {
+    if (!confirm('Withdraw your request?\n\nThe seat is released and nothing was charged.')) return
+    const { data, error } = await supabase.rpc('cancel_pending_request', { p_booking_id: bookingId })
+    if (error || !data?.success) { alert(data?.error || 'Could not withdraw. Please try again.'); return }
+    await fetchMyBookings(); await fetchRides()
+  }
 
   const hasActiveFilters = filterFrom || filterTo || filterDate !== 'all' || filterTime !== 'all'
 
@@ -630,7 +641,7 @@ export default function Home() {
             ))}
             {/* ALL OTHER RIDES — compact */}
             {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} />
+              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} />
             ))}
           </div>
         )}
@@ -767,7 +778,7 @@ export default function Home() {
 }
 
 // ── COMPACT RIDE CARD (other rides) ──
-function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus }) {
+function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBookingId, onMessage, onWithdraw }) {
   const emailForBadge = ride.profiles?.work_email_verified ? ride.profiles?.work_email : ride.profiles?.email
   const co = getCompanyFromEmail(emailForBadge)
   const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
@@ -831,6 +842,14 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus }) {
           🚗 {carModel}{plate ? ` · ${plate}` : ''}
         </span>
       </div>
+
+      {/* Rider's actions on a ride they've requested — mirrors the owner card */}
+      {myStatus === 'requested' && myBookingId && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button onClick={(e) => { e.stopPropagation(); onMessage?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 Message owner</button>
+          <button onClick={(e) => { e.stopPropagation(); onWithdraw?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Withdraw</button>
+        </div>
+      )}
     </div>
   )
 }
