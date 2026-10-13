@@ -103,6 +103,7 @@ export default function Home() {
   const [bookedRideIds, setBookedRideIds] = useState(new Set())
   const [requestedRideIds, setRequestedRideIds] = useState(new Set())
   const [requestedMap, setRequestedMap] = useState({})   // ride_id -> pending booking_id
+  const [bookedMap, setBookedMap] = useState({})         // ride_id -> confirmed booking_id
   const [myRequest, setMyRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -156,11 +157,12 @@ export default function Home() {
     const { data } = await supabase.from('bookings').select('id, ride_id, status')
       .eq('rider_id', user.id).in('status', ['confirmed', 'pending'])
     if (!data) return
-    setBookedRideIds(new Set(data.filter(b => b.status === 'confirmed').map(b => b.ride_id)))
+    const conf = data.filter(b => b.status === 'confirmed')
     const pend = data.filter(b => b.status === 'pending')
+    setBookedRideIds(new Set(conf.map(b => b.ride_id)))
     setRequestedRideIds(new Set(pend.map(b => b.ride_id)))
-    const map = {}; pend.forEach(b => { map[b.ride_id] = b.id })
-    setRequestedMap(map)
+    const rMap = {}; pend.forEach(b => { rMap[b.ride_id] = b.id }); setRequestedMap(rMap)
+    const bMap = {}; conf.forEach(b => { bMap[b.ride_id] = b.id }); setBookedMap(bMap)
   }
   useEffect(() => { fetchMyBookings() }, [user?.id])
 
@@ -641,7 +643,7 @@ export default function Home() {
             ))}
             {/* ALL OTHER RIDES — compact */}
             {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} />
+              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id] || bookedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} onPay={() => navigate(`/book/${ride.id}`)} />
             ))}
           </div>
         )}
@@ -778,7 +780,7 @@ export default function Home() {
 }
 
 // ── COMPACT RIDE CARD (other rides) ──
-function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBookingId, onMessage, onWithdraw }) {
+function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBookingId, onMessage, onWithdraw, onPay }) {
   const emailForBadge = ride.profiles?.work_email_verified ? ride.profiles?.work_email : ride.profiles?.email
   const co = getCompanyFromEmail(emailForBadge)
   const initials = ride.profiles?.full_name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
@@ -843,11 +845,17 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBooking
         </span>
       </div>
 
-      {/* Rider's actions on a ride they've requested — mirrors the owner card */}
+      {/* Rider's actions — mirror the owner card so it's not a dead end */}
       {myStatus === 'requested' && myBookingId && (
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <button onClick={(e) => { e.stopPropagation(); onMessage?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 Message owner</button>
           <button onClick={(e) => { e.stopPropagation(); onWithdraw?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Withdraw</button>
+        </div>
+      )}
+      {myStatus === 'booked' && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          {myBookingId && <button onClick={(e) => { e.stopPropagation(); onMessage?.(myBookingId) }} style={{ flex: 1, padding: 9, background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 Message owner</button>}
+          <button onClick={(e) => { e.stopPropagation(); onPay?.() }} style={{ flex: 1, padding: 9, background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💳 Pay fare</button>
         </div>
       )}
     </div>
