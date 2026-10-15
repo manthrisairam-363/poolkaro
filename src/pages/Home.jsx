@@ -518,7 +518,12 @@ export default function Home() {
             {Array.from({ length: 7 }, (_, i) => {
               const d = new Date(Date.now() + istOffset + i * 86400000)
               const iso = d.toISOString().split('T')[0]
-              const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : d.toLocaleDateString('en-IN', { weekday: 'short' })
+              // `d` carries IST wall-clock in its UTC fields. The weekday MUST be
+              // read from those same UTC fields (getUTCDay) as the date number
+              // (getUTCDate) — toLocaleDateString would re-apply the browser's
+              // timezone and shift the label a day off.
+              const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+              const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : WD[d.getUTCDay()]
               const count = rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
               const active = selectedDate === iso
               return (
