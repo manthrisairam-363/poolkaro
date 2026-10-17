@@ -171,21 +171,16 @@ export default function AdminDashboard() {
 
   async function deleteUser(u) {
     if (!confirm(`⚠️ DELETE ${u.full_name || u.email}?\n\nThis permanently removes their account and ALL related data. Cannot be undone.`)) return
-    const id = u.id
-    // Delete all related data in correct order
-    await supabase.from('messages').delete().eq('sender_id', id)
-    await supabase.from('ratings').delete().eq('rated_by', id)
-    await supabase.from('ratings').delete().eq('rated_user_id', id)
-    await supabase.from('notifications').delete().eq('user_id', id)
-    await supabase.from('ride_requests').delete().eq('rider_id', id)
-    await supabase.from('wallet_transactions').delete().eq('user_id', id)
-    await supabase.from('bookings').delete().eq('rider_id', id)
-    await supabase.from('rides').delete().eq('driver_id', id)
-    await supabase.from('wallets').delete().eq('user_id', id)
-    await supabase.from('profiles').delete().eq('id', id)
-    // Delete from Supabase auth.users via Edge Function
-    const { error: fnError } = await supabase.functions.invoke('delete-user', { body: { user_id: id } })
-    if (fnError) console.warn('Auth delete note:', fnError.message)
+    // The delete-user edge function verifies admin from the JWT and deletes the
+    // auth user; profiles/wallets/bookings/etc. cascade from there. One secure
+    // call — no manual client-side deletes (those were blocked by RLS anyway).
+    const { data, error } = await supabase.functions.invoke('delete-user', { body: { user_id: u.id } })
+    if (error) {
+      let msg = 'Could not delete. If the user has upcoming rides or bookings, cancel those first, then retry.'
+      try { const b = await error.context?.json?.(); if (b?.error) msg = b.error } catch (_) {}
+      alert(msg); return
+    }
+    if (data && data.success === false) { alert(data.error || 'Could not delete the user.'); return }
     setSelectedUser(null)
     fetchAll()
     alert(`✅ ${u.full_name || u.email} deleted successfully.`)
@@ -215,14 +210,13 @@ export default function AdminDashboard() {
   }
 
   async function cancelRideAdmin(rideId) {
-    if (!confirm('Cancel this ride?')) return
-    const { data, error } = await supabase.from('rides').update({ status: 'cancelled' }).eq('id', rideId).select('id')
-    if (error || !data || data.length === 0) {
-      alert('Could not cancel. The admin update policy may be missing — run the admin RLS SQL.')
+    if (!confirm('Cancel this ride?\n\nEvery rider is refunded their ₹2 platform fee and notified.')) return
+    const { data, error } = await supabase.rpc('admin_cancel_ride', { p_ride_id: rideId })
+    if (error || !data?.success) {
+      alert(data?.message || error?.message || 'Could not cancel the ride.')
       return
     }
-    await supabase.from('bookings').update({ status: 'cancelled' }).eq('ride_id', rideId)
-    alert('✅ Ride cancelled')
+    alert('✅ Ride cancelled — riders refunded and notified.')
     fetchAll()
   }
 
