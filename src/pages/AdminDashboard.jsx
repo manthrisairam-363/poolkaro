@@ -334,7 +334,9 @@ export default function AdminDashboard() {
 
   function getFilteredSortedUsers() {
     const now = new Date()
+    const dayAgo = new Date(now - 86400000)
     const weekAgo = new Date(now - 7 * 86400000)
+    const monthAgo = new Date(now - 30 * 86400000)
     let list = users.filter(u => {
       const q = search.toLowerCase()
       const matchSearch = !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.phone?.includes(q)
@@ -344,7 +346,10 @@ export default function AdminDashboard() {
       if (userFilter === 'pro') return u.subscription_expires_at && new Date(u.subscription_expires_at) > now
       if (userFilter === 'free') return !u.subscription_expires_at || new Date(u.subscription_expires_at) <= now
       if (userFilter === 'verified') return u.is_verified
+      if (userFilter === 'active_today') return u.last_seen_at && new Date(u.last_seen_at) > dayAgo
       if (userFilter === 'active_week') return u.last_seen_at && new Date(u.last_seen_at) > weekAgo
+      if (userFilter === 'active_month') return u.last_seen_at && new Date(u.last_seen_at) > monthAgo
+      if (userFilter === 'dormant') return !u.last_seen_at || new Date(u.last_seen_at) <= monthAgo
       if (userFilter === 'low_balance') return (wallets[u.id] || 0) < 500
       if (userFilter === 'no_rides') return (u.total_rides_given || 0) === 0 && (u.total_rides_taken || 0) === 0
       if (userFilter === 'referred') return !!u.referred_by
@@ -907,7 +912,10 @@ export default function AdminDashboard() {
                       ['pro', '⭐ Pro'],
                       ['free', '🆓 Free'],
                       ['verified', '✓ Verified'],
+                      ['active_today', '🟢 Active today'],
                       ['active_week', '👁 Active this week'],
+                      ['active_month', '📅 Active this month'],
+                      ['dormant', '😴 Dormant (30d+)'],
                       ['low_balance', '⚠️ Low balance'],
                       ['no_rides', '😴 No rides'],
                       ['referred', '🎁 Referred'],
@@ -962,6 +970,35 @@ export default function AdminDashboard() {
 
                 <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>
                   {getFilteredSortedUsers().length} {search || userFilter !== 'all' ? 'results' : 'total users'}
+                </div>
+
+                {/* Active-users breakdown — real engagement signal (based on last_seen_at) */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                  {(() => {
+                    const now = Date.now()
+                    const a = { today: 0, week: 0, month: 0, dormant: 0 }
+                    users.forEach(u => {
+                      const t = u.last_seen_at ? new Date(u.last_seen_at).getTime() : 0
+                      if (!t || now - t > 30 * 86400000) { a.dormant++; return }
+                      if (now - t <= 86400000) a.today++
+                      if (now - t <= 7 * 86400000) a.week++
+                      a.month++
+                    })
+                    return [
+                      ['active_today', '🟢 Today', a.today, '#22c55e'],
+                      ['active_week', '👁 7 days', a.week, '#3b82f6'],
+                      ['active_month', '📅 30 days', a.month, '#a855f7'],
+                      ['dormant', '😴 Dormant', a.dormant, '#64748b'],
+                    ].map(([f, label, n, color]) => (
+                      <button key={f} onClick={() => setUserFilter(f)} style={{
+                        flex: '1 1 22%', background: '#1a1a1a', border: `1px solid ${userFilter === f ? color : '#222'}`,
+                        borderRadius: 10, padding: '8px 4px', cursor: 'pointer', textAlign: 'center',
+                      }}>
+                        <div style={{ fontSize: 16, fontWeight: 900, color }}>{n}</div>
+                        <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>{label}</div>
+                      </button>
+                    ))
+                  })()}
                 </div>
 
                 {/* Device breakdown — who needs which install instructions */}
