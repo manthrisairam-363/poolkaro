@@ -120,6 +120,8 @@ export default function AdminDashboard() {
         totalRevenue,
         totalWalletBalance: Math.round(totalWalletBalance / 100),
         todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
+        todayBookings: bookingsData.filter(b => b.created_at?.startsWith(todayIST)).length,
+        activeDrivers: new Set(ridesData.filter(r => ['active','full'].includes(r.status)).map(r => r.driver_id)).size,
         todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.type === 'razorpay' || t.type === 'subscription')).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100,
         verifiedUsers: usersData.filter(u => u.is_verified).length,
         workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
@@ -181,6 +183,7 @@ export default function AdminDashboard() {
       alert(msg); return
     }
     if (data && data.success === false) { alert(data.error || 'Could not delete the user.'); return }
+    logAdmin('delete_user', u.id, { name: u.full_name, email: u.email })
     setSelectedUser(null)
     fetchAll()
     alert(`✅ ${u.full_name || u.email} deleted successfully.`)
@@ -216,8 +219,32 @@ export default function AdminDashboard() {
       alert(data?.message || error?.message || 'Could not cancel the ride.')
       return
     }
+    logAdmin('cancel_ride', null, { ride_id: rideId })
     alert('✅ Ride cancelled — riders refunded and notified.')
     fetchAll()
+  }
+
+  // Fire-and-forget audit trail — never block or fail an admin action on logging.
+  const logAdmin = (action, target = null, details = {}) => {
+    supabase.rpc('log_admin_action', { p_action: action, p_target: target, p_details: details })
+      .then(() => {}, () => {})
+  }
+
+  // Soft ban / unban — reversible, keeps the user's data. Blocks app access.
+  async function banUser(u, banned) {
+    let reason = ''
+    if (banned) {
+      reason = prompt(`Reason for banning ${u.full_name || u.email}? (saved to the audit log)`)
+      if (reason === null) return
+    }
+    if (!confirm(`${banned ? 'BAN' : 'Unban'} ${u.full_name || u.email}?\n\n${banned
+      ? 'They will be signed out and blocked from using the app. Data is kept — this is reversible.'
+      : 'They will regain access to the app.'}`)) return
+    const { data, error } = await supabase.rpc('admin_set_ban', { p_user_id: u.id, p_banned: banned, p_reason: reason })
+    if (error || !data?.success) { alert(data?.message || error?.message || 'Could not update ban status.'); return }
+    setUsers(prev => prev.map(x => x.id === u.id ? { ...x, banned } : x))
+    setSelectedUser(prev => prev?.id === u.id ? { ...prev, banned } : prev)
+    alert(banned ? `🚫 ${u.full_name || u.email} banned.` : `✅ ${u.full_name || u.email} unbanned.`)
   }
 
   function shareRideAdmin(r) {
@@ -395,6 +422,7 @@ export default function AdminDashboard() {
     // Grant this user Pro until a chosen date, right from their panel.
     async function grantProToUser(dateStr) {
       if (!u || !dateStr) return
+      if (!confirm(`Grant Pro to ${u.full_name || u.email} until ${new Date(dateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}?`)) return
       setProLoading(true)
       const expires = new Date(dateStr + 'T23:59:59').toISOString()
       const { error } = await supabase.rpc('admin_set_subscription', { p_user_id: u.id, p_expires_at: expires })
@@ -407,6 +435,7 @@ export default function AdminDashboard() {
         type: 'booking', is_read: false,
       })
       u.subscription_expires_at = expires
+      logAdmin('grant_pro', u.id, { until: expires })
       alert(`✅ ${u.full_name} now has Pro until ${new Date(dateStr).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}`)
     }
     async function revokeProFromUser() {
@@ -416,19 +445,25 @@ export default function AdminDashboard() {
       const data = error ? null : [{ id: u.id }]
       if (error || !data?.length) { alert('Could not revoke.'); return }
       u.subscription_expires_at = yesterday
+      logAdmin('revoke_pro', u.id, {})
       alert('Pro revoked')
     }
 
     async function handleTopup() {
       if (!u || !topupAmount || !topupNote) return
-      const amt = Math.round(parseFloat(topupAmount) * 100)
-      if (isNaN(amt) || amt <= 0) return alert('Enter valid amount')
+      const rupees = parseFloat(topupAmount)
+      const amt = Math.round(rupees * 100)
+      if (isNaN(amt) || amt <= 0) return alert('Enter a valid amount')
+      if (rupees > 10000) return alert('₹10,000 is the max for a single credit. Split it if that is really intended.')
+      if (!confirm(`Add ₹${rupees.toFixed(0)} to ${u.full_name || u.email}'s wallet?\n\nNote: ${topupNote}${rupees >= 1000 ? '\n\n⚠️ That is a large amount — double-check before confirming.' : ''}`)) return
       setTopupLoading(true)
-      await supabase.rpc('admin_credit_wallet', {
+      const { error: creditErr } = await supabase.rpc('admin_credit_wallet', {
         p_user_id: u.id,
         p_amount: amt,
         p_description: topupNote,
       })
+      if (creditErr) { setTopupLoading(false); alert('Could not credit the wallet: ' + creditErr.message); return }
+      logAdmin('wallet_credit', u.id, { amount_rupees: rupees, note: topupNote })
       await supabase.from('notifications').insert({
         user_id: u.id,
         title: '💰 Wallet Credited!',
@@ -462,6 +497,7 @@ export default function AdminDashboard() {
               {u.work_email_verified && <span style={{ background: '#7c3aed', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 10, fontWeight: 700 }}>🏢 Work</span>}
               {u.is_admin && <span style={{ background: '#facc15', color: '#111', fontSize: 10, padding: '3px 8px', borderRadius: 10, fontWeight: 700 }}>👑 Admin</span>}
               {suspiciousUsers.find(s => s.id === u.id) && <span style={{ background: '#7f1d1d', color: '#fca5a5', fontSize: 10, padding: '3px 8px', borderRadius: 10, fontWeight: 700 }}>⚠️ Flagged</span>}
+              {u.banned && <span style={{ background: '#450a0a', color: '#fecaca', fontSize: 10, padding: '3px 8px', borderRadius: 10, fontWeight: 700, border: '1px solid #7f1d1d' }}>🚫 Banned</span>}
             </div>
           </div>
 
@@ -577,14 +613,24 @@ export default function AdminDashboard() {
               {u.is_verified ? '✕ Unverify' : '✓ Verify'}
             </button>
             {!u.is_admin && (
-              <button onClick={() => deleteUser(u)} style={{
+              <button onClick={() => banUser(u, !u.banned)} style={{
                 flex: 1, padding: 12, borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
-                background: '#7f1d1d', color: '#fca5a5',
+                background: u.banned ? '#166534' : '#78350f', color: u.banned ? '#bbf7d0' : '#fed7aa',
               }}>
-                🗑️ Delete Account
+                {u.banned ? '✓ Unban' : '🚫 Ban'}
               </button>
             )}
           </div>
+          {!u.is_admin && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <button onClick={() => deleteUser(u)} style={{
+                flex: 1, padding: 10, borderRadius: 10, border: '1px solid #7f1d1d', cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                background: 'transparent', color: '#b91c1c',
+              }}>
+                🗑️ Delete permanently (irreversible)
+              </button>
+            </div>
+          )}
           {/* ── Pro subscription control ── */}
           <div style={{ marginTop: 18, background: '#1e1b4b', borderRadius: 12, padding: 14, border: '1px solid #4f46e5' }}>
             {(() => {
@@ -709,7 +755,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','unpaid':'🧾 Unpaid Fares','audit':'📜 Audit Log','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -748,6 +794,14 @@ export default function AdminDashboard() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>🚗 Rides posted today</span>
                     <span style={{ fontWeight: 700 }}>{stats.todayRides}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                    <span style={{ color: '#888', fontSize: 13 }}>🎫 Bookings today</span>
+                    <span style={{ fontWeight: 700 }}>{stats.todayBookings}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                    <span style={{ color: '#888', fontSize: 13 }}>🧑‍✈️ Active drivers</span>
+                    <span style={{ fontWeight: 700 }}>{stats.activeDrivers}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>💰 Revenue today</span>
@@ -813,6 +867,8 @@ export default function AdminDashboard() {
                   ['ratings',   '⭐', 'Ratings',   'Trust',                    '#f59e0b'],
                   ['referrals', '🎁', 'Referrals', 'Growth',                   '#a855f7'],
                   ['payouts',   '💸', 'Payouts',   'Driver earnings',          '#06b6d4'],
+                  ['unpaid',    '🧾', 'Unpaid Fares', 'Owed on past rides',    '#ef4444'],
+                  ['audit',     '📜', 'Audit Log', 'Admin actions',            '#64748b'],
                   ['version',   '⚙️', 'Version',   'App control',              '#6366f1'],
                 ].map(([v, icon, label, sub, color]) => (
                   <button key={v} onClick={() => switchTab(v)} style={{
@@ -1241,6 +1297,7 @@ export default function AdminDashboard() {
                             })
                           }
                           await supabase.from('reported_messages').update({ resolved: true }).eq('id', r.id)
+                          logAdmin('warn_users', r.booking_id, { context: 'reported_message' })
                           setReports(prev => prev.filter(x => x.id !== r.id))
                           alert('⚠️ Warning sent to both users in this booking.')
                         }} style={{ flex: 1, padding: '10px', background: '#78350f', color: '#fed7aa', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>
@@ -1420,6 +1477,16 @@ export default function AdminDashboard() {
             {/* ── PAYOUTS ── */}
             {tab === 'payouts' && (
               <PayoutsTab supabase={supabase} />
+            )}
+
+            {/* ── UNPAID FARES ── */}
+            {tab === 'unpaid' && (
+              <UnpaidFaresTab supabase={supabase} />
+            )}
+
+            {/* ── AUDIT LOG ── */}
+            {tab === 'audit' && (
+              <AuditLogTab supabase={supabase} users={users} />
             )}
 
             {/* ── APP VERSION ── */}
@@ -1807,6 +1874,7 @@ function RatingsTab({ supabase }) {
                 <div style={{fontSize:20,fontWeight:900,color:'#ef4444'}}>⭐ {Number(u.avg_rating).toFixed(1)}</div>
                 <button onClick={async()=>{
                   await supabase.from('notifications').insert({user_id:u.id,type:'system',title:'⚠️ Rating Notice',message:'Your rating has dropped. Please maintain good conduct to continue using CarpoolKaro.',is_read:false})
+                  supabase.rpc('log_admin_action',{p_action:'warn_rating',p_target:u.id,p_details:{}}).then(()=>{},()=>{})
                   alert(`Warning sent to ${u.full_name}`)
                 }} style={{marginTop:6,background:'#7f1d1d',color:'#fca5a5',border:'none',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer'}}>⚠️ Warn</button>
               </div>
@@ -1928,11 +1996,12 @@ function NotifyTab({ supabase, users }) {
   }
   async function send() {
     if(!title.trim()||!message.trim()){alert('Title and message required');return}
-    setSending(true)
     const targets = getTargets()
-    if(targets.length>0) {
-      await supabase.from('notifications').insert(targets.map(u=>({user_id:u.id,title,message,type:'admin_broadcast',is_read:false})))
-    }
+    if(targets.length===0){alert('No users match this target.');return}
+    if(!confirm(`Send this notification to ${targets.length} user${targets.length!==1?'s':''}?\n\n${title}\n${message}`))return
+    setSending(true)
+    await supabase.from('notifications').insert(targets.map(u=>({user_id:u.id,title,message,type:'admin_broadcast',is_read:false})))
+    supabase.rpc('log_admin_action',{p_action:'broadcast',p_target:null,p_details:{title,count:targets.length,target:targetType}}).then(()=>{},()=>{})
     setSending(false)
     setSent(targets.length)
     setTitle('');setMessage('')
@@ -2015,56 +2084,6 @@ function NotifyTab({ supabase, users }) {
           </div>
         ))}
       </>}
-    </div>
-  )
-}
-
-// ── FIX CITIES BUTTON ──
-function FixCitiesButton({ supabase, onDone }) {
-  const [fixing, setFixing] = useState(false)
-  const [result, setResult] = useState(null)
-
-  async function fixCities() {
-    if (!window.confirm('This will normalise all user & ride city names to proper case (e.g. hyderabad → Hyderabad). Continue?')) return
-    setFixing(true)
-    const cityMap = [
-      ['Hyderabad', ['hyderabad']],
-      ['Bangalore', ['bangalore', 'bengaluru']],
-      ['Pune',      ['pune']],
-      ['Mumbai',    ['mumbai']],
-      ['Delhi NCR', ['delhi ncr', 'delhi', 'ncr', 'gurgaon', 'noida']],
-      ['Chennai',   ['chennai']],
-    ]
-    let totalFixed = 0
-    for (const [proper, variants] of cityMap) {
-      for (const v of variants) {
-        const { count: c1 } = await supabase.from('profiles').update({ city: proper }).ilike('city', v).select('id', { count: 'exact', head: true })
-        const { count: c2 } = await supabase.from('rides').update({ city: proper }).ilike('city', v).select('id', { count: 'exact', head: true })
-        totalFixed += (c1 || 0) + (c2 || 0)
-      }
-    }
-    // Fix nulls → Hyderabad
-    await supabase.from('profiles').update({ city: 'Hyderabad' }).is('city', null)
-    await supabase.from('profiles').update({ city: 'Hyderabad' }).eq('city', '')
-    await supabase.from('rides').update({ city: 'Hyderabad' }).is('city', null)
-    setFixing(false)
-    setResult(totalFixed)
-    if (onDone) onDone()
-    setTimeout(() => setResult(null), 5000)
-  }
-
-  return (
-    <div style={{ background: '#111', borderRadius: 12, padding: 14, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <div>
-        <div style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>🔧 Fix City Names</div>
-        <div style={{ fontSize: 11, color: '#555', marginTop: 3 }}>
-          Normalises "hyderabad" → "Hyderabad" for all users & rides
-        </div>
-        {result !== null && <div style={{ fontSize: 11, color: '#4ade80', marginTop: 4 }}>✅ Fixed {result} records!</div>}
-      </div>
-      <button onClick={fixCities} disabled={fixing} style={{ background: fixing ? '#333' : '#facc15', color: '#111', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 12, fontWeight: 800, cursor: fixing ? 'default' : 'pointer', flexShrink: 0, marginLeft: 12 }}>
-        {fixing ? '⏳ Fixing...' : '🔧 Fix Now'}
-      </button>
     </div>
   )
 }
@@ -2466,6 +2485,90 @@ function AppVersionTab({ supabase }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ── AUDIT LOG — every admin action, newest first ──
+function AuditLogTab({ supabase, users }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const { data } = await supabase.from('admin_actions').select('*').order('created_at', { ascending: false }).limit(200)
+    setRows(data || [])
+  }
+  const nameOf = (id) => users.find(u => u.id === id)?.full_name || (id ? id.slice(0, 8) : '—')
+  const LABEL = {
+    wallet_credit: '💰 Wallet credit', grant_pro: '⭐ Granted Pro', revoke_pro: '✕ Revoked Pro',
+    ban_user: '🚫 Banned user', unban_user: '✓ Unbanned user', delete_user: '🗑️ Deleted user',
+    cancel_ride: '🚗 Cancelled ride', broadcast: '📢 Broadcast', warn_users: '⚠️ Warned users',
+    warn_rating: '⚠️ Rating warning',
+  }
+  if (rows === null) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#facc15' }}>📜 Audit Log <span style={{ color: '#555', fontWeight: 400 }}>· last {rows.length}</span></div>
+        <button onClick={load} style={{ background: '#222', border: 'none', color: '#facc15', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>↺ Refresh</button>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ color: '#666', fontSize: 13, padding: 20, textAlign: 'center' }}>No admin actions recorded yet.</div>
+      ) : rows.map(r => (
+        <div key={r.id} style={{ background: '#1a1a1a', border: '1px solid #222', borderRadius: 10, padding: '10px 12px', marginBottom: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{LABEL[r.action] || r.action}</span>
+            <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>{new Date(r.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          {r.target_user && <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>→ {nameOf(r.target_user)}</div>}
+          {r.details && Object.keys(r.details).length > 0 && (
+            <div style={{ fontSize: 10, color: '#666', marginTop: 3, fontFamily: 'monospace', wordBreak: 'break-word' }}>
+              {Object.entries(r.details).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── UNPAID FARES — confirmed bookings on past rides, fare not settled ──
+function UnpaidFaresTab({ supabase }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+    const today = istNow.toISOString().split('T')[0]
+    const { data } = await supabase
+      .from('bookings')
+      .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, created_at, rides!inner(from_location,to_location,ride_date,driver_id), profiles(full_name,phone)')
+      .eq('status', 'confirmed')
+      .lte('rides.ride_date', today)
+      .order('created_at', { ascending: false })
+      .limit(500)
+    setRows((data || []).filter(b => b.payment_status !== 'paid' && !b.driver_confirmed))
+  }
+  if (rows === null) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
+  const owed = (b) => Number(b.ride_fare || 0) * (b.seats_booked || 1)
+  const totalOwed = rows.reduce((s, b) => s + owed(b), 0)
+  return (
+    <div>
+      <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: '#f87171', fontWeight: 700 }}>🧾 UNPAID FARES (past rides)</div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: '#ef4444', marginTop: 4 }}>₹{totalOwed} <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>across {rows.length} booking{rows.length !== 1 ? 's' : ''}</span></div>
+        <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>Rider hasn't paid and the driver hasn't confirmed receipt. These are UPI-direct fares between users — not platform money.</div>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ color: '#15803d', fontSize: 13, padding: 20, textAlign: 'center' }}>All past fares settled 🎉</div>
+      ) : rows.map(b => (
+        <div key={b.id} style={{ background: '#1a1a1a', border: '1px solid #222', borderRadius: 10, padding: '10px 12px', marginBottom: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{b.profiles?.full_name || 'Rider'}</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#f87171', flexShrink: 0 }}>⏳ ₹{owed(b)}</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
+          <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>{b.rides?.ride_date}{b.profiles?.phone ? ` · ${b.profiles.phone}` : ''}</div>
+        </div>
+      ))}
     </div>
   )
 }
