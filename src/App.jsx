@@ -176,13 +176,46 @@ function ConnectionError({ onRetry }) {
   )
 }
 
+// ── Shown when a signed-in user has been banned by an admin (reversible) ──
+function BannedScreen({ reason, onSignOut }) {
+  return (
+    <div style={{
+      minHeight: '100vh', background: '#111', color: '#fff',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', padding: 24, textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>
+        Account suspended
+      </div>
+      <div style={{ fontSize: 14, color: '#888', lineHeight: 1.6, maxWidth: 320, marginBottom: 8 }}>
+        Your CarpoolKaro account has been suspended and you can't use the app right now.
+      </div>
+      {reason && (
+        <div style={{ fontSize: 13, color: '#fca5a5', background: '#2a0a0a', border: '1px solid #7f1d1d', borderRadius: 10, padding: '10px 14px', maxWidth: 320, marginBottom: 16 }}>
+          Reason: {reason}
+        </div>
+      )}
+      <div style={{ fontSize: 13, color: '#888', maxWidth: 320, marginBottom: 24 }}>
+        If you think this is a mistake, please reach out to the CarpoolKaro team.
+      </div>
+      <button onClick={onSignOut} style={{
+        padding: '12px 28px', background: '#222', color: '#fff',
+        border: '1px solid #333', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer',
+      }}>
+        Sign out
+      </button>
+    </div>
+  )
+}
+
 function CommuteEdit() {
   const navigate = useNavigate()
   return <CommuteSetup mode="edit" onDone={() => navigate('/profile')} />
 }
 
 function AppRoutes() {
-  const { user, profile, loading, profileError, fetchProfile } = useAuth()
+  const { user, profile, loading, profileError, fetchProfile, signOut } = useAuth()
   usePushNotifications(user?.id)
   const [commuteSkipped, setCommuteSkipped] = useState(() => { try { return sessionStorage.getItem('commute_skip') === '1' } catch (_) { return false } })
 
@@ -209,6 +242,8 @@ function AppRoutes() {
   // Never fall through to Onboarding here — that would restart setup for an
   // existing user just because they opened the app with no connection.
   if (profileError) return <ConnectionError onRetry={() => fetchProfile(user.id)} />
+  // Banned users: reversible block — show a suspension screen instead of the app.
+  if (profile?.banned) return <BannedScreen reason={profile.banned_reason} onSignOut={signOut} />
   if (!profile?.onboarding_complete) return <Onboarding />
   // After onboarding, prompt new AND existing users to set up their commute so
   // we can auto-post rides and match routes. Skippable per session; re-prompts
