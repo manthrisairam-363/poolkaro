@@ -122,6 +122,7 @@ export default function AdminDashboard() {
         todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
         todayBookings: bookingsData.filter(b => b.created_at?.startsWith(todayIST)).length,
         activeDrivers: new Set(ridesData.filter(r => ['active','full'].includes(r.status)).map(r => r.driver_id)).size,
+        pendingRequests: bookingsData.filter(b => b.status === 'pending').length,
         todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.type === 'razorpay' || t.type === 'subscription')).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100,
         verifiedUsers: usersData.filter(u => u.is_verified).length,
         workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
@@ -760,7 +761,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','unpaid':'🧾 Unpaid Fares','audit':'📜 Audit Log','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','pending':'⏳ Pending Requests','popup':'🖼️ Home Popup','unpaid':'🧾 Unpaid Fares','audit':'📜 Audit Log','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -807,6 +808,10 @@ export default function AdminDashboard() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>🧑‍✈️ Active drivers</span>
                     <span style={{ fontWeight: 700 }}>{stats.activeDrivers}</span>
+                  </div>
+                  <div onClick={() => switchTab('pending')} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
+                    <span style={{ color: '#888', fontSize: 13 }}>⏳ Requests awaiting owner approval</span>
+                    <span style={{ fontWeight: 700, color: stats.pendingRequests > 0 ? '#f97316' : '#fff' }}>{stats.pendingRequests} ›</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>💰 Revenue today</span>
@@ -863,7 +868,9 @@ export default function AdminDashboard() {
                   ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
                   ['suspicious','🛡️', 'Safety',    (suspiciousUsers.length + reports.length) > 0 ? `${suspiciousUsers.length + reports.length} to review` : 'Clean', '#ef4444'],
                   ['rides',     '🚗', 'Rides & Bookings', 'All rides + bookings',  '#d97706'],
+                  ['pending',   '⏳', 'Pending Requests', stats?.pendingRequests ? `${stats.pendingRequests} waiting` : 'None waiting', '#f97316'],
                   ['notify',    '📢', 'Send Notification', 'Message users',       '#7c3aed'],
+                  ['popup',     '🖼️', 'Home Popup', 'Image on Home screen',      '#ec4899'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
                   ['subs',      '⭐', 'Subscriptions', 'Pro members',           '#f59e0b'],
                   ['recharges', '💳', 'Recharges', 'Wallet top-ups',           '#22c55e'],
@@ -1514,6 +1521,16 @@ export default function AdminDashboard() {
             {/* ── PAYOUTS ── */}
             {tab === 'payouts' && (
               <PayoutsTab supabase={supabase} />
+            )}
+
+            {/* ── PENDING REQUESTS ── */}
+            {tab === 'pending' && (
+              <PendingBookingsTab supabase={supabase} />
+            )}
+
+            {/* ── HOME POPUP ── */}
+            {tab === 'popup' && (
+              <HomePopupTab supabase={supabase} />
             )}
 
             {/* ── UNPAID FARES ── */}
@@ -2606,6 +2623,214 @@ function UnpaidFaresTab({ supabase }) {
           <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>{b.rides?.ride_date}{b.profiles?.phone ? ` · ${b.profiles.phone}` : ''}</div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── PENDING REQUESTS — riders waiting on an owner to approve/decline ──
+// Oldest first. Red = waiting 2h+ or the ride starts within 3h.
+function PendingBookingsTab({ supabase }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, created_at, seats_booked, rider_id, profiles(full_name, phone), rides!inner(id, from_location, to_location, ride_date, ride_time, driver_id, profiles(full_name, phone))')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+    if (error) console.error('pending load:', error.message)
+    setRows(data || [])
+  }
+  const waPhone = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length === 10 ? '91' + d : d }
+  const fmtAgo = (ms) => {
+    const m = Math.max(0, Math.round(ms / 60000))
+    return m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 1440)}d`
+  }
+  const fmtTime = (t) => {
+    const [h, m] = String(t || '').split(':')
+    return h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : ''
+  }
+
+  async function nudge(b) {
+    const r = b.rides
+    const { error } = await supabase.from('notifications').insert({
+      user_id: r.driver_id, type: 'booking', ride_id: r.id, booking_id: b.id, is_read: false,
+      title: '⏳ A rider is waiting for you',
+      message: `${b.profiles?.full_name || 'A rider'} requested ${b.seats_booked || 1} seat${(b.seats_booked || 1) > 1 ? 's' : ''} on ${r.from_location} → ${r.to_location}. Approve or decline in My Rides.`,
+    })
+    if (error) { alert('Could not send: ' + error.message); return }
+    supabase.rpc('log_admin_action', { p_action: 'nudge_driver', p_target: r.driver_id, p_details: { booking_id: b.id } }).then(() => {}, () => {})
+    alert('🔔 Owner nudged.')
+  }
+
+  function whatsapp(b) {
+    const r = b.rides
+    const phone = waPhone(r.profiles?.phone)
+    if (!phone) { alert('This owner has no phone number on file.'); return }
+    const msg = `Hi ${r.profiles?.full_name || ''}, ${b.profiles?.full_name || 'a rider'} has requested your ride ${r.from_location} → ${r.to_location} on CarpoolKaro. Please approve or decline here: https://app.carpoolkaro.com/my-rides`
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  if (rows === null) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
+  const now = Date.now()
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#f97316' }}>⏳ Awaiting owner approval <span style={{ color: '#555', fontWeight: 400 }}>· {rows.length}</span></div>
+        <button onClick={load} style={{ background: '#222', border: 'none', color: '#facc15', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>↺ Refresh</button>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ color: '#15803d', fontSize: 13, padding: 20, textAlign: 'center' }}>No requests waiting — every request has been answered 🎉</div>
+      ) : rows.map(b => {
+        const r = b.rides
+        const waited = now - new Date(b.created_at).getTime()
+        const rideAt = new Date(`${r.ride_date}T${(r.ride_time || '00:00').slice(0, 5)}:00+05:30`).getTime()
+        const untilRide = rideAt - now
+        const urgent = waited > 2 * 3600000 || untilRide < 3 * 3600000
+        return (
+          <div key={b.id} style={{ background: '#1a1a1a', border: `1px solid ${urgent ? '#7f1d1d' : '#222'}`, borderRadius: 12, padding: 12, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{r.from_location} → {r.to_location}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: urgent ? '#f87171' : '#888', flexShrink: 0 }}>waiting {fmtAgo(waited)}</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+              🗓 {new Date(`${r.ride_date}T00:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · {fmtTime(r.ride_time)}
+              {untilRide > 0 ? ` · starts in ${fmtAgo(untilRide)}` : ' · ride time passed'}
+            </div>
+            <div style={{ fontSize: 12, color: '#ccc', marginTop: 6 }}>
+              🙋 <b>{b.profiles?.full_name || 'Rider'}</b> wants {b.seats_booked || 1} seat{(b.seats_booked || 1) > 1 ? 's' : ''}
+            </div>
+            <div style={{ fontSize: 12, color: '#ccc', marginTop: 2 }}>
+              🚗 Owner: <b>{r.profiles?.full_name || '—'}</b>{r.profiles?.phone ? <span style={{ color: '#666' }}> · {r.profiles.phone}</span> : null}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button onClick={() => nudge(b)} style={{ flex: 1, padding: 9, background: '#78350f', color: '#fed7aa', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🔔 Nudge owner</button>
+              <button onClick={() => whatsapp(b)} style={{ flex: 1, padding: 9, background: '#14532d', color: '#bbf7d0', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 WhatsApp owner</button>
+            </div>
+          </div>
+        )
+      })}
+      <div style={{ fontSize: 10, color: '#555', marginTop: 8, textAlign: 'center' }}>Unanswered requests auto-expire at ride time.</div>
+    </div>
+  )
+}
+
+// ── HOME POPUP — image every user sees once on their Home screen ──
+function HomePopupTab({ supabase }) {
+  const [current, setCurrent] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [file, setFile] = useState(null)
+  const [preview, setPreview] = useState('')
+  const [title, setTitle] = useState('')
+  const [cta, setCta] = useState('')
+  const [link, setLink] = useState('')
+  const [until, setUntil] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => { load() }, [])
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('app_settings').select('value').eq('key', 'home_popup').maybeSingle()
+    let p = null
+    try { p = data?.value ? JSON.parse(data.value) : null } catch (_) {}
+    setCurrent(p)
+    setLoading(false)
+  }
+
+  function pick(e) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (!f.type.startsWith('image/')) { alert('Please pick an image file.'); return }
+    if (f.size > 5 * 1024 * 1024) { alert('Image must be under 5 MB.'); return }
+    setFile(f)
+    setPreview(URL.createObjectURL(f))
+  }
+
+  async function publish() {
+    if (!file) { alert('Choose an image first.'); return }
+    if (link.trim() && !link.trim().startsWith('/') && !link.trim().startsWith('https://')) {
+      alert('Link must be an app page like /post or a full https:// link.'); return
+    }
+    if (!confirm(`Publish this popup?\n\nEvery user sees it once on their Home screen${until ? ` (until ${until})` : ''}.${current ? '\nThis replaces the current popup.' : ''}`)) return
+    setBusy(true)
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const path = `popup-${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('announcements').upload(path, file, { contentType: file.type, upsert: false })
+    if (upErr) { setBusy(false); alert('Upload failed: ' + upErr.message); return }
+    const { data: pub } = supabase.storage.from('announcements').getPublicUrl(path)
+    const popup = {
+      id: String(Date.now()), image_url: pub.publicUrl,
+      title: title.trim(), cta: cta.trim(), link: link.trim(), until: until || null,
+    }
+    const { error } = await supabase.from('app_settings').upsert({ key: 'home_popup', value: JSON.stringify(popup), updated_at: new Date().toISOString() })
+    if (error) { setBusy(false); alert('Could not save: ' + error.message); return }
+    supabase.rpc('log_admin_action', { p_action: 'publish_popup', p_target: null, p_details: { title: popup.title, until: popup.until } }).then(() => {}, () => {})
+    setFile(null); setPreview(''); setTitle(''); setCta(''); setLink(''); setUntil('')
+    setBusy(false)
+    load()
+    alert('✅ Popup published. Users see it the next time they open Home.')
+  }
+
+  async function remove() {
+    if (!confirm('Remove the current popup?\n\nUsers who have not seen it yet will no longer get it.')) return
+    setBusy(true)
+    await supabase.from('app_settings').upsert({ key: 'home_popup', value: '', updated_at: new Date().toISOString() })
+    supabase.rpc('log_admin_action', { p_action: 'remove_popup', p_target: null, p_details: {} }).then(() => {}, () => {})
+    setBusy(false)
+    load()
+  }
+
+  const input = { width: '100%', padding: '9px 12px', background: '#1a1a1a', color: '#fff', border: '1px solid #333', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', marginBottom: 10 }
+  const label = { fontSize: 11, color: '#888', fontWeight: 700, marginBottom: 5 }
+  if (loading) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
+  const expired = current?.until && new Date(`${current.until}T23:59:59+05:30`) < new Date()
+
+  return (
+    <div>
+      {/* Current popup */}
+      <div style={{ background: '#111', borderRadius: 14, padding: 14, marginBottom: 14, border: '1px solid #222' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 10 }}>
+          Live now {current ? (expired ? <span style={{ color: '#f87171' }}>· expired</span> : <span style={{ color: '#4ade80' }}>· showing</span>) : <span style={{ color: '#666' }}>· none</span>}
+        </div>
+        {current ? (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <img src={current.image_url} alt="" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 10, background: '#222', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#aaa' }}>
+              {current.title && <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>{current.title}</div>}
+              {current.link && <div>🔗 {current.cta || 'Open'} → {current.link}</div>}
+              <div>⏱ {current.until ? `until ${current.until}` : 'no end date'}</div>
+              <div style={{ color: '#555', marginTop: 2 }}>Published {new Date(Number(current.id)).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+              <button onClick={remove} disabled={busy} style={{ marginTop: 8, padding: '7px 14px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: '#666' }}>No popup is live. Publish one below.</div>
+        )}
+      </div>
+
+      {/* New popup */}
+      <div style={{ background: '#111', borderRadius: 14, padding: 14, border: '1px solid #222' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 12 }}>🖼️ New popup</div>
+        <div style={label}>IMAGE (best: portrait 1080×1350 or square, under 5 MB)</div>
+        <input type="file" accept="image/*" onChange={pick} style={{ ...input, padding: 8 }} />
+        {preview && <img src={preview} alt="preview" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 12, background: '#000', marginBottom: 10 }} />}
+        <div style={label}>CAPTION (optional)</div>
+        <input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="e.g. Happy Diwali from CarpoolKaro 🪔" style={input} />
+        <div style={label}>BUTTON LINK (optional)</div>
+        <input value={link} onChange={e => setLink(e.target.value)} placeholder="/post · /subscription · /wallet · or https://…" style={input} />
+        {link.trim() && (<>
+          <div style={label}>BUTTON TEXT</div>
+          <input value={cta} onChange={e => setCta(e.target.value)} maxLength={30} placeholder="e.g. Post a ride" style={input} />
+        </>)}
+        <div style={label}>SHOW UNTIL (optional — leave empty for no end date)</div>
+        <input type="date" value={until} onChange={e => setUntil(e.target.value)} style={input} />
+        <button onClick={publish} disabled={busy || !file} style={{ width: '100%', padding: 12, background: file ? '#facc15' : '#333', color: file ? '#111' : '#777', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: file ? 'pointer' : 'default' }}>
+          {busy ? 'Publishing…' : '🚀 Publish popup'}
+        </button>
+        <div style={{ fontSize: 10, color: '#555', marginTop: 8, lineHeight: 1.5 }}>
+          Each user sees it once per device and closes it with ✕. Publishing a new popup shows again to everyone. New users see it after finishing the welcome tour.
+        </div>
+      </div>
     </div>
   )
 }
