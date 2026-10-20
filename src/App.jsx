@@ -197,7 +197,7 @@ function BannedScreen({ reason, onSignOut }) {
         </div>
       )}
       <div style={{ fontSize: 13, color: '#888', maxWidth: 320, marginBottom: 24 }}>
-        If you think this is a mistake, please reach out to the CarpoolKaro team.
+        If you think this is a mistake, email us at <span style={{ color: '#facc15' }}>support@carpoolkaro.com</span>.
       </div>
       <button onClick={onSignOut} style={{
         padding: '12px 28px', background: '#222', color: '#fff',

@@ -3,6 +3,7 @@ import { formatTime, formatDate } from '../lib/utils'
 import { getCompanyFromEmail } from '../lib/companyDomains'
 import DriverProfileModal from '../components/DriverProfileModal'
 import GuidedTour from '../components/GuidedTour'
+import HomePopup from '../components/HomePopup'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -135,6 +136,7 @@ export default function Home() {
   const [suggestedRoutes, setSuggestedRoutes] = useState([])
   const [announcement, setAnnouncement] = useState('')
   const [maintenance, setMaintenance] = useState(false)
+  const [popup, setPopup] = useState(null)
 
   // Fetch app settings
   useEffect(() => {
@@ -144,6 +146,7 @@ export default function Home() {
       ;(data||[]).forEach(s => { map[s.key] = s.value })
       setAnnouncement(map.announcement || '')
       setMaintenance(map.maintenance_mode === 'true')
+      try { setPopup(map.home_popup ? JSON.parse(map.home_popup) : null) } catch (_) { setPopup(null) }
     }
     fetchSettings()
   }, [])
@@ -779,6 +782,7 @@ export default function Home() {
       <WhatsAppChannel />
       <BottomNav />
       <GuidedTour />
+      {!maintenance && <HomePopup popup={popup} />}
       {selectedDriver && <DriverProfileModal driverId={selectedDriver} onClose={() => setSelectedDriver(null)} />}
     </div>
   )
