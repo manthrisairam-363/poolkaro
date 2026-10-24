@@ -25,6 +25,7 @@ import InstallGuide from './components/InstallGuide'
 import Subscription from './pages/Subscription'
 import Feedback from './pages/Feedback'
 import { usePushNotifications } from './lib/pushNotifications'
+import { useAppUpdate } from './lib/appUpdate'
 
 function Loader() {
   return (
@@ -217,7 +218,7 @@ function CommuteEdit() {
 function AppRoutes() {
   const { user, profile, loading, profileError, fetchProfile, signOut } = useAuth()
   usePushNotifications(user?.id)
-  const [commuteSkipped, setCommuteSkipped] = useState(() => { try { return sessionStorage.getItem('commute_skip') === '1' } catch (_) { return false } })
+  useAppUpdate()
 
   // Track last seen + what device/mode they're on (for admin install guidance)
   useEffect(() => {
@@ -245,11 +246,11 @@ function AppRoutes() {
   // Banned users: reversible block — show a suspension screen instead of the app.
   if (profile?.banned) return <BannedScreen reason={profile.banned_reason} onSignOut={signOut} />
   if (!profile?.onboarding_complete) return <Onboarding />
-  // After onboarding, prompt new AND existing users to set up their commute so
-  // we can auto-post rides and match routes. Skippable per session; re-prompts
-  // next open until completed (profiles.commute_setup_done).
-  if (!profile?.commute_setup_done && !commuteSkipped) {
-    return <CommuteSetup mode="existing" onDone={() => { setCommuteSkipped(true); fetchProfile(user.id) }} />
+  // After onboarding, every user (new or existing) sets up their commute once.
+  // Required, not skippable: owners need it for auto-posting, riders need it so
+  // rides on their route are shown first. Riders get the short version.
+  if (!profile?.commute_setup_done) {
+    return <CommuteSetup mode="existing" onDone={() => fetchProfile(user.id)} />
   }
   return (
     <>
