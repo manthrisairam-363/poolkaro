@@ -10,6 +10,51 @@ import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import WhatsAppChannel from '../components/WhatsAppChannel'
 import { enablePush, getPushState } from '../lib/pushNotifications'
+import { CITIES } from '../lib/cities'
+
+// ── Route ranking without maps ──
+// Every known area carries a zone (e.g. Uppal → East, Kokapet → IT Corridor).
+// A ride's free-text from/to is mapped to the longest known area name it
+// contains, which gives us its zone. Then a rider's saved commute is compared
+// to the ride on both ends: same area beats same zone beats nothing.
+const AREA_ZONE = (() => {
+  const m = {}
+  Object.values(CITIES).forEach(c => (c.areas || []).forEach(a => { m[a.name.toLowerCase()] = a.zone }))
+  return m
+})()
+const AREA_NAMES = Object.keys(AREA_ZONE).sort((a, b) => b.length - a.length)
+function areaInfo(text) {
+  const t = (text || '').toLowerCase()
+  const hit = AREA_NAMES.find(n => t.includes(n))
+  return hit ? { area: hit, zone: AREA_ZONE[hit] } : { area: null, zone: null }
+}
+const toMin = (t) => { const [h, m] = String(t || '').split(':'); return h ? (+h) * 60 + (+m || 0) : null }
+function endScore(myLabel, myZone, rideText) {
+  const ml = (myLabel || '').toLowerCase().trim()
+  if (!ml) return 0
+  const ri = areaInfo(rideText)
+  if (ri.area === ml || (rideText || '').toLowerCase().includes(ml)) return 3   // same area
+  if (myZone && ri.zone === myZone) return 1.5                                 // same zone
+  return 0
+}
+// 0 = no match … up to 7 (both ends same area + time within 45 min)
+function commuteScore(c, ride) {
+  if (!c) return 0
+  const hr = parseInt(ride.ride_time?.split(':')[0] || 0)
+  const toOffice = ride.ride_type ? ride.ride_type === 'to_office' : hr < 12
+  const fromScore = toOffice ? endScore(c.home_label, c.home_zone, ride.from_location) : endScore(c.office_label, c.office_zone, ride.from_location)
+  const toScore = toOffice ? endScore(c.office_label, c.office_zone, ride.to_location) : endScore(c.home_label, c.home_zone, ride.to_location)
+  let s = fromScore + toScore
+  if (s > 0) {
+    const want = toMin(toOffice ? c.morning_time : c.evening_time)
+    const have = toMin(ride.ride_time)
+    if (want != null && have != null) {
+      const diff = Math.abs(want - have)
+      if (diff <= 45) s += 1; else if (diff <= 90) s += 0.5
+    }
+  }
+  return s
+}
 
 // City IT locations inline — no external import needed
 const CITY_LOCATIONS = {
@@ -136,7 +181,16 @@ export default function Home() {
   const [suggestedRoutes, setSuggestedRoutes] = useState([])
   const [announcement, setAnnouncement] = useState('')
   const [maintenance, setMaintenance] = useState(false)
-  const [popup, setPopup] = useState(null)
+  const [popups, setPopups] = useState([])
+  // The user's saved daily commute — used to rank rides on their route first.
+  const [myCommute, setMyCommute] = useState(null)
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('commute_schedules')
+      .select('home_label, home_zone, office_label, office_zone, morning_time, evening_time')
+      .eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setMyCommute(data || null))
+  }, [user?.id])
 
   // Fetch app settings
   useEffect(() => {
@@ -146,7 +200,10 @@ export default function Home() {
       ;(data||[]).forEach(s => { map[s.key] = s.value })
       setAnnouncement(map.announcement || '')
       setMaintenance(map.maintenance_mode === 'true')
-      try { setPopup(map.home_popup ? JSON.parse(map.home_popup) : null) } catch (_) { setPopup(null) }
+      try {
+        const v = map.home_popup ? JSON.parse(map.home_popup) : []
+        setPopups(Array.isArray(v) ? v : (v && v.image_url ? [v] : []))
+      } catch (_) { setPopups([]) }
     }
     fetchSettings()
   }, [])
@@ -350,14 +407,20 @@ export default function Home() {
     }
     return true
   }).sort((a, b) => {
-    // Sort by match score with rider's request (best matches first)
+    // 1) Rides on the rider's saved commute first (same area > same zone > none)
+    const ca = commuteScore(myCommute, a), cb = commuteScore(myCommute, b)
+    if (cb !== ca) return cb - ca
+    // 2) Then match against an open ride request, if they posted one
     if (myRequest) {
       const sa = matchScore(myRequest.from_location, myRequest.to_location, a.from_location, a.to_location, a.route_description)
       const sb = matchScore(myRequest.from_location, myRequest.to_location, b.from_location, b.to_location, b.route_description)
       if (sb !== sa) return sb - sa
     }
-    return 0
+    // 3) Then by departure time — nobody ever sees an empty page
+    return String(a.ride_time || '').localeCompare(String(b.ride_time || ''))
   })
+  // "On your route" = at least one end matches the saved commute by area/zone.
+  const onRouteCount = myCommute ? filtered.filter(r => r.driver_id !== user?.id && commuteScore(myCommute, r) >= 1.5).length : 0
 
 
   // Pull to refresh
@@ -649,10 +712,26 @@ export default function Home() {
             {filtered.filter(r => r.driver_id === user?.id).map(ride => (
               <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} onTogglePause={togglePause} />
             ))}
-            {/* ALL OTHER RIDES — compact */}
-            {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id] || bookedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} onPay={() => navigate(`/book/${ride.id}`)} />
-            ))}
+            {/* ALL OTHER RIDES — compact. Rides on the rider's commute come first,
+                then a divider, then everything else by time. */}
+            {filtered.filter(r => r.driver_id !== user?.id).map((ride, i, arr) => {
+              const onRoute = onRouteCount > 0 && commuteScore(myCommute, ride) >= 1.5
+              const prevOnRoute = i > 0 && commuteScore(myCommute, arr[i - 1]) >= 1.5
+              const showHeader = onRouteCount > 0 && (i === 0 || (prevOnRoute && !onRoute))
+              return (
+                <div key={ride.id}>
+                  {showHeader && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: i === 0 ? '4px 0 8px' : '14px 0 8px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: onRoute ? '#15803d' : '#64748b', letterSpacing: 0.5 }}>
+                        {onRoute ? `🎯 ON YOUR ROUTE · ${onRouteCount}` : 'OTHER RIDES'}
+                      </span>
+                      <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                    </div>
+                  )}
+                  <CompactRideCard ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id] || bookedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} onPay={() => navigate(`/book/${ride.id}`)} />
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -782,7 +861,7 @@ export default function Home() {
       <WhatsAppChannel />
       <BottomNav />
       <GuidedTour />
-      {!maintenance && <HomePopup popup={popup} />}
+      {!maintenance && <HomePopup popups={popups} />}
       {selectedDriver && <DriverProfileModal driverId={selectedDriver} onClose={() => setSelectedDriver(null)} />}
     </div>
   )
