@@ -215,10 +215,16 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
           border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer',
         }}>{saving ? 'Saving…' : (isCarOwner ? '🚗 Start auto-posting my rides' : '✅ Save my commute')}</button>
 
-        <button onClick={skip} style={{
-          width: '100%', padding: 12, marginTop: 8, background: 'transparent', color: '#888',
-          border: '1px solid #333', borderRadius: 10, fontSize: 13, cursor: 'pointer',
-        }}>{mode === 'edit' ? 'Cancel' : 'Maybe later'}</button>
+        {mode === 'edit' ? (
+          <button onClick={skip} style={{
+            width: '100%', padding: 12, marginTop: 8, background: 'transparent', color: '#888',
+            border: '1px solid #333', borderRadius: 10, fontSize: 13, cursor: 'pointer',
+          }}>Cancel</button>
+        ) : (
+          <div style={{ textAlign: 'center', color: '#666', fontSize: 11, marginTop: 12, lineHeight: 1.5 }}>
+            Takes 20 seconds. You can change it any time from Profile.
+          </div>
+        )}
       </div>
     </div>
   )
