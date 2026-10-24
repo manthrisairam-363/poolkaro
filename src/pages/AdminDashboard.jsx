@@ -5,6 +5,14 @@ import { platformText } from '../lib/platform'
 import { useAuth } from '../lib/AuthContext'
 import { formatTime, formatDate } from '../lib/utils'
 
+// How a profile's role is shown across the dashboard
+const ROLE_META = {
+  driver: { short: '🚗 Owner',      long: '🚗 Car owner',        color: '#facc15' },
+  rider:  { short: '🙋 Rider',      long: '🙋 Co-rider',         color: '#60a5fa' },
+  both:   { short: '🚗🙋 Both',     long: '🚗🙋 Owner & rider',  color: '#4ade80' },
+}
+const fmtHHMM = (t) => { const [h, m] = String(t || '').split(':'); return h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : '—' }
+
 export default function AdminDashboard() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
@@ -344,6 +352,10 @@ export default function AdminDashboard() {
       if (!matchSearch) return false
       // City filter (independent of the category filter)
       if (userCity !== 'all' && (u.city || 'Hyderabad') !== userCity) return false
+      if (userFilter === 'owners') return u.role === 'driver' || u.role === 'both'
+      if (userFilter === 'riders') return u.role === 'rider' || u.role === 'both'
+      if (userFilter === 'no_role') return !u.role
+      if (userFilter === 'banned') return u.banned === true
       if (userFilter === 'pro') return u.subscription_expires_at && new Date(u.subscription_expires_at) > now
       if (userFilter === 'free') return !u.subscription_expires_at || new Date(u.subscription_expires_at) <= now
       if (userFilter === 'verified') return u.is_verified
@@ -411,12 +423,16 @@ export default function AdminDashboard() {
     const [proDate, setProDate] = useState('2026-12-31')
     const [proLoading, setProLoading] = useState(false)
     const [txns, setTxns] = useState(null)   // wallet transaction history
+    const [commute, setCommute] = useState(undefined)   // undefined = loading, null = none
     const [panelView, setPanelView] = useState('main')  // 'main' | 'recharge' | 'transactions'
 
-    // Load this user's full wallet transaction history when the panel opens.
+    // Load this user's full wallet transaction history + saved commute when the panel opens.
     useEffect(() => {
       if (!u?.id) return
       setPanelView('main')
+      setCommute(undefined)
+      supabase.from('commute_schedules').select('*').eq('user_id', u.id).maybeSingle()
+        .then(({ data }) => setCommute(data || null))
       supabase.from('wallet_transactions')
         .select('*')
         .eq('user_id', u.id)
@@ -509,6 +525,7 @@ export default function AdminDashboard() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
             {[
+              ['🧑‍💼 Role', ROLE_META[u.role]?.long || '— not set'],
               ['📱 Phone', u.phone || '—'],
               ['💰 Wallet', `₹${Math.round((wallets[u.id] || 0) / 100)}`],
               ['🚗 Rides given', u.total_rides_given || 0],
@@ -526,6 +543,26 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div> 
+
+          {/* Saved daily commute */}
+          <div style={{ background: '#1a1a1a', borderRadius: 8, padding: '8px 12px', marginBottom: 10, border: `1px solid ${commute ? '#333' : '#3f1d1d'}` }}>
+            <div style={{ fontSize: 10, color: '#888' }}>🗺️ DAILY COMMUTE</div>
+            {commute === undefined ? (
+              <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>Loading…</div>
+            ) : commute ? (
+              <>
+                <div style={{ fontSize: 13, color: '#fff', fontWeight: 600, marginTop: 2 }}>
+                  {commute.home_label}{commute.home_custom ? ' ✏️' : ''} → {commute.office_label}{commute.office_custom ? ' ✏️' : ''}
+                </div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                  🌅 {fmtHHMM(commute.morning_time)} · 🌆 {fmtHHMM(commute.evening_time)} · days {(commute.working_days || []).map(d => ['','M','T','W','T','F','S','S'][d]).join('')}
+                  {(u.role === 'driver' || u.role === 'both') ? ` · 💺 ${commute.seats_offered ?? '—'} · ₹${commute.usual_fare ?? '—'} · auto-post ${commute.auto_post ? 'ON' : 'off'}` : ''}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#f87171', marginTop: 2 }}>Not filled yet</div>
+            )}
+          </div>
 
           {u.work_email && (
             <div style={{ background: '#0a2e1a', borderRadius: 8, padding: '8px 12px', marginBottom: 10, border: '1px solid #166534' }}>
@@ -761,7 +798,7 @@ export default function AdminDashboard() {
           }}>⚙️ Apps</button>
           {!['overview','apps'].includes(tab) && (
             <span style={{ padding: '7px 14px', borderRadius: 20, background: '#1a1a1a', color: '#facc15', fontSize: 11, fontWeight: 700, border: '1px solid #facc1544' }}>
-              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','pending':'⏳ Pending Requests','popup':'🖼️ Home Popup','unpaid':'🧾 Unpaid Fares','audit':'📜 Audit Log','version':'⚙️ App Version'}[tab]}
+              {{'users':'👥 Users','suspicious':'🛡️ Safety','rides':'🚗 Rides & Bookings','bookings':'🎫 Bookings','broadcast':'📢 Broadcast','reports':'🚨 Reports','feedback':'💡 Feedback','revenue':'💰 Revenue','recharges':'💳 Recharges','cities':'🏙️ Cities','ratings':'⭐ Ratings','referrals':'🎁 Referrals','notify':'📢 Send Notification','subs':'⭐ Subscriptions','live':'🔴 Live Rides','payouts':'💸 Payouts','pending':'⏳ Pending Requests','popup':'🖼️ Home Popup','commutes':'🗺️ Commutes','unpaid':'🧾 Unpaid Fares','audit':'📜 Audit Log','version':'⚙️ App Version'}[tab]}
             </span>
           )}
         </div>
@@ -871,6 +908,7 @@ export default function AdminDashboard() {
                   ['pending',   '⏳', 'Pending Requests', stats?.pendingRequests ? `${stats.pendingRequests} waiting` : 'None waiting', '#f97316'],
                   ['notify',    '📢', 'Send Notification', 'Message users',       '#7c3aed'],
                   ['popup',     '🖼️', 'Home Popup', 'Image on Home screen',      '#ec4899'],
+                  ['commutes',  '🗺️', 'Commutes',  'Where users travel',        '#14b8a6'],
                   ['feedback',  '💡', 'Feedback',  feedbackList.filter(f=>f.status==='open').length > 0 ? `${feedbackList.filter(f=>f.status==='open').length} new` : 'All done', '#16a34a'],
                   ['subs',      '⭐', 'Subscriptions', 'Pro members',           '#f59e0b'],
                   ['recharges', '💳', 'Recharges', 'Wallet top-ups',           '#22c55e'],
@@ -916,6 +954,10 @@ export default function AdminDashboard() {
                   <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600 }}>
                     {[
                       ['all', 'All users'],
+                      ['owners', '🚗 Car owners'],
+                      ['riders', '🙋 Co-riders'],
+                      ['no_role', '❔ No role set'],
+                      ['banned', '🚫 Banned'],
                       ['pro', '⭐ Pro'],
                       ['free', '🆓 Free'],
                       ['verified', '✓ Verified'],
@@ -1044,6 +1086,8 @@ export default function AdminDashboard() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 14 }}>{u.full_name || 'No name'}</span>
+                        <span style={{ background: '#222', color: ROLE_META[u.role]?.color || '#777', fontSize: 9, padding: '2px 6px', borderRadius: 8, fontWeight: 700 }}>{ROLE_META[u.role]?.short || '— no role'}</span>
+                        {u.banned && <span style={{ background: '#450a0a', color: '#fecaca', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>🚫</span>}
                         {u.is_verified && <span style={{ background: '#1d4ed8', color: '#fff', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>✓</span>}
                         {u.subscription_expires_at && new Date(u.subscription_expires_at) > new Date() && <span style={{ background: '#facc15', color: '#111', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>⭐</span>}
                         {suspiciousUsers.find(s => s.id === u.id) && <span style={{ background: '#7f1d1d', color: '#fca5a5', fontSize: 9, padding: '2px 5px', borderRadius: 8, fontWeight: 700 }}>⚠️</span>}
@@ -1531,6 +1575,11 @@ export default function AdminDashboard() {
             {/* ── HOME POPUP ── */}
             {tab === 'popup' && (
               <HomePopupTab supabase={supabase} />
+            )}
+
+            {/* ── COMMUTES ── */}
+            {tab === 'commutes' && (
+              <CommutesTab supabase={supabase} users={users} />
             )}
 
             {/* ── UNPAID FARES ── */}
@@ -2715,26 +2764,43 @@ function PendingBookingsTab({ supabase }) {
   )
 }
 
-// ── HOME POPUP — image every user sees once on their Home screen ──
+// ── HOME POPUP — list of image popups users see once each on Home ──
+const POPUP_TARGETS = [
+  ['all', '🌐 Everyone'],
+  ['ios_browser', '🍎 iOS in browser (not installed)'],
+  ['android_browser', '🤖 Android in browser (not installed)'],
+  ['browser', '🌐 Anyone not installed'],
+  ['installed', '📲 Installed app only'],
+  ['ios', '🍎 All iOS'],
+  ['android', '🤖 All Android'],
+  ['desktop', '💻 Desktop'],
+]
+const MAX_POPUPS = 5
+
 function HomePopupTab({ supabase }) {
-  const [current, setCurrent] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [list, setList] = useState(null)
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState('')
   const [title, setTitle] = useState('')
   const [cta, setCta] = useState('')
   const [link, setLink] = useState('')
   const [until, setUntil] = useState('')
+  const [target, setTarget] = useState('all')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => { load() }, [])
   async function load() {
-    setLoading(true)
     const { data } = await supabase.from('app_settings').select('value').eq('key', 'home_popup').maybeSingle()
-    let p = null
-    try { p = data?.value ? JSON.parse(data.value) : null } catch (_) {}
-    setCurrent(p)
-    setLoading(false)
+    let v = []
+    try { v = data?.value ? JSON.parse(data.value) : [] } catch (_) {}
+    setList(Array.isArray(v) ? v : (v && v.image_url ? [v] : []))
+  }
+  async function saveList(next, action, details) {
+    const { error } = await supabase.from('app_settings').upsert({ key: 'home_popup', value: JSON.stringify(next), updated_at: new Date().toISOString() })
+    if (error) { alert('Could not save: ' + error.message); return false }
+    supabase.rpc('log_admin_action', { p_action: action, p_target: null, p_details: details }).then(() => {}, () => {})
+    setList(next)
+    return true
   }
 
   function pick(e) {
@@ -2742,70 +2808,66 @@ function HomePopupTab({ supabase }) {
     if (!f) return
     if (!f.type.startsWith('image/')) { alert('Please pick an image file.'); return }
     if (f.size > 5 * 1024 * 1024) { alert('Image must be under 5 MB.'); return }
-    setFile(f)
-    setPreview(URL.createObjectURL(f))
+    setFile(f); setPreview(URL.createObjectURL(f))
   }
 
   async function publish() {
     if (!file) { alert('Choose an image first.'); return }
-    if (link.trim() && !link.trim().startsWith('/') && !link.trim().startsWith('https://')) {
-      alert('Link must be an app page like /post or a full https:// link.'); return
-    }
-    if (!confirm(`Publish this popup?\n\nEvery user sees it once on their Home screen${until ? ` (until ${until})` : ''}.${current ? '\nThis replaces the current popup.' : ''}`)) return
+    if ((list || []).length >= MAX_POPUPS) { alert(`Max ${MAX_POPUPS} live popups. Remove one first.`); return }
+    const l = link.trim()
+    if (l && !l.startsWith('/') && !l.startsWith('https://')) { alert('Link must be an app page like /post or a full https:// link.'); return }
+    const tLabel = POPUP_TARGETS.find(t => t[0] === target)?.[1] || target
+    if (!confirm(`Publish this popup?\n\nShown to: ${tLabel}${until ? `\nUntil: ${until}` : ''}\n\nEach matching user sees it once.`)) return
     setBusy(true)
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
     const path = `popup-${Date.now()}.${ext}`
     const { error: upErr } = await supabase.storage.from('announcements').upload(path, file, { contentType: file.type, upsert: false })
     if (upErr) { setBusy(false); alert('Upload failed: ' + upErr.message); return }
     const { data: pub } = supabase.storage.from('announcements').getPublicUrl(path)
-    const popup = {
-      id: String(Date.now()), image_url: pub.publicUrl,
-      title: title.trim(), cta: cta.trim(), link: link.trim(), until: until || null,
-    }
-    const { error } = await supabase.from('app_settings').upsert({ key: 'home_popup', value: JSON.stringify(popup), updated_at: new Date().toISOString() })
-    if (error) { setBusy(false); alert('Could not save: ' + error.message); return }
-    supabase.rpc('log_admin_action', { p_action: 'publish_popup', p_target: null, p_details: { title: popup.title, until: popup.until } }).then(() => {}, () => {})
-    setFile(null); setPreview(''); setTitle(''); setCta(''); setLink(''); setUntil('')
+    const popup = { id: String(Date.now()), image_url: pub.publicUrl, title: title.trim(), cta: cta.trim(), link: l, until: until || null, target }
+    const ok = await saveList([...(list || []), popup], 'publish_popup', { title: popup.title, target, until: popup.until })
     setBusy(false)
-    load()
-    alert('✅ Popup published. Users see it the next time they open Home.')
+    if (!ok) return
+    setFile(null); setPreview(''); setTitle(''); setCta(''); setLink(''); setUntil(''); setTarget('all')
+    alert('✅ Popup published. Matching users see it the next time they open Home.')
   }
 
-  async function remove() {
-    if (!confirm('Remove the current popup?\n\nUsers who have not seen it yet will no longer get it.')) return
+  async function remove(p) {
+    if (!confirm(`Remove this popup?${p.title ? `\n\n"${p.title}"` : ''}\n\nUsers who haven't seen it yet won't get it.`)) return
     setBusy(true)
-    await supabase.from('app_settings').upsert({ key: 'home_popup', value: '', updated_at: new Date().toISOString() })
-    supabase.rpc('log_admin_action', { p_action: 'remove_popup', p_target: null, p_details: {} }).then(() => {}, () => {})
+    await saveList((list || []).filter(x => x.id !== p.id), 'remove_popup', { title: p.title })
     setBusy(false)
-    load()
   }
 
   const input = { width: '100%', padding: '9px 12px', background: '#1a1a1a', color: '#fff', border: '1px solid #333', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', marginBottom: 10 }
   const label = { fontSize: 11, color: '#888', fontWeight: 700, marginBottom: 5 }
-  if (loading) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
-  const expired = current?.until && new Date(`${current.until}T23:59:59+05:30`) < new Date()
+  if (list === null) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
+  const expired = (p) => p.until && new Date(`${p.until}T23:59:59+05:30`) < new Date()
 
   return (
     <div>
-      {/* Current popup */}
+      {/* Live popups */}
       <div style={{ background: '#111', borderRadius: 14, padding: 14, marginBottom: 14, border: '1px solid #222' }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 10 }}>
-          Live now {current ? (expired ? <span style={{ color: '#f87171' }}>· expired</span> : <span style={{ color: '#4ade80' }}>· showing</span>) : <span style={{ color: '#666' }}>· none</span>}
+          Live popups <span style={{ color: '#666', fontWeight: 400 }}>· {list.length} of {MAX_POPUPS}</span>
         </div>
-        {current ? (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <img src={current.image_url} alt="" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 10, background: '#222', flexShrink: 0 }} />
+        {list.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#666' }}>No popup is live. Publish one below.</div>
+        ) : list.map((p, i) => (
+          <div key={p.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 0', borderTop: i ? '1px solid #222' : 'none' }}>
+            <img src={p.image_url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 10, background: '#222', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#aaa' }}>
-              {current.title && <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>{current.title}</div>}
-              {current.link && <div>🔗 {current.cta || 'Open'} → {current.link}</div>}
-              <div>⏱ {current.until ? `until ${current.until}` : 'no end date'}</div>
-              <div style={{ color: '#555', marginTop: 2 }}>Published {new Date(Number(current.id)).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-              <button onClick={remove} disabled={busy} style={{ marginTop: 8, padding: '7px 14px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
+              <div style={{ color: '#fff', fontWeight: 700 }}>{p.title || <span style={{ color: '#666' }}>(no caption)</span>}</div>
+              <div style={{ marginTop: 2 }}>👥 {POPUP_TARGETS.find(t => t[0] === (p.target || 'all'))?.[1] || p.target}</div>
+              {p.link && <div>🔗 {p.cta || 'Open'} → {p.link}</div>}
+              <div style={{ color: expired(p) ? '#f87171' : '#888' }}>⏱ {p.until ? (expired(p) ? `expired ${p.until}` : `until ${p.until}`) : 'no end date'}</div>
+              <button onClick={() => remove(p)} disabled={busy} style={{ marginTop: 6, padding: '6px 12px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
             </div>
           </div>
-        ) : (
-          <div style={{ fontSize: 12, color: '#666' }}>No popup is live. Publish one below.</div>
-        )}
+        ))}
+        <div style={{ fontSize: 10, color: '#555', marginTop: 8, lineHeight: 1.5 }}>
+          A user sees at most one popup per app open — the first one above they haven't seen that matches their device. Order = publish order.
+        </div>
       </div>
 
       {/* New popup */}
@@ -2814,13 +2876,17 @@ function HomePopupTab({ supabase }) {
         <div style={label}>IMAGE (best: portrait 1080×1350 or square, under 5 MB)</div>
         <input type="file" accept="image/*" onChange={pick} style={{ ...input, padding: 8 }} />
         {preview && <img src={preview} alt="preview" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 12, background: '#000', marginBottom: 10 }} />}
+        <div style={label}>SHOW TO</div>
+        <select value={target} onChange={e => setTarget(e.target.value)} style={input}>
+          {POPUP_TARGETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
         <div style={label}>CAPTION (optional)</div>
         <input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="e.g. Happy Diwali from CarpoolKaro 🪔" style={input} />
         <div style={label}>BUTTON LINK (optional)</div>
-        <input value={link} onChange={e => setLink(e.target.value)} placeholder="/post · /subscription · /wallet · or https://…" style={input} />
+        <input value={link} onChange={e => setLink(e.target.value)} placeholder="/post · /install · /subscription · or https://…" style={input} />
         {link.trim() && (<>
           <div style={label}>BUTTON TEXT</div>
-          <input value={cta} onChange={e => setCta(e.target.value)} maxLength={30} placeholder="e.g. Post a ride" style={input} />
+          <input value={cta} onChange={e => setCta(e.target.value)} maxLength={30} placeholder="e.g. Show me how" style={input} />
         </>)}
         <div style={label}>SHOW UNTIL (optional — leave empty for no end date)</div>
         <input type="date" value={until} onChange={e => setUntil(e.target.value)} style={input} />
@@ -2828,9 +2894,117 @@ function HomePopupTab({ supabase }) {
           {busy ? 'Publishing…' : '🚀 Publish popup'}
         </button>
         <div style={{ fontSize: 10, color: '#555', marginTop: 8, lineHeight: 1.5 }}>
-          Each user sees it once per device and closes it with ✕. Publishing a new popup shows again to everyone. New users see it after finishing the welcome tour.
+          Tip for iOS: target "iOS in browser", upload an image showing Share → Add to Home Screen, and link the button to /install.
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── COMMUTES — where users live and work, who filled the form, custom areas to add to zones ──
+function CommutesTab({ supabase, users }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => { load() }, [])
+  async function load() {
+    const { data, error } = await supabase.from('commute_schedules').select('*').order('updated_at', { ascending: false })
+    if (error) { console.error('commutes load:', error.message); alert('Could not load commutes: ' + error.message + '\n\nRun 13_admin_commutes.sql if you have not.') }
+    setRows(data || [])
+  }
+  if (rows === null) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
+
+  const byId = {}; users.forEach(u => { byId[u.id] = u })
+  const roleOf = (r) => byId[r.user_id]?.role
+  const isOwner = (r) => ['driver', 'both'].includes(roleOf(r))
+  const count = (arr, keyFn) => { const m = {}; arr.forEach(x => { const k = keyFn(x); if (k) m[k] = (m[k] || 0) + 1 }); return Object.entries(m).sort((a, b) => b[1] - a[1]) }
+
+  const filled = rows.length
+  const owners = rows.filter(isOwner)
+  const riders = rows.filter(r => !isOwner(r))
+  const autoOn = owners.filter(r => r.auto_post && r.is_active).length
+  const notFilled = users.filter(u => !rows.find(r => r.user_id === u.id))
+  const notFilledOwners = notFilled.filter(u => ['driver', 'both'].includes(u.role)).length
+
+  const homes = count(rows, r => r.home_label)
+  const offices = count(rows, r => r.office_label)
+  const corridors = count(rows, r => `${r.home_label} → ${r.office_label}`)
+  const corridorRoles = {}
+  rows.forEach(r => { const k = `${r.home_label} → ${r.office_label}`; corridorRoles[k] = corridorRoles[k] || { o: 0, r: 0 }; corridorRoles[k][isOwner(r) ? 'o' : 'r']++ })
+
+  // "Type my own" entries — review these and add them to a zone in cities.js
+  const customMap = {}
+  rows.forEach(r => {
+    if (r.home_custom) { const k = r.home_label; customMap[k] = customMap[k] || { n: 0, who: [] }; customMap[k].n++; customMap[k].who.push(byId[r.user_id]?.full_name || '?') }
+    if (r.office_custom) { const k = r.office_label; customMap[k] = customMap[k] || { n: 0, who: [] }; customMap[k].n++; customMap[k].who.push(byId[r.user_id]?.full_name || '?') }
+  })
+  const customs = Object.entries(customMap).sort((a, b) => b[1].n - a[1].n)
+
+  const Card = ({ title, children, color = '#facc15' }) => (
+    <div style={{ background: '#111', borderRadius: 14, padding: 14, marginBottom: 12, border: '1px solid #222' }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color, marginBottom: 10, letterSpacing: 0.5 }}>{title}</div>
+      {children}
+    </div>
+  )
+  const Row = ({ k, v, sub }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #1f1f1f', gap: 8 }}>
+      <span style={{ fontSize: 12, color: '#ddd', minWidth: 0 }}>{k}{sub && <span style={{ color: '#666', fontSize: 10 }}> {sub}</span>}</span>
+      <span style={{ fontSize: 12, fontWeight: 800, color: '#facc15', flexShrink: 0 }}>{v}</span>
+    </div>
+  )
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+        <button onClick={load} style={{ background: '#222', border: 'none', color: '#facc15', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>↺ Refresh</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+        {[
+          ['Filled the form', filled, '#4ade80'],
+          ['Not filled', notFilled.length, '#f87171'],
+          ['Owners w/ commute', owners.length, '#facc15'],
+          ['Riders w/ commute', riders.length, '#60a5fa'],
+          ['Auto-post ON', autoOn, '#a855f7'],
+          ['Owners NOT filled', notFilledOwners, '#f97316'],
+        ].map(([l, n, c]) => (
+          <div key={l} style={{ background: '#1a1a1a', borderRadius: 12, padding: '12px 10px', border: '1px solid #222' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: c }}>{n}</div>
+            <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      <Card title={`✏️ CUSTOM AREAS TO REVIEW · ${customs.length}`} color={customs.length ? '#f97316' : '#4ade80'}>
+        {customs.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#4ade80' }}>None — every commute uses a known area.</div>
+        ) : (<>
+          <div style={{ fontSize: 10, color: '#888', marginBottom: 8, lineHeight: 1.5 }}>
+            Typed by users with "Other". Add the common ones to the right zone in <code>src/lib/cities.js</code> so they match rides by zone.
+          </div>
+          {customs.map(([name, { n, who }]) => <Row key={name} k={name} v={n} sub={`· ${[...new Set(who)].slice(0, 3).join(', ')}`} />)}
+        </>)}
+      </Card>
+
+      <Card title={`🛣️ TOP CORRIDORS · ${corridors.length}`}>
+        {corridors.slice(0, 15).map(([k, v]) => <Row key={k} k={k} v={v} sub={`· 🚗${corridorRoles[k].o} 🙋${corridorRoles[k].r}`} />)}
+        {corridors.length === 0 && <div style={{ fontSize: 12, color: '#666' }}>No commutes yet.</div>}
+      </Card>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Card title={`🏠 HOME AREAS · ${homes.length}`}>
+          {homes.slice(0, 15).map(([k, v]) => <Row key={k} k={k} v={v} />)}
+        </Card>
+        <Card title={`🏢 OFFICE AREAS · ${offices.length}`}>
+          {offices.slice(0, 15).map(([k, v]) => <Row key={k} k={k} v={v} />)}
+        </Card>
+      </div>
+
+      <Card title={`🚗 OWNERS WHO HAVEN'T FILLED THE FORM · ${notFilledOwners}`} color="#f97316">
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 8 }}>No commute = no auto-posted rides. Worth a personal nudge.</div>
+        {notFilled.filter(u => ['driver', 'both'].includes(u.role)).slice(0, 30).map(u => (
+          <Row key={u.id} k={u.full_name || u.email} v={u.phone || '—'} sub={u.last_seen_at ? `· seen ${new Date(u.last_seen_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : '· never seen'} />
+        ))}
+        {notFilledOwners === 0 && <div style={{ fontSize: 12, color: '#4ade80' }}>Every car owner has a commute saved 🎉</div>}
+      </Card>
     </div>
   )
 }
