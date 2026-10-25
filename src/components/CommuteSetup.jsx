@@ -7,7 +7,7 @@ function cityKey(city) {
   if (!city) return 'hyderabad'
   const c = city.toLowerCase()
   if (c.includes('delhi')) return 'delhi'
-  if (c.includes('bang') || c.includes('bengal')) return 'bangalore'
+  if (c.includes('bang') || c.includes('bengal')) return 'bengaluru'
   if (c.includes('chenn')) return 'chennai'
   if (c.includes('mumb')) return 'mumbai'
   if (c.includes('pune')) return 'pune'
@@ -41,15 +41,37 @@ function AreaField({ label, zones, value, onChange }) {
         ))}
         <option value="__other__">✏️ Other — type my own</option>
       </select>
-      {isOther && (
-        <input
-          autoFocus
-          placeholder="Type your area / locality"
-          value={value?.label || ''}
-          onChange={e => onChange({ custom: true, label: e.target.value, area: slug(e.target.value), zone: null })}
-          style={{ width: '100%', padding: '12px 14px', marginTop: 8, background: '#222', border: '1.5px solid #facc15', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }}
-        />
-      )}
+      {isOther && (() => {
+        // If what they type IS a known area (ignoring case/spaces/punctuation),
+        // snap to it so it gets a zone and matches rides — people type
+        // "ghatkesar" rather than scroll 80 options.
+        const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+        const typed = norm(value?.label)
+        let known = null
+        if (typed.length >= 3) {
+          for (const z of Object.keys(zones)) {
+            const hit = zones[z].find(a => norm(a) === typed)
+            if (hit) { known = { label: hit, zone: z }; break }
+          }
+        }
+        return (
+          <>
+            <input
+              autoFocus
+              placeholder="Type your area / locality"
+              value={value?.label || ''}
+              onChange={e => onChange({ custom: true, label: e.target.value, area: slug(e.target.value), zone: null })}
+              style={{ width: '100%', padding: '12px 14px', marginTop: 8, background: '#222', border: `1.5px solid ${known ? '#4ade80' : '#facc15'}`, borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }}
+            />
+            {known && (
+              <button type="button" onClick={() => onChange({ custom: false, label: known.label, area: slug(known.label), zone: known.zone })}
+                style={{ marginTop: 6, background: 'rgba(74,222,128,0.12)', border: '1px solid #4ade80', color: '#4ade80', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ✓ Use "{known.label}" ({known.zone})
+              </button>
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }
