@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { CITY_NAMES } from '../lib/cities'
 import { useAuth } from '../lib/AuthContext'
 
 const STEPS = ['role', 'personal', 'vehicle', 'upi']
@@ -270,7 +271,7 @@ export default function Onboarding() {
             <input style={s.input} placeholder="10-digit mobile number" value={form.phone} onChange={e => set('phone', e.target.value)} readOnly={!!user?.phone} />
             <label style={s.label}>Your City *</label>
             <select style={{ ...s.input, background: '#1a1a1a', color: '#fff' }} value={form.city || 'Hyderabad'} onChange={e => set('city', e.target.value)}>
-              {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => (
+              {CITY_NAMES.map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
