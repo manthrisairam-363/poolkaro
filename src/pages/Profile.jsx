@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import { getCompanyFromEmail } from '../lib/companyDomains'
-import { CITIES } from '../lib/cities'
+import { CITIES, CITY_NAMES, cityKeyFor } from '../lib/cities'
 import NotificationBell from '../components/NotificationBell'
 
 export default function Profile() {
@@ -333,7 +333,7 @@ export default function Profile() {
                   <span style={lbl}>Phone</span><input style={inp} value={form.phone} onChange={e => set('phone', e.target.value)} type="tel" />
                   <span style={lbl}>City</span>
                   <select style={inp} value={form.city || 'Hyderabad'} onChange={e => set('city', e.target.value)}>
-                    {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => (
+                    {CITY_NAMES.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
@@ -439,7 +439,7 @@ export default function Profile() {
 
               <div style={{ height: 1, background: '#f1f1f1', margin: '12px 0' }} />
 
-              {[['🚗', 'Version', '1.0.0'], ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
+              {[['🚗', 'Version', '1.0.0'], ['📍', 'City', CITIES[cityKeyFor(profile?.city)]?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f9f9f9' }}>
                   <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
