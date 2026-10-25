@@ -1,22 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { getZones } from '../lib/cities'
+import { getZones, cityKeyFor, resolveArea } from '../lib/cities'
 
-function cityKey(city) {
-  if (!city) return 'hyderabad'
-  const c = city.toLowerCase()
-  if (c.includes('delhi')) return 'delhi'
-  if (c.includes('bang') || c.includes('bengal')) return 'bengaluru'
-  if (c.includes('chenn')) return 'chennai'
-  if (c.includes('mumb')) return 'mumbai'
-  if (c.includes('pune')) return 'pune'
-  return 'hyderabad'
-}
 const slug = s => (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const DAYS = [['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 7]]
 
-function AreaField({ label, zones, value, onChange }) {
+function AreaField({ label, zones, value, onChange, city }) {
   const isOther = value?.custom
   return (
     <div style={{ marginBottom: 14 }}>
@@ -45,15 +35,9 @@ function AreaField({ label, zones, value, onChange }) {
         // If what they type IS a known area (ignoring case/spaces/punctuation),
         // snap to it so it gets a zone and matches rides — people type
         // "ghatkesar" rather than scroll 80 options.
-        const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-        const typed = norm(value?.label)
-        let known = null
-        if (typed.length >= 3) {
-          for (const z of Object.keys(zones)) {
-            const hit = zones[z].find(a => norm(a) === typed)
-            if (hit) { known = { label: hit, zone: z }; break }
-          }
-        }
+        const typed = (value?.label || '').trim()
+        const hit = typed.length >= 3 ? resolveArea(city, typed, { exactOnly: true }) : null
+        const known = hit && hit.city === cityKeyFor(city) ? { label: hit.name, zone: hit.zone } : null
         return (
           <>
             <input
@@ -78,7 +62,7 @@ function AreaField({ label, zones, value, onChange }) {
 
 export default function CommuteSetup({ mode = 'existing', onDone }) {
   const { user, profile, fetchProfile } = useAuth()
-  const zones = getZones(cityKey(profile?.city))
+  const zones = getZones(cityKeyFor(profile?.city))
   const isCarOwner = profile?.role === 'driver' || profile?.role === 'both'
 
   const [home, setHome] = useState(null)
@@ -168,8 +152,8 @@ export default function CommuteSetup({ mode = 'existing', onDone }) {
       <div style={{ background: '#1a1a1a', borderRadius: 20, padding: 20, flex: 1 }}>
         {error && <div style={{ color: '#ef4444', fontSize: 12, marginBottom: 12 }}>{error}</div>}
 
-        <AreaField label="🏠 Home area" zones={zones} value={home} onChange={setHome} />
-        <AreaField label="🏢 Office area" zones={zones} value={office} onChange={setOffice} />
+        <AreaField label="🏠 Home area" zones={zones} value={home} onChange={setHome} city={profile?.city} />
+        <AreaField label="🏢 Office area" zones={zones} value={office} onChange={setOffice} city={profile?.city} />
 
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
