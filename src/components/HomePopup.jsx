@@ -30,8 +30,17 @@ function isExpired(p) {
   return !!p.until && new Date(`${p.until}T23:59:59+05:30`) < new Date()
 }
 
+// City / role targeting (both optional; missing or 'all' = everyone)
+export function popupMatchesUser(p, profile) {
+  if (p.city && p.city !== 'all' && (profile?.city || 'Hyderabad') !== p.city) return false
+  const role = profile?.role
+  if (p.role === 'owners' && !(role === 'driver' || role === 'both')) return false
+  if (p.role === 'riders' && !(role === 'rider' || role === 'both')) return false
+  return true
+}
+
 export default function HomePopup({ popups }) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const navigate = useNavigate()
   const [popup, setPopup] = useState(null)
 
@@ -43,13 +52,14 @@ export default function HomePopup({ popups }) {
     const next = popups.find(p => {
       if (!p?.id || !p.image_url || isExpired(p)) return false
       if (!popupMatchesDevice(p.target)) return false
+      if (!popupMatchesUser(p, profile)) return false
       try { if (localStorage.getItem(`ck_popup_seen_${p.id}`)) return false } catch (_) {}
       return true
     })
     if (!next) return
     const t = setTimeout(() => setPopup(next), 800)
     return () => clearTimeout(t)
-  }, [popups, user?.id])
+  }, [popups, user?.id, profile?.city, profile?.role])
 
   function close() {
     if (popup?.id) { try { localStorage.setItem(`ck_popup_seen_${popup.id}`, '1') } catch (_) {} }
