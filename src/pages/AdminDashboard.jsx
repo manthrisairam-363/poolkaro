@@ -2786,6 +2786,8 @@ function HomePopupTab({ supabase }) {
   const [link, setLink] = useState('')
   const [until, setUntil] = useState('')
   const [target, setTarget] = useState('all')
+  const [city, setCity] = useState('all')
+  const [role, setRole] = useState('all')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => { load() }, [])
@@ -2817,18 +2819,19 @@ function HomePopupTab({ supabase }) {
     const l = link.trim()
     if (l && !l.startsWith('/') && !l.startsWith('https://')) { alert('Link must be an app page like /post or a full https:// link.'); return }
     const tLabel = POPUP_TARGETS.find(t => t[0] === target)?.[1] || target
-    if (!confirm(`Publish this popup?\n\nShown to: ${tLabel}${until ? `\nUntil: ${until}` : ''}\n\nEach matching user sees it once.`)) return
+    const who = [tLabel, city !== 'all' ? `in ${city}` : 'all cities', role === 'owners' ? 'car owners' : role === 'riders' ? 'co-riders' : 'owners + riders'].join(' · ')
+    if (!confirm(`Publish this popup?\n\nShown to: ${who}${until ? `\nUntil: ${until}` : ''}\n\nEach matching user sees it once.`)) return
     setBusy(true)
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
     const path = `popup-${Date.now()}.${ext}`
     const { error: upErr } = await supabase.storage.from('announcements').upload(path, file, { contentType: file.type, upsert: false })
     if (upErr) { setBusy(false); alert('Upload failed: ' + upErr.message); return }
     const { data: pub } = supabase.storage.from('announcements').getPublicUrl(path)
-    const popup = { id: String(Date.now()), image_url: pub.publicUrl, title: title.trim(), cta: cta.trim(), link: l, until: until || null, target }
-    const ok = await saveList([...(list || []), popup], 'publish_popup', { title: popup.title, target, until: popup.until })
+    const popup = { id: String(Date.now()), image_url: pub.publicUrl, title: title.trim(), cta: cta.trim(), link: l, until: until || null, target, city, role }
+    const ok = await saveList([...(list || []), popup], 'publish_popup', { title: popup.title, target, city, role, until: popup.until })
     setBusy(false)
     if (!ok) return
-    setFile(null); setPreview(''); setTitle(''); setCta(''); setLink(''); setUntil(''); setTarget('all')
+    setFile(null); setPreview(''); setTitle(''); setCta(''); setLink(''); setUntil(''); setTarget('all'); setCity('all'); setRole('all')
     alert('✅ Popup published. Matching users see it the next time they open Home.')
   }
 
@@ -2858,7 +2861,7 @@ function HomePopupTab({ supabase }) {
             <img src={p.image_url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 10, background: '#222', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#aaa' }}>
               <div style={{ color: '#fff', fontWeight: 700 }}>{p.title || <span style={{ color: '#666' }}>(no caption)</span>}</div>
-              <div style={{ marginTop: 2 }}>👥 {POPUP_TARGETS.find(t => t[0] === (p.target || 'all'))?.[1] || p.target}</div>
+              <div style={{ marginTop: 2 }}>👥 {POPUP_TARGETS.find(t => t[0] === (p.target || 'all'))?.[1] || p.target}{p.city && p.city !== 'all' ? ` · 🏙️ ${p.city}` : ''}{p.role === 'owners' ? ' · 🚗 owners' : p.role === 'riders' ? ' · 🙋 riders' : ''}</div>
               {p.link && <div>🔗 {p.cta || 'Open'} → {p.link}</div>}
               <div style={{ color: expired(p) ? '#f87171' : '#888' }}>⏱ {p.until ? (expired(p) ? `expired ${p.until}` : `until ${p.until}`) : 'no end date'}</div>
               <button onClick={() => remove(p)} disabled={busy} style={{ marginTop: 6, padding: '6px 12px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
@@ -2876,10 +2879,27 @@ function HomePopupTab({ supabase }) {
         <div style={label}>IMAGE (best: portrait 1080×1350 or square, under 5 MB)</div>
         <input type="file" accept="image/*" onChange={pick} style={{ ...input, padding: 8 }} />
         {preview && <img src={preview} alt="preview" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 12, background: '#000', marginBottom: 10 }} />}
-        <div style={label}>SHOW TO</div>
+        <div style={label}>DEVICE</div>
         <select value={target} onChange={e => setTarget(e.target.value)} style={input}>
           {POPUP_TARGETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={label}>CITY</div>
+            <select value={city} onChange={e => setCity(e.target.value)} style={input}>
+              <option value="all">🌐 All cities</option>
+              {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={label}>ROLE</div>
+            <select value={role} onChange={e => setRole(e.target.value)} style={input}>
+              <option value="all">Owners + riders</option>
+              <option value="owners">🚗 Car owners only</option>
+              <option value="riders">🙋 Co-riders only</option>
+            </select>
+          </div>
+        </div>
         <div style={label}>CAPTION (optional)</div>
         <input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="e.g. Happy Diwali from CarpoolKaro 🪔" style={input} />
         <div style={label}>BUTTON LINK (optional)</div>
@@ -2903,16 +2923,25 @@ function HomePopupTab({ supabase }) {
 
 // ── COMMUTES — where users live and work, who filled the form, custom areas to add to zones ──
 function CommutesTab({ supabase, users }) {
-  const [rows, setRows] = useState(null)
+  const [allRows, setAllRows] = useState(null)
+  const [cityFilter, setCityFilter] = useState('all')
   useEffect(() => { load() }, [])
   async function load() {
     const { data, error } = await supabase.from('commute_schedules').select('*').order('updated_at', { ascending: false })
     if (error) { console.error('commutes load:', error.message); alert('Could not load commutes: ' + error.message + '\n\nRun 13_admin_commutes.sql if you have not.') }
-    setRows(data || [])
+    setAllRows(data || [])
   }
-  if (rows === null) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
+  if (allRows === null) return <div style={{ color: '#888', padding: 40, textAlign: 'center' }}>Loading…</div>
 
   const byId = {}; users.forEach(u => { byId[u.id] = u })
+  const cityOf = (uid) => byId[uid]?.city || 'Hyderabad'
+  // Per-city summary over ALL rows (before the filter)
+  const cityStats = {}
+  users.forEach(u => { const c = u.city || 'Hyderabad'; cityStats[c] = cityStats[c] || { users: 0, filled: 0, owners: 0, riders: 0 }; cityStats[c].users++ })
+  allRows.forEach(r => { const c = cityOf(r.user_id); cityStats[c] = cityStats[c] || { users: 0, filled: 0, owners: 0, riders: 0 }; cityStats[c].filled++; if (['driver','both'].includes(byId[r.user_id]?.role)) cityStats[c].owners++; else cityStats[c].riders++ })
+  const cities = Object.entries(cityStats).sort((a, b) => b[1].users - a[1].users)
+  const rows = cityFilter === 'all' ? allRows : allRows.filter(r => cityOf(r.user_id) === cityFilter)
+  const usersInScope = cityFilter === 'all' ? users : users.filter(u => (u.city || 'Hyderabad') === cityFilter)
   const roleOf = (r) => byId[r.user_id]?.role
   const isOwner = (r) => ['driver', 'both'].includes(roleOf(r))
   const count = (arr, keyFn) => { const m = {}; arr.forEach(x => { const k = keyFn(x); if (k) m[k] = (m[k] || 0) + 1 }); return Object.entries(m).sort((a, b) => b[1] - a[1]) }
@@ -2921,7 +2950,7 @@ function CommutesTab({ supabase, users }) {
   const owners = rows.filter(isOwner)
   const riders = rows.filter(r => !isOwner(r))
   const autoOn = owners.filter(r => r.auto_post && r.is_active).length
-  const notFilled = users.filter(u => !rows.find(r => r.user_id === u.id))
+  const notFilled = usersInScope.filter(u => !allRows.find(r => r.user_id === u.id))
   const notFilledOwners = notFilled.filter(u => ['driver', 'both'].includes(u.role)).length
 
   const homes = count(rows, r => r.home_label)
@@ -2953,9 +2982,29 @@ function CommutesTab({ supabase, users }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-        <button onClick={load} style={{ background: '#222', border: 'none', color: '#facc15', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>↺ Refresh</button>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+        <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={{ flex: 1, padding: '8px 10px', background: '#111', color: '#fff', border: '1px solid #333', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+          <option value="all">🏙️ All cities</option>
+          {cities.map(([c]) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={load} style={{ background: '#222', border: 'none', color: '#facc15', padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>↺</button>
       </div>
+
+      <Card title="🏙️ BY CITY" color="#14b8a6">
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1fr', gap: 4, fontSize: 10, color: '#666', fontWeight: 700, paddingBottom: 4, borderBottom: '1px solid #222' }}>
+          <span>City</span><span style={{ textAlign: 'right' }}>Users</span><span style={{ textAlign: 'right' }}>Filled</span><span style={{ textAlign: 'right' }}>🚗</span><span style={{ textAlign: 'right' }}>🙋</span>
+        </div>
+        {cities.map(([c, st]) => (
+          <div key={c} onClick={() => setCityFilter(c)} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1fr', gap: 4, fontSize: 12, padding: '6px 0', borderBottom: '1px solid #1f1f1f', cursor: 'pointer', color: cityFilter === c ? '#facc15' : '#ddd' }}>
+            <span style={{ fontWeight: 700 }}>{c}</span>
+            <span style={{ textAlign: 'right' }}>{st.users}</span>
+            <span style={{ textAlign: 'right', color: st.filled ? '#4ade80' : '#666' }}>{st.filled}</span>
+            <span style={{ textAlign: 'right' }}>{st.owners}</span>
+            <span style={{ textAlign: 'right' }}>{st.riders}</span>
+          </div>
+        ))}
+        <div style={{ fontSize: 10, color: '#555', marginTop: 6 }}>Tap a city to scope everything below to it.</div>
+      </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
         {[
