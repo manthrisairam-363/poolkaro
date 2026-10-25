@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { platformText } from '../lib/platform'
 import { useAuth } from '../lib/AuthContext'
+import { CITY_NAMES } from '../lib/cities'
 import { formatTime, formatDate } from '../lib/utils'
 
 // How a profile's role is shown across the dashboard
@@ -978,7 +979,7 @@ export default function AdminDashboard() {
                   </select>
                   <select value={userCity} onChange={e => setUserCity(e.target.value)} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600 }}>
                     <option value="all">🏙️ All cities</option>
-                    {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => <option key={c} value={c}>{c}</option>)}
+                    {CITY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 {false && (
@@ -1167,7 +1168,7 @@ export default function AdminDashboard() {
                 </div>
                 <select value={rideCity} onChange={e => setRideCity(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#111', color: '#fff', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
                   <option value="all">🏙️ All cities</option>
-                  {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => <option key={c} value={c}>{c}</option>)}
+                  {CITY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
 
                 {/* Bookings view — shows every booking, tappable to its ride */}
@@ -1883,7 +1884,7 @@ function CityAnalyticsTab({ supabase }) {
       supabase.from('profiles').select('city'),
       supabase.from('bookings').select('status,rides(city)'),
     ])
-    const cities = ['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai']
+    const cities = CITY_NAMES
     const cs = {}
     cities.forEach(c=>{cs[c]={rides:0,users:0,bookings:0,corridors:{},hours:{}}})
     ;(ridesRes.data||[]).forEach(r=>{
@@ -2125,7 +2126,7 @@ function NotifyTab({ supabase, users }) {
           </div>
           {targetType==='city'&&(
             <select value={targetCity} onChange={e=>setTargetCity(e.target.value)} style={{marginTop:8,padding:'8px 12px',background:'#1a1a1a',color:'#fff',border:'1px solid #333',borderRadius:8,fontSize:12,width:'100%'}}>
-              {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c=><option key={c}>{c}</option>)}
+              {CITY_NAMES.map(c=><option key={c}>{c}</option>)}
             </select>
           )}
           <div style={{marginTop:8,fontSize:11,color:'#facc15'}}>→ Will notify <strong>{targetCount}</strong> user{targetCount!==1?'s':''}</div>
@@ -2888,7 +2889,7 @@ function HomePopupTab({ supabase }) {
             <div style={label}>CITY</div>
             <select value={city} onChange={e => setCity(e.target.value)} style={input}>
               <option value="all">🌐 All cities</option>
-              {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => <option key={c} value={c}>{c}</option>)}
+              {CITY_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div style={{ flex: 1 }}>
