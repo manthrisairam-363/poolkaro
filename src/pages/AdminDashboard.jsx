@@ -2644,7 +2644,7 @@ function UnpaidFaresTab({ supabase }) {
     const today = istNow.toISOString().split('T')[0]
     const { data } = await supabase
       .from('bookings')
-      .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, created_at, rides!inner(from_location,to_location,ride_date,driver_id), profiles(full_name,phone)')
+      .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, payment_disputed_at, payment_claimed_at, created_at, rides!inner(from_location,to_location,ride_date,driver_id), profiles(full_name,phone)')
       .eq('status', 'confirmed')
       .lte('rides.ride_date', today)
       .order('created_at', { ascending: false })
@@ -2666,7 +2666,7 @@ function UnpaidFaresTab({ supabase }) {
       ) : rows.map(b => (
         <div key={b.id} style={{ background: '#1a1a1a', border: '1px solid #222', borderRadius: 10, padding: '10px 12px', marginBottom: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{b.profiles?.full_name || 'Rider'}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{b.profiles?.full_name || 'Rider'}{b.payment_disputed_at && (!b.payment_claimed_at || new Date(b.payment_disputed_at) > new Date(b.payment_claimed_at)) && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: '#fca5a5', background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 6, padding: '1px 6px' }}>DISPUTED</span>}</span>
             <span style={{ fontSize: 14, fontWeight: 800, color: '#f87171', flexShrink: 0 }}>⏳ ₹{owed(b)}</span>
           </div>
           <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
