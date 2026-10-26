@@ -7,6 +7,27 @@ import { hasRated, getBookingRatings, submitRating as submitRatingLib } from '..
 import BottomNav from '../components/BottomNav'
 import PayFare from '../components/PayFare'
 
+// Fare payment state of a booking. The rider only CLAIMS; the owner CONFIRMS.
+//   confirmed → owner ticked received · claimed → rider says paid, owner hasn't checked
+//   disputed  → owner said "not received" after the last claim · unpaid → nothing yet
+function payState(b) {
+  if (b?.driver_confirmed) return 'confirmed'
+  if (b?.payment_status === 'paid') return 'claimed'
+  const d = b?.payment_disputed_at ? new Date(b.payment_disputed_at).getTime() : 0
+  const c = b?.payment_claimed_at ? new Date(b.payment_claimed_at).getTime() : 0
+  return d && d > c ? 'disputed' : 'unpaid'
+}
+const PAY_RANK = { unpaid: 0, disputed: 0, claimed: 1, confirmed: 2 }
+function summarizePay(rows) {
+  const sum = f => rows.filter(f).reduce((t, r) => t + r.amount, 0)
+  const cnt = f => rows.filter(f).length
+  const conf = r => r.state === 'confirmed', cl = r => r.state === 'claimed', un = r => !conf(r) && !cl(r)
+  return { collected: sum(conf), claimed: sum(cl), pending: sum(un), paidCount: cnt(conf), claimedCount: cnt(cl), unpaidCount: cnt(un) }
+}
+function payeeAvailable(p) {
+  return !!(p?.upi_id || (p?.pay_by_phone !== false && p?.phone))
+}
+
 // Contact buttons — call + in-app chat
 function ContactButtons({ phone, name, bookingId, navigate }) {
   if (!bookingId) return null
@@ -179,8 +200,8 @@ function DriverRideCard({ ride, onCancel, onEdit, onCancelAll, unreadCounts = {}
   const [passengers, setPassengers] = useState([])
   const [loadingPax, setLoadingPax] = useState(false)
   const [actualBookedCount, setActualBookedCount] = useState(null)
-  const [paySummary, setPaySummary] = useState(null)  // { collected, pending, paidCount, unpaidCount }
   const [payRows, setPayRows] = useState([])          // per-rider payment rows
+  const paySummary = payRows.length ? summarizePay(payRows) : null
   const [payOpen, setPayOpen] = useState(false)       // past-ride payment expanded?
   const [busyRow, setBusyRow] = useState(null)        // bookingId being acted on
   const [pendingReqs, setPendingReqs] = useState([])  // riders awaiting approval
@@ -234,22 +255,41 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
     else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  // Confirm the driver received a rider's payment (marks paid + confirmed).
+  // Owner confirms the money actually arrived in their UPI app / bank.
   async function confirmRow(row) {
     setBusyRow(row.bookingId)
     const { data } = await supabase.from('bookings')
       .update({ driver_confirmed: true, payment_status: 'paid' })
       .eq('id', row.bookingId).select('id')
     if (data?.length) {
-      setPayRows(rows => rows.map(r => r.riderId === row.riderId ? { ...r, paid: true, driverConfirmed: true } : r))
-      recomputeSummary(row.riderId, true)
+      setPayRows(rows => rows.map(r => r.riderId === row.riderId ? { ...r, state: 'confirmed' } : r))
       await supabase.from('notifications').insert({
         user_id: row.riderId, title: '✅ Payment confirmed',
         message: `The driver confirmed receiving ₹${row.amount}. Thank you!`,
         type: 'booking', booking_id: row.bookingId, is_read: false,
       })
     } else {
-      alert('Could not save. The driver_confirmed column may be missing — tell the admin.')
+      alert('Could not save. Please try again.')
+    }
+    setBusyRow(null)
+  }
+
+  // Owner says the money did NOT arrive. Rider is told and can pay again or message.
+  async function rejectRow(row) {
+    if (!window.confirm(`Mark ₹${row.amount} from ${row.name} as NOT received?\n\nCheck your UPI app or bank first. ${row.name} will be told to pay again or send you the transaction ID.`)) return
+    setBusyRow(row.bookingId)
+    const { data } = await supabase.from('bookings')
+      .update({ driver_confirmed: false, payment_status: 'pending', payment_disputed_at: new Date().toISOString() })
+      .eq('id', row.bookingId).select('id')
+    if (data?.length) {
+      setPayRows(rows => rows.map(r => r.riderId === row.riderId ? { ...r, state: 'disputed' } : r))
+      await supabase.from('notifications').insert({
+        user_id: row.riderId, title: '⚠️ Payment not received',
+        message: `${profile?.full_name?.split(' ')[0] || 'The driver'} couldn't find your ₹${row.amount} payment for ${ride.from_location} → ${ride.to_location}. If you paid, message them your transaction ID. If not, please pay again.`,
+        type: 'booking', booking_id: row.bookingId, is_read: false,
+      })
+    } else {
+      alert('Could not save. Please try again.')
     }
     setBusyRow(null)
   }
@@ -266,20 +306,16 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
     alert('Reminder sent.')
   }
 
-  function recomputeSummary(riderId, nowPaid) {
-    setPaySummary(s => {
-      if (!s) return s
-      const row = payRows.find(r => r.riderId === riderId)
-      if (!row || row.paid === nowPaid) return s
-      const delta = row.amount
-      return {
-        collected: s.collected + (nowPaid ? delta : -delta),
-        pending: s.pending + (nowPaid ? -delta : delta),
-        paidCount: s.paidCount + (nowPaid ? 1 : -1),
-        unpaidCount: s.unpaidCount + (nowPaid ? -1 : 1),
-      }
-    })
+  // One line of text + colour per rider, by payment state.
+  function payLine(row) {
+    const seats = row.seats > 1 ? ` · ${row.seats} seats` : ''
+    if (row.state === 'confirmed') return { text: `₹${row.amount}${seats}`, color: '#94a3b8', bold: false }
+    if (row.state === 'claimed') return { text: `🟡 says paid ₹${row.amount}${row.ref ? ` · ref ${row.ref}` : ''}${seats}`, color: '#b45309', bold: true }
+    if (row.state === 'disputed') return { text: `❌ you marked not received · ₹${row.amount}${seats}`, color: '#dc2626', bold: true }
+    return { text: `⏳ owes ₹${row.amount}${seats}`, color: '#dc2626', bold: true }
   }
+  const payBg = row => row.state === 'confirmed' ? 'transparent' : row.state === 'claimed' ? '#fffbeb' : '#fff5f5'
+  const needsAction = row => row.state !== 'confirmed'
   const isToOffice = ride.ride_type === 'to_office'
   const statusColor = { active: '#16a34a', full: '#2563eb', cancelled: '#dc2626', completed: '#888' }
 
@@ -299,34 +335,29 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
   // "did everyone pay me?" data — name, amount, paid/not, per rider.
   useEffect(() => {
     supabase.from('bookings')
-      .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, profiles(full_name, phone)')
+      .select('id, rider_id, ride_fare, seats_booked, payment_status, driver_confirmed, payment_ref, payment_claimed_at, payment_disputed_at, profiles(full_name, phone)')
       .eq('ride_id', ride.id).in('status', ['confirmed', 'completed'])
       .then(({ data }) => {
         if (!data) return
-        // Group multiple bookings by the same rider into one row.
+        // Group multiple bookings by the same rider into one row (worst state wins).
         const grouped = {}
         data.forEach(b => {
           const amt = b.ride_fare || ride.fare || 0
-          if (grouped[b.rider_id]) {
-            grouped[b.rider_id].amount += amt
-            grouped[b.rider_id].seats += b.seats_booked
-            grouped[b.rider_id].paid = grouped[b.rider_id].paid && (b.payment_status === 'paid' || b.driver_confirmed)
+          const st = payState(b)
+          const g = grouped[b.rider_id]
+          if (g) {
+            g.amount += amt; g.seats += b.seats_booked
+            if (PAY_RANK[st] < PAY_RANK[g.state]) { g.state = st; g.ref = b.payment_ref || '' }
           } else {
             grouped[b.rider_id] = {
               bookingId: b.id, riderId: b.rider_id,
               name: b.profiles?.full_name || 'Rider',
               phone: b.profiles?.phone || '',
-              amount: amt, seats: b.seats_booked,
-              paid: b.payment_status === 'paid' || b.driver_confirmed,
-              driverConfirmed: b.driver_confirmed,
+              amount: amt, seats: b.seats_booked, state: st, ref: b.payment_ref || '',
             }
           }
         })
-        const rows = Object.values(grouped)
-        const collected = rows.filter(r => r.paid).reduce((s, r) => s + r.amount, 0)
-        const pending = rows.filter(r => !r.paid).reduce((s, r) => s + r.amount, 0)
-        setPayRows(rows)
-        setPaySummary({ collected, pending, paidCount: rows.filter(r => r.paid).length, unpaidCount: rows.filter(r => !r.paid).length })
+        setPayRows(Object.values(grouped))
       })
   }, [ride.id])
 
@@ -408,39 +439,49 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
           <button onClick={() => setPayOpen(o => !o)} style={{
             width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '10px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-            background: paySummary.pending > 0 ? '#fef2f2' : '#f3f4f6',
-            border: paySummary.pending > 0 ? '1px solid #fecaca' : '1px solid #e5e7eb',
+            background: paySummary.pending > 0 ? '#fef2f2' : paySummary.claimed > 0 ? '#fffbeb' : '#f3f4f6',
+            border: paySummary.pending > 0 ? '1px solid #fecaca' : paySummary.claimed > 0 ? '1px solid #fde68a' : '1px solid #e5e7eb',
           }}>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: paySummary.pending > 0 ? '#dc2626' : '#6b7280' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: paySummary.pending > 0 ? '#dc2626' : paySummary.claimed > 0 ? '#b45309' : '#6b7280' }}>
               {paySummary.pending > 0
                 ? `⚠️ ${paySummary.unpaidCount} unpaid · ₹${paySummary.pending} to collect`
-                : `✓ All ${paySummary.paidCount} paid · ₹${paySummary.collected}`}
+                : paySummary.claimed > 0
+                  ? `🟡 ${paySummary.claimedCount} to confirm · ₹${paySummary.claimed}`
+                  : `✓ All ${paySummary.paidCount} paid · ₹${paySummary.collected}`}
             </span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>{payOpen ? '▲' : '▼'}</span>
           </button>
 
           {payOpen && (
             <div style={{ marginTop: 6, background: '#fff', borderRadius: 10, border: '1px solid #eef0f2', overflow: 'hidden' }}>
-              {payRows.map(row => (
-                <div key={row.riderId} style={{ padding: '10px 12px', borderTop: '1px solid #f1f2f4', background: row.paid ? 'transparent' : '#fff5f5' }}>
+              {payRows.map(row => {
+                const ln = payLine(row)
+                return (
+                <div key={row.riderId} style={{ padding: '10px 12px', borderTop: '1px solid #f1f2f4', background: payBg(row) }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{row.name}</div>
-                      <div style={{ fontSize: 12, fontWeight: row.paid ? 400 : 800, color: row.paid ? '#94a3b8' : '#dc2626' }}>
-                        {row.paid ? `₹${row.amount}` : `⏳ owes ₹${row.amount}`}{row.seats > 1 ? ` · ${row.seats} seats` : ''}
-                      </div>
+                      <div style={{ fontSize: 12, fontWeight: ln.bold ? 800 : 400, color: ln.color }}>{ln.text}</div>
                     </div>
-                    {row.paid ? (
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>
-                        {row.driverConfirmed ? '✓ Received' : '✓ Paid'}
-                      </span>
+                    {row.state === 'confirmed' ? (
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>✓ Received</span>
+                    ) : row.state === 'claimed' ? (
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => rejectRow(row)} disabled={busyRow === row.bookingId}
+                          style={{ padding: '6px 9px', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✗ Not received</button>
+                        <button onClick={() => confirmRow(row)} disabled={busyRow === row.bookingId}
+                          style={{ padding: '6px 10px', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓ Received</button>
+                      </div>
                     ) : (
                       <button onClick={() => confirmRow(row)} disabled={busyRow === row.bookingId}
                         style={{ padding: '6px 10px', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>✓ Got it</button>
                     )}
                   </div>
+                  {row.state === 'claimed' && (
+                    <div style={{ fontSize: 11, color: '#92400e', marginTop: 6, lineHeight: 1.4 }}>Open your UPI app or bank and look for ₹{row.amount} from {row.name}. Tap Received only if you can see it.</div>
+                  )}
                   {/* Unpaid → give the driver the tools to chase: phone + remind */}
-                  {!row.paid && (
+                  {needsAction(row) && row.state !== 'claimed' && (
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                       {row.phone && (
                         <a href={`tel:${row.phone}`} style={{ flex: 1, textAlign: 'center', padding: '7px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>📞 {row.phone}</a>
@@ -450,44 +491,57 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
                     </div>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* ACTIVE rides — compact always-visible summary (unchanged) */}
+      {/* ACTIVE rides — compact always-visible summary */}
       {payRows.length > 0 && paySummary && !isPast && (
         <div style={{ marginTop: 10, background: '#f9fafb', borderRadius: 10, border: '1px solid #eef0f2', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 12px', background: paySummary.pending > 0 ? '#fffbeb' : '#f0fdf4', fontSize: 12, fontWeight: 800 }}>
-            <span style={{ color: '#15803d' }}>✓ Collected ₹{paySummary.collected}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, padding: '9px 12px', background: (paySummary.pending > 0 || paySummary.claimed > 0) ? '#fffbeb' : '#f0fdf4', fontSize: 12, fontWeight: 800 }}>
+            <span style={{ color: '#15803d' }}>✓ Confirmed ₹{paySummary.collected}</span>
+            {paySummary.claimed > 0 && <span style={{ color: '#b45309' }}>🟡 To confirm ₹{paySummary.claimed}</span>}
             {paySummary.pending > 0
               ? <span style={{ color: '#c2410c' }}>⏳ Pending ₹{paySummary.pending}</span>
-              : <span style={{ color: '#15803d' }}>All paid 🎉</span>}
+              : paySummary.claimed === 0 && <span style={{ color: '#15803d' }}>All paid 🎉</span>}
           </div>
           <div>
-            {payRows.map(row => (
-              <div key={row.riderId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderTop: '1px solid #f1f2f4', background: row.paid ? 'transparent' : '#fff5f5' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</div>
-                  <div style={{ fontSize: 12, fontWeight: row.paid ? 400 : 800, color: row.paid ? '#94a3b8' : '#dc2626' }}>
-                    {row.paid ? '' : '⏳ owes '}₹{row.amount}{row.seats > 1 ? ` · ${row.seats} seats` : ''}
+            {payRows.map(row => {
+              const ln = payLine(row)
+              return (
+              <div key={row.riderId} style={{ padding: '9px 12px', borderTop: '1px solid #f1f2f4', background: payBg(row) }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</div>
+                    <div style={{ fontSize: 12, fontWeight: ln.bold ? 800 : 400, color: ln.color }}>{ln.text}</div>
                   </div>
+                  {row.state === 'confirmed' ? (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>✓ Received</span>
+                  ) : row.state === 'claimed' ? (
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => rejectRow(row)} disabled={busyRow === row.bookingId}
+                        style={{ padding: '5px 8px', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✗ Not received</button>
+                      <button onClick={() => confirmRow(row)} disabled={busyRow === row.bookingId}
+                        style={{ padding: '5px 9px', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓ Received</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => remindRow(row)} disabled={busyRow === row.bookingId}
+                        style={{ padding: '5px 9px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>🔔</button>
+                      <button onClick={() => confirmRow(row)} disabled={busyRow === row.bookingId}
+                        style={{ padding: '5px 9px', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓ Got it</button>
+                    </div>
+                  )}
                 </div>
-                {row.paid ? (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', flexShrink: 0 }}>
-                    {row.driverConfirmed ? '✓ Received' : '✓ Paid'}
-                  </span>
-                ) : (
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => remindRow(row)} disabled={busyRow === row.bookingId}
-                      style={{ padding: '5px 9px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>🔔</button>
-                    <button onClick={() => confirmRow(row)} disabled={busyRow === row.bookingId}
-                      style={{ padding: '5px 9px', background: '#16a34a', border: 'none', color: '#fff', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓ Got it</button>
-                  </div>
+                {row.state === 'claimed' && (
+                  <div style={{ fontSize: 11, color: '#92400e', marginTop: 5, lineHeight: 1.4 }}>Check your UPI app or bank for ₹{row.amount} from {row.name}. Tap Received only if you can see it.</div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -531,7 +585,7 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
 
 
 export default function MyRides() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const navigate = useNavigate()
   // A notification tap sets ?tab= and always wins. Otherwise we pick the tab
   // based on the user's most recent action (see chooseTabByActivity below).
@@ -580,19 +634,29 @@ export default function MyRides() {
   // Open the payment sheet for a booking (PayFare does the rest).
   function openUpiSheet(b) { setUpiSheet(b) }
 
-  // Undo an accidental "I've Paid" — sets the booking back to pending.
-  async function unmarkPaid(bookingId) {
-    const ok = window.confirm('Mark this fare as NOT paid?\n\nUse this only if you tapped "I\'ve Paid" by mistake.')
+  // Withdraw a payment claim made by mistake. Only possible until the owner
+  // confirms (the DB trigger enforces that too). The owner is told, so they don't
+  // go hunting for money that was never sent.
+  async function unmarkPaid(b) {
+    if (payState(b) !== 'claimed') return
+    const ok = window.confirm('Withdraw your "I\'ve paid" claim?\n\nUse this only if you tapped it by mistake or the payment did not go through.')
     if (!ok) return
     const { data, error } = await supabase
       .from('bookings')
-      .update({ payment_status: 'pending' })
-      .eq('id', bookingId)
+      .update({ payment_status: 'pending', payment_ref: null })
+      .eq('id', b.id)
       .eq('rider_id', user.id)
       .select('id')
     if (error || !data || data.length === 0) {
       alert('Could not undo. Please try again.')
       return
+    }
+    if (b.rides?.driver_id) {
+      await supabase.from('notifications').insert({
+        user_id: b.rides.driver_id, type: 'booking', booking_id: b.id, is_read: false,
+        title: '↩️ Payment claim withdrawn',
+        message: `${profile?.full_name?.split(' ')[0] || 'Your rider'} withdrew the "paid" mark for ${b.rides?.from_location} → ${b.rides?.to_location}. Nothing to check yet.`,
+      })
     }
     await fetchData()
   }
@@ -804,7 +868,7 @@ export default function MyRides() {
               ))}
 
               {activeBookings.map(b => (
-                <div key={b.id} style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10, borderLeft: `4px solid ${b.payment_status === 'paid' ? '#16a34a' : '#f59e0b'}` }}>
+                <div key={b.id} style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 10, borderLeft: `4px solid ${payState(b) === 'confirmed' ? '#16a34a' : '#f59e0b'}` }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{b.rides?.from_location} → {b.rides?.to_location}</div>
                   <div style={{ color: '#888', fontSize: 12, marginTop: 3 }}>
                     {b.rides?.ride_date && new Date(b.rides.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {formatTime(b.rides?.ride_time)}
@@ -830,18 +894,38 @@ export default function MyRides() {
                     <span style={{ background: '#f0fdf4', color: '#16a34a', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>✅ {b.seats_booked} seat{b.seats_booked > 1 ? 's' : ''} confirmed</span>
                     <span style={{ background: '#f8f9fa', color: '#555', borderRadius: 20, padding: '3px 10px', fontSize: 12 }}>💰 ₹2 platform fee paid</span>
                   </div>
-                  {/* Pay driver — shows a clear paid state once confirmed */}
-                  {b.rides?.profiles?.upi_id && b.status !== 'cancelled' && b.status !== 'completed' && (
-                    b.payment_status === 'paid' ? (
-                      <button onClick={() => unmarkPaid(b.id)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        ✓ Paid ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]} <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>· tap to undo</span>
+                  {/* Pay driver — rider claims, owner confirms */}
+                  {b.status !== 'cancelled' && b.status !== 'completed' && (() => {
+                    const st = payState(b)
+                    const owner = b.rides?.profiles?.full_name?.split(' ')[0] || 'the owner'
+                    const fare = b.ride_fare || b.rides?.fare
+                    const payBtn = (label) => payeeAvailable(b.rides?.profiles) ? (
+                      <button onClick={() => openUpiSheet(b)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                        {label}
                       </button>
-                    ) : (
-                      <button onClick={() => openUpiSheet(b)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
-                      </button>
+                    ) : null
+                    if (st === 'confirmed') return (
+                      <div style={{ marginTop: 8, padding: '11px', background: '#dcfce7', color: '#15803d', borderRadius: 10, fontSize: 13, fontWeight: 700, textAlign: 'center' }}>✓ {owner} confirmed ₹{fare}</div>
                     )
-                  )}
+                    if (st === 'claimed') return (
+                      <div style={{ marginTop: 8, padding: '10px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#b45309' }}>⏳ Waiting for {owner} to confirm ₹{fare}</div>
+                        <div style={{ fontSize: 11, color: '#92400e', marginTop: 3, lineHeight: 1.4 }}>They check their own UPI app. You'll be notified.</div>
+                        <button onClick={() => unmarkPaid(b)} style={{ marginTop: 8, padding: '7px 12px', background: 'transparent', border: '1px solid #fcd34d', color: '#92400e', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Tapped by mistake? Undo</button>
+                      </div>
+                    )
+                    if (st === 'disputed') return (
+                      <div style={{ marginTop: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#dc2626' }}>⚠️ {owner} didn't receive ₹{fare}</div>
+                        <div style={{ fontSize: 11, color: '#7f1d1d', marginTop: 3, lineHeight: 1.4 }}>If you paid, send them your transaction ID in chat. If not, please pay again.</div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button onClick={() => navigate(`/chat/${b.id}`)} style={{ flex: 1, padding: 9, background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💬 Message {owner}</button>
+                          {payeeAvailable(b.rides?.profiles) && <button onClick={() => openUpiSheet(b)} style={{ flex: 1, padding: 9, background: '#111', color: '#facc15', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💳 Pay again</button>}
+                        </div>
+                      </div>
+                    )
+                    return payBtn(`💳 Pay ₹${fare} to ${owner}`)
+                  })()}
                   {/* Rate the driver — inline, once the ride is completed */}
                   {b.status === 'completed' && (
                     <RiderRatesDriver booking={b} />
@@ -891,7 +975,8 @@ export default function MyRides() {
                     <span>▶</span> {completedBookings.length} completed ride{completedBookings.length > 1 ? 's' : ''} (tap to show)
                   </summary>
                   {completedBookings.map(b => {
-                    const isPaid = b.payment_status === 'paid' || b.driver_confirmed
+                    const st = payState(b)
+                    const isPaid = st === 'confirmed' || st === 'claimed'
                     const fare = b.ride_fare || b.rides?.fare || 150
                     const driverName = b.rides?.profiles?.full_name?.split(' ')[0] || 'Driver'
                     return (
@@ -903,14 +988,21 @@ export default function MyRides() {
 
                       {/* Payment status — a completed ride can still be UNPAID.
                           Don't hide the pay option just because the ride is over. */}
-                      {isPaid ? (
-                        <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: '#15803d' }}>✓ You paid ₹{fare} to {driverName}</div>
+                      {st === 'confirmed' ? (
+                        <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: '#15803d' }}>✓ {driverName} confirmed ₹{fare}</div>
+                      ) : st === 'claimed' ? (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>⏳ Waiting for {driverName} to confirm ₹{fare}</div>
+                          <button onClick={() => unmarkPaid(b)} style={{ marginTop: 6, padding: '6px 10px', background: 'transparent', border: '1px solid #fcd34d', color: '#92400e', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Tapped by mistake? Undo</button>
+                        </div>
                       ) : (
                         <div style={{ marginTop: 8 }}>
-                          <div style={{ fontSize: 12, fontWeight: 800, color: '#c2410c', marginBottom: 6 }}>⏳ You haven't paid ₹{fare} yet</div>
-                          {b.rides?.profiles?.upi_id && (
+                          <div style={{ fontSize: 12, fontWeight: 800, color: st === 'disputed' ? '#dc2626' : '#c2410c', marginBottom: 6 }}>
+                            {st === 'disputed' ? `⚠️ ${driverName} didn't receive ₹${fare}` : `⏳ You haven't paid ₹${fare} yet`}
+                          </div>
+                          {payeeAvailable(b.rides?.profiles) && (
                             <button onClick={() => openUpiSheet(b)} style={{ width: '100%', padding: '10px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                              💳 Pay ₹{fare} to {driverName}
+                              💳 {st === 'disputed' ? 'Pay again' : 'Pay'} ₹{fare} to {driverName}
                             </button>
                           )}
                         </div>
