@@ -13,27 +13,23 @@ import { useAuth } from '../lib/AuthContext'
 //      In the app: "To UPI ID" / "To Mobile Number" → paste → amount → pay.
 //   2. UPI ID and mobile number shown with Copy buttons.
 //   3. QR (amount pre-filled) for a second device, or save → Scan → Gallery.
-//   4. "I've paid" → marks the booking and notifies the driver, who confirms.
+//   4. "I've paid" → rider CLAIMS (two-step, optional UTR). The owner then confirms
+//      or disputes it from My Rides. Only the owner can confirm (DB trigger, 15_*.sql).
 // Used by BookRide (after booking) and MyRides (pay sheet). Change it here only.
 
-// iOS opens an app by its URL scheme. Android opens it by PACKAGE NAME through
-// an intent:// URL (a bare scheme like phonepe:// does nothing there), and the
-// Play Store page is the fallback if the app isn't installed.
+// Both platforms open the app by its URL scheme, called synchronously inside the
+// tap (Android Chrome drops the launch once the tap's user-activation lapses, so no
+// await / setTimeout before it). There is deliberately NO Play Store fallback: when
+// the app is installed it must open the app, and a store page for an app the rider
+// already has is wrong. If nothing opens, the page stays visible and we say so.
 const APPS = [
-  { key: 'phonepe', label: 'PhonePe',    scheme: 'phonepe://', pkg: 'com.phonepe.app',                        bg: '#5f259f', fg: '#fff' },
-  { key: 'gpay',    label: 'Google Pay', scheme: 'tez://',     pkg: 'com.google.android.apps.nbu.paisa.user', bg: '#1a73e8', fg: '#fff' },
-  { key: 'paytm',   label: 'Paytm',      scheme: 'paytmmp://', pkg: 'net.one97.paytm',                        bg: '#00b9f1', fg: '#fff' },
+  { key: 'phonepe', label: 'PhonePe',    scheme: 'phonepe://', bg: '#5f259f', fg: '#fff' },
+  { key: 'gpay',    label: 'Google Pay', scheme: 'tez://',     bg: '#1a73e8', fg: '#fff' },
+  { key: 'paytm',   label: 'Paytm',      scheme: 'paytmmp://', bg: '#00b9f1', fg: '#fff' },
 ]
 const UA = typeof navigator !== 'undefined' ? navigator.userAgent : ''
 const IS_ANDROID = /Android/i.test(UA)
 const IS_IOS = /iPhone|iPad|iPod/i.test(UA)
-function appUrl(app) {
-  if (IS_ANDROID) {
-    const fallback = encodeURIComponent(`https://play.google.com/store/apps/details?id=${app.pkg}`)
-    return `intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.pkg};S.browser_fallback_url=${fallback};end`
-  }
-  return app.scheme
-}
 
 function buildQrUrl(upi, name, amount) {
   const pa = String(upi || '').trim()
@@ -65,6 +61,9 @@ export default function PayFare({
   const [hint, setHint] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const [confirming, setConfirming] = useState(false)   // 'I've paid' check step
+  const [sawSuccess, setSawSuccess] = useState(false)
+  const [ref, setRef] = useState('')
 
   useEffect(() => {
     if (!upi || !amount) { setQr(null); return }
@@ -75,22 +74,34 @@ export default function PayFare({
 
   function copyAndOpen(app) {
     if (!payee) return
-    // Everything here must stay SYNCHRONOUS inside the tap: Android Chrome
-    // refuses to open another app once the tap's "user activation" has lapsed,
-    // and an await or a setTimeout lapses it. Copy first (not awaited), then go.
+    // Everything up to the navigation stays SYNCHRONOUS inside the tap.
     copyText(payee)
-    flash(app.key, `✓ ${payeeKind} copied. In ${app.label}: tap "To ${upi ? 'UPI ID' : 'Mobile Number'}" → paste → enter ₹${amount} → pay.`)
-    if (IS_ANDROID || IS_IOS) {
-      try { window.location.href = appUrl(app) } catch (_) {}
+    const how = `tap "To ${upi ? 'UPI ID' : 'Mobile Number'}" → paste → enter ₹${amount} → pay.`
+    flash(app.key, `✓ ${payeeKind} copied. In ${app.label}: ${how}`)
+    if (!(IS_ANDROID || IS_IOS)) return
+    let left = false
+    const onHide = () => { if (document.hidden) left = true }
+    document.addEventListener('visibilitychange', onHide)
+    try { window.location.href = app.scheme } catch (_) {}
+    if (IS_ANDROID) {
+      // If we are still on screen after a moment, the app did not open.
+      setTimeout(() => {
+        document.removeEventListener('visibilitychange', onHide)
+        if (!left && !document.hidden) setHint(`${app.label} didn't open by itself — your ${payeeKind} is copied. Open ${app.label} yourself: ${how}`)
+      }, 1600)
+    } else {
+      setTimeout(() => document.removeEventListener('visibilitychange', onHide), 1600)
     }
   }
 
   async function markPaid() {
     if (!bookingId || !user?.id) return
-    if (!window.confirm(`Confirm you've paid ₹${amount} to ${ownerName || 'the driver'}?\n\nOnly tap OK after the UPI payment went through. The driver will be asked to confirm.`)) return
+    if (!sawSuccess) return
     setSaving(true)
+    const cleanRef = ref.trim().replace(/\s+/g, '').slice(0, 40)
     const { data, error } = await supabase.from('bookings')
-      .update({ payment_status: 'paid' }).eq('id', bookingId).eq('rider_id', user.id).select('id')
+      .update({ payment_status: 'paid', payment_ref: cleanRef || null })
+      .eq('id', bookingId).eq('rider_id', user.id).select('id')
     if (error || !data?.length) {
       setSaving(false)
       alert(error ? `Could not save: ${error.message}` : "Couldn't update the payment status. Please tell the admin.")
@@ -99,8 +110,8 @@ export default function PayFare({
     if (driverId) {
       await supabase.from('notifications').insert({
         user_id: driverId, type: 'booking', booking_id: bookingId, is_read: false,
-        title: '💰 Payment received?',
-        message: `${user?.user_metadata?.full_name || 'Your rider'} marked ₹${amount} as paid${route ? ` for ${route}` : ''}. Tap "Got it" in My Rides to confirm.`,
+        title: '💰 Please check your payment',
+        message: `${user?.user_metadata?.full_name || 'Your rider'} says they paid ₹${amount}${route ? ` for ${route}` : ''}${cleanRef ? ` (ref ${cleanRef})` : ''}. Check your UPI app or bank, then tap ✓ Received or ✗ Not received in My Rides.`,
       })
     }
     setSaving(false); setDone(true)
@@ -119,8 +130,8 @@ export default function PayFare({
     return (
       <div style={{ textAlign: 'center', padding: '18px 0' }}>
         <div style={{ fontSize: 40 }}>✅</div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: c.fg, marginTop: 6 }}>Marked as paid</div>
-        <div style={{ fontSize: 13, color: c.sub, marginTop: 4, lineHeight: 1.5 }}>{ownerName || 'The driver'} has been notified and will confirm receiving ₹{amount}.</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: c.fg, marginTop: 6 }}>Sent to {ownerName || 'the driver'}</div>
+        <div style={{ fontSize: 13, color: c.sub, marginTop: 4, lineHeight: 1.5 }}>Waiting for {ownerName || 'the driver'} to confirm they received ₹{amount}. If it hasn't reached them, you'll be told here.</div>
       </div>
     )
   }
@@ -188,11 +199,31 @@ export default function PayFare({
         </>
       )}
 
-      {/* 4. Confirm */}
-      {bookingId && (
-        <button onClick={markPaid} disabled={saving} style={{ width: '100%', padding: 14, background: c.ok, color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer', opacity: saving ? 0.6 : 1, marginTop: 4 }}>
-          {saving ? 'Saving…' : `✓ I've paid ₹${amount}`}
+      {/* 4. Claim — two steps so a stray tap can't claim a payment */}
+      {bookingId && !confirming && (
+        <button onClick={() => setConfirming(true)} style={{ width: '100%', padding: 14, background: c.ok, color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer', marginTop: 4 }}>
+          ✓ I've paid ₹{amount}
         </button>
+      )}
+      {bookingId && confirming && (
+        <div style={{ background: c.warnBg, border: `1px solid ${c.warnLine}`, borderRadius: 14, padding: 14, marginTop: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: c.warnFg, marginBottom: 6 }}>Only continue if the money has left your account</div>
+          <div style={{ fontSize: 12, color: c.sub, lineHeight: 1.5, marginBottom: 10 }}>
+            {ownerName || 'The driver'} will check their own UPI app or bank for ₹{amount}. If it isn't there, they will mark it <b>not received</b> and you'll be asked to pay again.
+          </div>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: c.fg, lineHeight: 1.4, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={sawSuccess} onChange={e => setSawSuccess(e.target.checked)} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }} />
+            <span>My UPI app showed <b>payment successful</b> for ₹{amount}</span>
+          </label>
+          <input value={ref} onChange={e => setRef(e.target.value)} placeholder="Transaction / UTR number (optional, helps them match it)"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${c.line}`, borderRadius: 10, fontSize: 13, background: dark ? '#111' : '#fff', color: c.fg, marginBottom: 10 }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setConfirming(false); setSawSuccess(false) }} disabled={saving} style={{ flex: 1, padding: 13, background: 'transparent', color: c.sub, border: `1px solid ${c.line}`, borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Not yet</button>
+            <button onClick={markPaid} disabled={saving || !sawSuccess} style={{ flex: 2, padding: 13, background: c.ok, color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: sawSuccess ? 'pointer' : 'not-allowed', opacity: saving || !sawSuccess ? 0.5 : 1 }}>
+              {saving ? 'Sending…' : `Send to ${ownerName || 'driver'}`}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
