@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -20,11 +20,11 @@ import { useAuth } from '../lib/AuthContext'
 // Opening the UPI app from a web page.
 // iPhone: the app's URL scheme works (phonepe://, tez://, paytmmp://).
 // Android: Chrome only launches an app when the link matches an intent filter
-// that app declared, and every app declares different ones, so no single link
-// format is guaranteed. We therefore keep a short LIST of formats per app, try
-// the next one each tap, and REMEMBER the one that worked on this phone
-// (localStorage) so it is a single tap from then on. There is deliberately NO
-// Play Store fallback: for an app the rider already has, a store page is wrong.
+// that app declared. Tested on a real phone 27 Oct 2026: the first link format
+// failed and the 2nd/3rd opened the app. So ONE tap now tries the formats in turn
+// (a failed attempt is silent; it stops the moment the app takes the screen) and
+// the one that worked is remembered, so that app goes first next time. There is
+// deliberately NO Play Store fallback.
 const APPS = [
   { key: 'phonepe', label: 'PhonePe',    scheme: 'phonepe', host: 'pay',     pkg: 'com.phonepe.app',                        bg: '#5f259f', fg: '#fff' },
   { key: 'gpay',    label: 'Google Pay', scheme: 'tez',     host: 'upi/pay', pkg: 'com.google.android.apps.nbu.paisa.user', bg: '#1a73e8', fg: '#fff' },
@@ -33,9 +33,9 @@ const APPS = [
 function androidLinks(app) {
   const { scheme: s, host, pkg } = app
   return [
-    `intent://#Intent;scheme=${s};package=${pkg};end`,         // scheme, pinned to the app
     `${s}://`,                                                   // plain scheme
-    `intent://${host}#Intent;scheme=${s};package=${pkg};end`,   // scheme + the host the app registers
+    `intent://${host}#Intent;scheme=${s};package=${pkg};end`,   // scheme + host the app registers, pinned to the app
+    `intent://#Intent;scheme=${s};package=${pkg};end`,         // scheme, pinned to the app
     `android-app://${pkg}`,                                      // Chrome's "launch this app" form
     `intent:#Intent;package=${pkg};end`,                         // package only
   ]
@@ -73,7 +73,6 @@ export default function PayFare({
   const [copied, setCopied] = useState('')      // 'upi' | 'phone' | app key
   const [hint, setHint] = useState('')
   const [hintBad, setHintBad] = useState(false)
-  const tries = useRef({})                    // app key -> next android link index
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
 
@@ -94,31 +93,35 @@ export default function PayFare({
     if (IS_IOS) { try { window.location.href = `${app.scheme}://` } catch (_) {} return }
     if (!IS_ANDROID) return
 
+    // Android: try each link format in turn, inside this one tap. Chrome keeps the
+    // tap's permission for ~5s, a failed link does nothing visible, and we stop as
+    // soon as the page goes to the background (= the app opened).
     const links = androidLinks(app)
-    const storeKey = `ck_open_${app.key}`
-    let learned = -1
-    try { learned = parseInt(localStorage.getItem(storeKey), 10) } catch (_) {}
-    if (tries.current[app.key] == null) tries.current[app.key] = learned >= 0 && learned < links.length ? learned : 0
-    const idx = tries.current[app.key] % links.length
-    tries.current[app.key] = idx + 1
+    const storeKey = `ck_open2_${app.key}`
+    let learned = null
+    try { learned = localStorage.getItem(storeKey) } catch (_) {}
+    const order = learned && links.includes(learned) ? [learned, ...links.filter(l => l !== learned)] : links
 
-    let left = false
-    const onHide = () => { if (document.hidden) left = true }
+    let i = 0, left = false, current = null, openedBy = null
+    const onHide = () => { if (document.hidden && !left) { left = true; openedBy = current } }
     document.addEventListener('visibilitychange', onHide)
-    try { window.location.href = links[idx] } catch (_) {}
-    setTimeout(() => {
-      document.removeEventListener('visibilitychange', onHide)
-      if (left) {                                   // the app opened: remember this format
-        try { localStorage.setItem(storeKey, String(idx)) } catch (_) {}
-        tries.current[app.key] = idx
+    const step = () => {
+      if (left || document.hidden) {
+        document.removeEventListener('visibilitychange', onHide)
+        if (openedBy) { try { localStorage.setItem(storeKey, openedBy) } catch (_) {} }
         return
       }
-      if (document.hidden) return
-      setHintBad(true)
-      setHint(idx + 1 < links.length
-        ? `${app.label} didn't open (way ${idx + 1} of ${links.length}). Tap ${app.label} again to try another way — your ${payeeKind} is already copied.`
-        : `${app.label} won't open from here on this phone. Your ${payeeKind} is copied — open ${app.label} yourself: ${how}`)
-    }, 1000)
+      if (i >= order.length) {
+        document.removeEventListener('visibilitychange', onHide)
+        setHintBad(true)
+        setHint(`${app.label} won't open from here on this phone. Your ${payeeKind} is copied — open ${app.label} yourself: ${how}`)
+        return
+      }
+      current = order[i++]
+      try { window.location.href = current } catch (_) {}
+      setTimeout(step, 800)
+    }
+    step()
   }
 
   async function markPaid() {
