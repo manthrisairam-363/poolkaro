@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import QRCode from 'qrcode'
 import { formatTime, formatDate } from '../lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { hasRated, getBookingRatings, submitRating as submitRatingLib } from '../lib/ratings'
 import BottomNav from '../components/BottomNav'
+import PayFare from '../components/PayFare'
 
 // Contact buttons — call + in-app chat
 function ContactButtons({ phone, name, bookingId, navigate }) {
@@ -528,121 +528,7 @@ ${ride.route_description ? `🛣️ Route: ${ride.route_description}\n` : ''}�
   )
 }
 
-// Build a spec-compliant UPI intent. The standard `upi://pay` scheme is the
-// ONLY one every UPI app + bank reliably honours. App-specific schemes like
-// phonepe:// / gpay:// / paytmmp:// are unofficial and get rejected as
-// "declined for security reasons" when built externally — which is exactly
-// the bug we hit. So every button uses upi://pay and lets the OS/app resolve.
-function buildUpiUrl(upi, name, fare) {
-  // NOTE: do NOT use URLSearchParams here. It form-encodes — turning @ into
-  // %40 and spaces into "+". UPI apps read those literally and reject the VPA
-  // ("declined for security reasons"). UPI needs RFC-3986: @ stays literal,
-  // spaces become %20. encodeURIComponent gives us exactly that.
-  const pa = String(upi || '').trim()                 // VPA: keep @ literal
-  const pn = encodeURIComponent(String(name || 'Driver').trim())
-  const am = Number(fare || 0).toFixed(2)
-  const tn = encodeURIComponent('CarpoolKaro ride fare')
-  return `upi://pay?pa=${pa}&pn=${pn}&am=${am}&cu=INR&tn=${tn}`
-}
 
-// UPI App Logo SVGs. All use the standard builder; the label just tells the
-// user which icon to look for in the app chooser.
-const UPI_APPS = [
-  {
-    name: 'PhonePe',
-    url: buildUpiUrl,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="#5f259f"/>
-        <circle cx="24" cy="20" r="8" fill="none" stroke="white" strokeWidth="2.5"/>
-        <path d="M18 26 L24 14 L30 26" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M16 32 Q24 28 32 32" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-      </svg>
-    )
-  },
-  {
-    name: 'Google Pay',
-    url: buildUpiUrl,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="white" stroke="#e2e8f0" strokeWidth="1"/>
-        <text x="5" y="32" fontSize="22" fontWeight="900" fontFamily="Arial" fill="#4285F4">G</text>
-        <text x="22" y="32" fontSize="22" fontWeight="900" fontFamily="Arial" fill="#EA4335">P</text>
-        <text x="36" y="32" fontSize="14" fontWeight="700" fontFamily="Arial" fill="#FBBC05">a</text>
-        <text x="44" y="32" fontSize="14" fontWeight="700" fontFamily="Arial" fill="#34A853">y</text>
-      </svg>
-    )
-  },
-  {
-    name: 'Paytm',
-    url: buildUpiUrl,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="#002970"/>
-        <rect x="6" y="14" width="36" height="8" rx="2" fill="#00BAF2"/>
-        <text x="24" y="36" textAnchor="middle" fontSize="10" fontWeight="800" fontFamily="Arial" fill="white">PAYTM</text>
-      </svg>
-    )
-  },
-  {
-    name: 'BHIM',
-    url: buildUpiUrl,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="#00529C"/>
-        <rect x="0" y="30" width="48" height="18" rx="12" fill="#FF6B00"/>
-        <text x="24" y="22" textAnchor="middle" fontSize="13" fontWeight="900" fontFamily="Arial" fill="white">BHIM</text>
-        <text x="24" y="42" textAnchor="middle" fontSize="9" fontWeight="700" fontFamily="Arial" fill="white">UPI</text>
-      </svg>
-    )
-  },
-  {
-    name: 'Amazon Pay',
-    url: buildUpiUrl,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="#1A1919"/>
-        <text x="24" y="22" textAnchor="middle" fontSize="9" fontWeight="700" fontFamily="Arial" fill="white">amazon</text>
-        <path d="M10 26 Q24 32 38 26" fill="none" stroke="#FF9900" strokeWidth="2.5" strokeLinecap="round"/>
-        <text x="24" y="38" textAnchor="middle" fontSize="9" fontWeight="700" fontFamily="Arial" fill="#FF9900">pay</text>
-      </svg>
-    )
-  },
-  {
-    name: 'WhatsApp',
-    url: (upi, name, fare) => `whatsapp://send?text=${encodeURIComponent(`Please send ₹${fare} to UPI ID: ${upi}`)}`,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="#25D366"/>
-        <path d="M24 10C16.27 10 10 16.27 10 24c0 2.61.71 5.05 1.95 7.14L10 38l7.14-1.87C19.1 37.32 21.48 38 24 38c7.73 0 14-6.27 14-14S31.73 10 24 10zm7.21 19.85c-.32.89-1.85 1.7-2.56 1.75-.69.05-1.34.33-4.5-.94-3.79-1.5-6.21-5.37-6.4-5.62-.19-.25-1.55-2.06-1.55-3.93s.97-2.79 1.33-3.17c.36-.38.78-.48 1.03-.48h.74c.24 0 .56-.09.88.67.32.76 1.07 2.6 1.16 2.79.09.19.15.41.03.66-.12.25-.18.41-.36.62-.18.22-.37.48-.53.65-.18.18-.36.37-.15.72.21.35.92 1.5 1.97 2.43 1.35 1.2 2.5 1.57 2.84 1.75.34.18.56.15.77-.09.21-.24.88-1.03 1.12-1.39.24-.35.49-.29.82-.18.33.12 2.09.99 2.45 1.17.36.18.59.27.68.42.09.16.09.88-.22 1.77z" fill="white"/>
-      </svg>
-    )
-  },
-  {
-    name: 'Cred',
-    url: buildUpiUrl,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="#1C1C1C"/>
-        <text x="24" y="20" textAnchor="middle" fontSize="11" fontWeight="900" fontFamily="Arial" fill="#FFD700">CRED</text>
-        <rect x="10" y="24" width="28" height="2" rx="1" fill="#FFD700" opacity="0.5"/>
-        <text x="24" y="36" textAnchor="middle" fontSize="8" fontWeight="600" fontFamily="Arial" fill="#888">pay</text>
-      </svg>
-    )
-  },
-  {
-    name: 'Any UPI',
-    url: buildUpiUrl,
-    logo: (
-      <svg viewBox="0 0 48 48" width="40" height="40">
-        <rect width="48" height="48" rx="12" fill="#0f172a"/>
-        <text x="24" y="20" textAnchor="middle" fontSize="8" fontWeight="700" fontFamily="Arial" fill="white">ANY</text>
-        <text x="24" y="30" textAnchor="middle" fontSize="11" fontWeight="900" fontFamily="Arial" fill="#facc15">UPI</text>
-        <rect x="8" y="33" width="32" height="2" rx="1" fill="#facc15" opacity="0.4"/>
-      </svg>
-    )
-  },
-]
 
 export default function MyRides() {
   const { user } = useAuth()
@@ -654,8 +540,6 @@ export default function MyRides() {
   // Only auto-pick by activity once, and only when no ?tab= was given.
   const autoPickDone = useRef(!!urlTab)
   const [upiSheet, setUpiSheet] = useState(null)
-  const [copied, setCopied] = useState(false)
-  const [payingId, setPayingId] = useState(null)
   const [rides, setRides] = useState([])
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -693,21 +577,9 @@ export default function MyRides() {
 
   useEffect(() => { fetchData() }, [])
 
-  // Open the payment sheet. Copy-first is the primary path because the rider is
-  // paying from this same phone — a QR on its own screen can't be scanned by it.
-  async function openUpiSheet(upi, fare, name, bookingId) {
-    setCopied(false)
-    setUpiSheet({ upi, fare, name, bookingId, qr: null })
-    try {
-      const url = buildUpiUrl(upi, name, fare)
-      const qr = await QRCode.toDataURL(url, { width: 440, margin: 1 })
-      setUpiSheet(s => (s && s.upi === upi ? { ...s, qr } : s))
-    } catch (e) {
-      // QR is optional — copy + open-app fallbacks still work without it.
-    }
-  }
+  // Open the payment sheet for a booking (PayFare does the rest).
+  function openUpiSheet(b) { setUpiSheet(b) }
 
-  // Rider confirms they've paid → mark the booking and notify the driver.
   // Undo an accidental "I've Paid" — sets the booking back to pending.
   async function unmarkPaid(bookingId) {
     const ok = window.confirm('Mark this fare as NOT paid?\n\nUse this only if you tapped "I\'ve Paid" by mistake.')
@@ -725,48 +597,6 @@ export default function MyRides() {
     await fetchData()
   }
 
-  async function markPaid(bookingId) {
-    if (!bookingId) { setUpiSheet(null); return }
-    // Guard against accidental taps — this changes payment status and notifies
-    // the driver, so confirm the rider actually paid first.
-    const ok = window.confirm(
-      "Confirm you've paid the fare to the driver?\n\nOnly tap OK if you have actually completed the UPI payment. The driver will be notified."
-    )
-    if (!ok) return
-    setPayingId(bookingId)
-    // .select() is essential: without it Supabase returns no error when RLS
-    // blocks the update — it just affects 0 rows and looks like success.
-    const { data, error } = await supabase
-      .from('bookings')
-      .update({ payment_status: 'paid' })
-      .eq('id', bookingId)
-      .eq('rider_id', user.id)
-      .select('id')
-
-    if (error) {
-      alert(`Could not save: ${error.message}`)
-      setPayingId(null)
-      return
-    }
-    if (!data || data.length === 0) {
-      alert("Couldn't update the payment status. Please tell the admin — the app doesn't have permission to save this.")
-      setPayingId(null)
-      return
-    }
-
-    const b = bookings.find(x => x.id === bookingId)
-    if (b?.rides?.driver_id) {
-      await sendNotification(
-        b.rides.driver_id,
-        '💰 Payment received',
-        `Rider marked ₹${b.ride_fare || b.rides?.fare || ''} as paid for ${b.rides.from_location} → ${b.rides.to_location}`
-      )
-    }
-
-    setPayingId(null)
-    setUpiSheet(null)
-    await fetchData()
-  }
 
   async function fetchUnreadCounts(bookingIds) {
     if (!bookingIds.length) return
@@ -797,7 +627,7 @@ export default function MyRides() {
     try {
       const [ridesRes, bookingsRes] = await Promise.all([
         supabase.from('rides').select('*').eq('driver_id', user.id).order('ride_date', { ascending: false }),
-        supabase.from('bookings').select('*, rides(driver_id, from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id))').eq('rider_id', user.id).order('created_at', { ascending: true }),
+        supabase.from('bookings').select('*, rides(driver_id, from_location, to_location, ride_date, ride_time, fare, ride_type, vehicle_model, vehicle_number, profiles(full_name, phone, upi_id, pay_by_phone))').eq('rider_id', user.id).order('created_at', { ascending: true }),
       ])
       if (!ridesRes.error) {
         setRides(ridesRes.data || [])
@@ -1007,7 +837,7 @@ export default function MyRides() {
                         ✓ Paid ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]} <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>· tap to undo</span>
                       </button>
                     ) : (
-                      <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, b.ride_fare || b.rides?.fare || 150, b.rides.profiles.full_name?.split(' ')[0] || 'Driver', b.id)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <button onClick={() => openUpiSheet(b)} style={{ width: '100%', marginTop: 8, padding: '11px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                         💳 Pay ₹{b.ride_fare || b.rides?.fare} to {b.rides?.profiles?.full_name?.split(' ')[0]}
                       </button>
                     )
@@ -1079,7 +909,7 @@ export default function MyRides() {
                         <div style={{ marginTop: 8 }}>
                           <div style={{ fontSize: 12, fontWeight: 800, color: '#c2410c', marginBottom: 6 }}>⏳ You haven't paid ₹{fare} yet</div>
                           {b.rides?.profiles?.upi_id && (
-                            <button onClick={() => openUpiSheet(b.rides.profiles.upi_id, fare, driverName, b.id)} style={{ width: '100%', padding: '10px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                            <button onClick={() => openUpiSheet(b)} style={{ width: '100%', padding: '10px', background: '#111', color: '#facc15', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                               💳 Pay ₹{fare} to {driverName}
                             </button>
                           )}
@@ -1106,74 +936,18 @@ export default function MyRides() {
           <div onClick={() => setUpiSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: '#fff', borderRadius: '24px 24px 0 0', padding: '20px 20px 40px', animation: 'slideUp 0.3s ease', maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 100, margin: '0 auto 20px' }} />
-            <div style={{ textAlign: 'center', marginBottom: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>PAY DRIVER</div>
-              <div style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', margin: '6px 0' }}>₹{upiSheet.fare}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>to {upiSheet.name}</div>
-            </div>
-
-            {/* OPTION 1 — copy & paste. Works in every app, every time. */}
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-              OPTION 1 — Copy &amp; pay in your UPI app
-            </div>
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>UPI ID</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis' }}>{upiSheet.upi}</div>
-              </div>
-              <button onClick={() => {
-                navigator.clipboard?.writeText(upiSheet.upi)
-                setCopied(true); setTimeout(() => setCopied(false), 1500)
-              }} style={{ flexShrink: 0, marginLeft: 12, padding: '9px 18px', background: copied ? '#16a34a' : '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                {copied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16, lineHeight: 1.5 }}>
-              Open PhonePe / GPay / Paytm → <b>Pay to UPI ID</b> → paste → enter <b>₹{upiSheet.fare}</b>
-            </div>
-
-            {/* OPTION 2 — save QR, upload in the UPI app. Amount comes pre-filled,
-                and this works in PhonePe where the direct link does not. */}
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-              OPTION 2 — Save QR, then upload it in your UPI app
-            </div>
-            {upiSheet.qr ? (
-              <div style={{ textAlign: 'center', marginBottom: 8 }}>
-                <img src={upiSheet.qr} alt="UPI QR code" style={{ width: 170, height: 170, border: '1px solid #e2e8f0', borderRadius: 14, padding: 6, background: '#fff' }} />
-                <a href={upiSheet.qr} download={`carpoolkaro-pay-${upiSheet.fare}.png`}
-                  style={{ display: 'block', marginTop: 8, padding: 11, background: '#0f172a', color: '#fff', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                  ⬇ Save QR image
-                </a>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', color: '#aaa', fontSize: 12, padding: 20 }}>Generating QR…</div>
-            )}
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16, lineHeight: 1.5 }}>
-              In your UPI app tap <b>Scan</b> → gallery icon → pick the saved QR.
-              The ₹{upiSheet.fare} amount fills in automatically.
-            </div>
-
-            {/* OPTION 3 — direct link. Works in some apps (CRED, GPay); PhonePe
-                rejects links opened from a browser, which we can't control. */}
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-              OPTION 3 — Try opening a UPI app directly
-            </div>
-            <a href={buildUpiUrl(upiSheet.upi, upiSheet.name, upiSheet.fare)}
-              style={{ display: 'block', textAlign: 'center', padding: 12, background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', marginBottom: 6 }}>
-              Open UPI app
-            </a>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 18, lineHeight: 1.5 }}>
-              Your phone picks which app opens — PhonePe often blocks payments
-              opened this way. If it fails, use Option 1 or 2.
-            </div>
-
-            <button
-              onClick={() => markPaid(upiSheet.bookingId)}
-              disabled={payingId === upiSheet.bookingId}
-              style={{ width: '100%', padding: 14, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer', marginBottom: 12, opacity: payingId === upiSheet.bookingId ? 0.6 : 1 }}>
-              {payingId === upiSheet.bookingId ? 'Saving…' : "✓ I've Paid"}
-            </button>
-
+            <PayFare
+              amount={upiSheet.ride_fare || upiSheet.rides?.fare || 150}
+              ownerName={upiSheet.rides?.profiles?.full_name?.split(' ')[0] || 'Driver'}
+              upiId={upiSheet.rides?.profiles?.upi_id}
+              phone={upiSheet.rides?.profiles?.phone}
+              payByPhone={upiSheet.rides?.profiles?.pay_by_phone}
+              bookingId={upiSheet.id}
+              driverId={upiSheet.rides?.driver_id}
+              route={`${upiSheet.rides?.from_location || ''} → ${upiSheet.rides?.to_location || ''}`}
+              onPaid={() => { setTimeout(() => { setUpiSheet(null); fetchData() }, 1200) }}
+            />
+            <div style={{ height: 12 }} />
             <button onClick={() => setUpiSheet(null)} style={{ width: '100%', padding: 12, background: 'none', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>Close</button>
           </div>
         </div>
