@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import QRCode from 'qrcode'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import PayFare from '../components/PayFare'
 import { formatTime, formatDate } from '../lib/utils'
 import { getCompanyFromEmail } from '../lib/companyDomains'
 
@@ -19,25 +19,16 @@ export default function BookRide() {
   const [alreadyBooked, setAlreadyBooked] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
   const [bookingData, setBookingData] = useState(null)
-  const [upiQr, setUpiQr] = useState(null)
-  const [upiCopied, setUpiCopied] = useState(false)
   const [seatsToBook, setSeatsToBook] = useState(1)
   const [guestNames, setGuestNames] = useState([])
 
   useEffect(() => { fetchRide() }, [id])
 
-  // Generate the UPI QR once we're on the pay screen and have the owner's VPA.
-  useEffect(() => {
-    if (step !== 'pay' || !owner?.upi_id || !ride?.fare) return
-    QRCode.toDataURL(getUPILink(), { width: 400, margin: 1 })
-      .then(setUpiQr)
-      .catch(() => {})
-  }, [step, owner?.upi_id, ride?.fare])
 
   async function fetchRide() {
     const { data } = await supabase
       .from('rides')
-      .select('*, profiles(id, full_name, phone, vehicle_model, vehicle_number, upi_id, avg_rating, total_ratings, email, work_email, work_email_verified, is_verified)')
+      .select('*, profiles(id, full_name, phone, pay_by_phone, vehicle_model, vehicle_number, upi_id, avg_rating, total_ratings, email, work_email, work_email_verified, is_verified)')
       .eq('id', id).maybeSingle()
     if (!data) { navigate('/'); return }
     setRide(data)
@@ -102,17 +93,6 @@ export default function BookRide() {
     navigate('/my-rides?tab=booked')
   }
 
-  // UPI deep links to open payment apps
-  function getUPILink() {
-    // Standard upi://pay scheme. Do NOT use URLSearchParams — it turns @ into
-    // %40 and spaces into "+", which UPI apps reject. Build manually with
-    // encodeURIComponent so @ stays literal and spaces become %20.
-    const pa = String(owner?.upi_id || '').trim()
-    const pn = encodeURIComponent(String(owner?.full_name || 'Car Owner').trim())
-    const am = Number(ride?.fare || 0).toFixed(2)
-    const tn = encodeURIComponent(`CarpoolKaro fare ${ride?.from_location || ''} to ${ride?.to_location || ''}`.trim())
-    return `upi://pay?pa=${pa}&pn=${pn}&am=${am}&cu=INR&tn=${tn}`
-  }
 
 
   if (loading) return (
@@ -213,62 +193,18 @@ export default function BookRide() {
             <div style={{ fontSize: 13, color: '#facc15', fontWeight: 700, marginBottom: 4 }}>
               💰 Now Pay Ride Fare to Car Owner
             </div>
-            <div style={{ fontSize: 12, color: '#888', marginBottom: 16, lineHeight: 1.6 }}>
-              Pay directly via any UPI app. This goes straight to the car owner.
-            </div>
-
-            {/* Amount highlight */}
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 40, fontWeight: 800, color: '#facc15' }}>₹{bookingData?.ride_fare || ride.fare}</div>
-              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                to {owner?.full_name}
-                {bookingData?.seats_booked > 1 && ` · ${bookingData.seats_booked} seats`}
-              </div>
-            </div>
-
-            {/* UPI ID */}
-            {!owner?.upi_id ? (
-              <div style={{ background: '#2a1500', border: '1px solid #78350f', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-                <div style={{ fontSize: 13, color: '#f97316', fontWeight: 700, marginBottom: 4 }}>
-                  ⚠️ Car owner hasn't set UPI ID
-                </div>
-                <div style={{ fontSize: 12, color: '#888' }}>
-                  Use the chat button below to coordinate payment with them directly.
-                </div>
-              </div>
-            ) : null}
-
-            {/* Payment app buttons - only show if UPI is set */}
-            {owner?.upi_id && (
-            <>
-            <div style={{ textAlign: 'center', marginBottom: 12 }}>
-              {upiQr
-                ? <img src={upiQr} alt="UPI QR code" style={{ width: 200, height: 200, background: '#fff', borderRadius: 14, padding: 8 }} />
-                : <div style={{ width: 200, height: 200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 13 }}>Generating QR…</div>}
-              <div style={{ fontSize: 12, color: '#aaa', marginTop: 8, lineHeight: 1.5 }}>
-                Scan with <b style={{ color: '#ddd' }}>any UPI app</b> to pay ₹{ride?.fare}
-              </div>
-            </div>
-
-            <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>UPI ID</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis' }}>{owner?.upi_id}</div>
-              </div>
-              <button onClick={() => {
-                navigator.clipboard?.writeText(owner?.upi_id || '')
-                setUpiCopied(true); setTimeout(() => setUpiCopied(false), 1500)
-              }} style={{ flexShrink: 0, marginLeft: 12, padding: '8px 16px', background: upiCopied ? '#16a34a' : '#facc15', color: '#111', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                {upiCopied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-
-            <a href={getUPILink()}
-              style={{ display: 'block', textAlign: 'center', padding: 12, background: '#222', borderRadius: 10, color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 600, border: '1px solid #333', marginBottom: 12 }}>
-              Open a UPI app on this phone
-            </a>
-            </>
-            )}
+            <PayFare
+              dark
+              amount={bookingData?.ride_fare || ride.fare}
+              ownerName={owner?.full_name}
+              upiId={owner?.upi_id}
+              phone={owner?.phone}
+              payByPhone={owner?.pay_by_phone}
+              bookingId={bookingData?.id}
+              driverId={ride?.driver_id}
+              route={`${ride?.from_location || ''} → ${ride?.to_location || ''}`}
+            />
+            <div style={{ height: 12 }} />
             {/* Chat with car owner */}
             {bookingData?.id && (
               <button onClick={() => navigate(`/chat/${bookingData.id}`)}

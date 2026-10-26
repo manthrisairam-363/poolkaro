@@ -10,54 +10,47 @@ import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import WhatsAppChannel from '../components/WhatsAppChannel'
 import { enablePush, getPushState } from '../lib/pushNotifications'
+import { getSuggestions, resolveArea } from '../lib/cities'
 
-// City IT locations inline — no external import needed
-const CITY_LOCATIONS = {
-  'Hyderabad': [
-    'Financial District','Nanakramguda','Kokapet','GAR Kokapet','Raidurgam','Khajaguda',
-    'DLF Cyber City Hyderabad','WaveRock SEZ','Divyasree Orion','Salarpuria Knowledge City',
-    'Cyber Towers','Cyber Gateway','HUDA Techno Enclave','iLabs Centre','RMZ Futura',
-    'HITEC City','Madhapur','Mindspace Madhapur','Cyberabad','DLF Cyber City',
-    'Inorbit Mall Area','ISB Hyderabad','Aparna Cyberzone',
-    'Gachibowli','Kondapur','Manikonda','Narsingi','Serilingampally',
-    'TCS Gachibowli','Wipro Gachibowli','Accenture Gachibowli','Capgemini Gachibowli',
-    'Cognizant Gachibowli','Tech Mahindra Gachibowli','IBM Gachibowli',
-    'JP Morgan Madhapur','Deloitte Hyderabad','Amazon Hyderabad',
-    'Microsoft Campus Hyderabad','Google Hyderabad',
-    'Pocharam','Nacharam','Mindspace Pocharam','TCS Synergy Park',
-    'Infosys Pocharam','HCL Uppal','Uppal Ring Road',
-    'Miyapur','KPHB','Kukatpally','Bachupally','Nizampet','Lingampally',
-    'Chandanagar','Hafeezpet','Tellapur','Nallagandla','Borabanda',
-    'Ameerpet','SR Nagar','Sanath Nagar','Erragadda',
-    'Jubilee Hills','Banjara Hills','Panjagutta','Film Nagar','Kavuri Hills',
-    'Somajiguda','Khairatabad','Mehdipatnam','Tolichowki','Masab Tank',
-    'Lakdikapool','Nampally','Abids','Koti','Sultan Bazar',
-    'Attapur','Shaikpet','Puppalaguda','Rajendra Nagar','Shamshabad','Gandipet',
-    'Secunderabad','Begumpet','Jeedimetla','Balanagar','Kompally',
-    'Medchal','Alwal','Bowenpally','Trimulgherry','Malkajgiri',
-    'Uppal','LB Nagar','Dilsukhnagar','Nagole','Boduppal','Ghatkesar',
-    'Hayathnagar','Vanasthalipuram','Amberpet','Kothapet','Ramanthapur',
-    'Tarnaka','Habsiguda','ECIL','AS Rao Nagar',
-    'Charminar','Malakpet','Nalgonda X Roads',
-    'Miyapur Metro','KPHB Metro','Ameerpet Metro','Hitec City Metro',
-    'Raidurg Metro','Nagole Metro','Uppal Metro','LB Nagar Metro',
-    'Secunderabad Metro','Jubilee Bus Station','MGBS',
-    'Rajiv Gandhi International Airport','Shamshabad Airport',
-  ],
-  'Bangalore': ['Whitefield','Marathahalli','Bellandur','Sarjapur Road','Outer Ring Road','Electronic City','Electronic City Phase 1','Electronic City Phase 2','Koramangala','HSR Layout','BTM Layout','Silk Board','Bommanahalli','Hebbal','Manyata Tech Park','Kirloskar Business Park','Yeshwanthpur','Rajajinagar','Indiranagar','CV Raman Nagar','Domlur','Airport Road','Jayanagar','JP Nagar','Bannerghatta Road','Yelahanka','Devanahalli','Kempegowda International Airport','Bagmane Tech Park','RMZ Infinity','Prestige Tech Park','Embassy TechVillage','Cessna Business Park','Ecospace','IBM Manyata','Cisco Bangalore','SAP Bangalore','Amazon Bangalore','Flipkart HQ','Infosys Bangalore','Wipro Sarjapur','HCL Bangalore','TCS Bangalore','Accenture Bangalore','MG Road','Church Street','Majestic','Shivajinagar'],
-  'Pune': ['Hinjewadi','Hinjewadi Phase 1','Hinjewadi Phase 2','Hinjewadi Phase 3','Kharadi','Magarpatta','EON IT Park','World Trade Center Pune','Wakad','Baner','Balewadi','Sus Road','Viman Nagar','Kalyani Nagar','Nagar Road','Hadapsar','Fursungi','Aundh','Pimple Saudagar','Pimple Nilakh','Punawale','Shivajinagar','FC Road','JM Road','Deccan','Kothrud','Warje','Karve Road','Yerwada','Koregaon Park','Talegaon','Chakan','Infosys Pune','Wipro Pune','Cognizant Pune','TCS Pune','Zensar Pune','Tech Mahindra Pune','Persistent Pune','Katraj','Kondhwa','NIBM Road','Mundhwa','Commerzone','RMZ Westend'],
-  'Mumbai': ['BKC','Bandra Kurla Complex','Bandra East','Bandra West','Powai','Hiranandani','Chandivali','SEEPZ','Andheri East','Andheri West','MIDC Andheri','Marol','Lower Parel','Worli','Kamala Mills','One BKC','Navi Mumbai','Belapur','Vashi','Nerul','Ghansoli','Mahape','Thane','Wagle Estate','Kolshet','Majiwada','Malad','Mindspace Malad','Link Road','Goregaon','NESCO IT Park','Goregaon East','Vikhroli','Kanjurmarg','LBS Marg','Kurla','Kalina','Santacruz East','Nariman Point','Fort','CSMT','Churchgate','Airoli','Rabale','TTC Industrial Area','Chembur','Ghatkopar','Mulund','Borivali','Kandivali','Dahisar','Chhatrapati Shivaji Airport','CSIA'],
-  'Delhi NCR': ['Noida Sector 62','Noida Sector 63','Noida Sector 125','Noida Sector 132','Noida Sector 135','Noida Sector 142','Noida Sector 143','Noida Expressway','Noida City Centre','Botanical Garden','Gurugram','Gurgaon','Cyber City','DLF Phase 1','DLF Phase 2','DLF Phase 3','DLF Phase 4','DLF Phase 5','Golf Course Road','Sohna Road','NH 8','Udyog Vihar','MG Road Gurgaon','IFFCO Chowk','Manesar','IMT Manesar','Greater Noida','Alpha 1','Alpha 2','Knowledge Park','Techzone 4','Connaught Place','Barakhamba','Janpath','Nehru Place','Okhla','Saket','Malviya Nagar','Vasant Kunj','Vasant Vihar','RK Puram','Dwarka','Dwarka Sector 10','Dwarka Sector 21','Rohini','Pitampura','Laxmi Nagar','Preet Vihar','IP Extension','IGI Airport','Aerocity','TCS Noida','Infosys Noida','HCL Noida','Accenture Gurgaon','Wipro Gurgaon','IBM Gurgaon','Microsoft Noida','Adobe Noida','Samsung Noida'],
-  'Chennai': ['OMR','Old Mahabalipuram Road','Sholinganallur','Perungudi','Taramani','Thoraipakkam','Karapakkam','Siruseri','SIPCOT IT Park','Tidel Park','RMZ Millenia','Ascendas IT Park','Anna Nagar','Anna Nagar West','Anna Nagar East','Nungambakkam','Egmore','T Nagar','Velachery','Medavakkam','Pallikaranai','Tambaram','Chrompet','Pallavaram','Porur','Ramapuram','Vadapalani','Guindy','Ekkatuthangal','St Thomas Mount','Ambattur','Ambattur Industrial Estate','Adyar','Besant Nagar','Thiruvanmiyur','Mylapore','Alwarpet','Kotturpuram','Maraimalai Nagar','Mahindra World City','TCS Chennai','Infosys Chennai','Wipro Chennai','Cognizant Chennai','HCL Chennai','Tech Mahindra Chennai','Chennai International Airport'],
+// ── Route ranking without maps ──
+// Every area in src/lib/cities.js carries a zone (Uppal → East, Kokapet → IT
+// Corridor) and aliases (campuses, metro stations, spellings). A ride's free-
+// text from/to is resolved to an area via resolveArea(); then the rider's
+// saved commute is compared on both ends: same area > same zone > nothing.
+const toMin = (t) => { const [h, m] = String(t || '').split(':'); return h ? (+h) * 60 + (+m || 0) : null }
+function endScore(city, myLabel, myZone, rideText) {
+  if (!myLabel) return 0
+  const ride = resolveArea(city, rideText)
+  const mine = resolveArea(city, myLabel)
+  const myName = mine?.name || myLabel
+  const myZ = mine?.zone || myZone
+  if (ride && ride.name === myName) return 3                                            // same area
+  if (String(rideText || '').toLowerCase().includes(String(myLabel).toLowerCase())) return 3  // custom label typed into the ride
+  if (myZ && ride?.zone === myZ) return 1.5                                             // same zone
+  return 0
 }
-function getLocationsForCity(city) {
-  return CITY_LOCATIONS[city] || CITY_LOCATIONS['Hyderabad']
+// 0 = no match … up to 7 (both ends same area + departure within 45 min)
+function commuteScore(c, ride, city) {
+  if (!c) return 0
+  const hr = parseInt(ride.ride_time?.split(':')[0] || 0)
+  const toOffice = ride.ride_type ? ride.ride_type === 'to_office' : hr < 12
+  const fromScore = toOffice ? endScore(city, c.home_label, c.home_zone, ride.from_location) : endScore(city, c.office_label, c.office_zone, ride.from_location)
+  const toScore   = toOffice ? endScore(city, c.office_label, c.office_zone, ride.to_location) : endScore(city, c.home_label, c.home_zone, ride.to_location)
+  let s = fromScore + toScore
+  if (s > 0) {
+    const want = toMin(toOffice ? c.morning_time : c.evening_time)
+    const have = toMin(ride.ride_time)
+    if (want != null && have != null) {
+      const diff = Math.abs(want - have)
+      if (diff <= 45) s += 1; else if (diff <= 90) s += 0.5
+    }
+  }
+  return s
 }
-
 
 // Location autocomplete — uses city-specific locations
 function LocationInput({ label, value, onChange, showSug, setShowSug, liveLocations, city }) {
-  const cityLocs = getLocationsForCity(city || 'Hyderabad')
+  const cityLocs = getSuggestions(city)
   const combined = [...new Set([...cityLocs, ...(liveLocations || [])])].sort()
   const suggestions = combined.filter(s => s.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
   return (
@@ -136,7 +129,16 @@ export default function Home() {
   const [suggestedRoutes, setSuggestedRoutes] = useState([])
   const [announcement, setAnnouncement] = useState('')
   const [maintenance, setMaintenance] = useState(false)
-  const [popup, setPopup] = useState(null)
+  const [popups, setPopups] = useState([])
+  // The user's saved daily commute — used to rank rides on their route first.
+  const [myCommute, setMyCommute] = useState(null)
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('commute_schedules')
+      .select('home_label, home_zone, office_label, office_zone, morning_time, evening_time')
+      .eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setMyCommute(data || null))
+  }, [user?.id])
 
   // Fetch app settings
   useEffect(() => {
@@ -146,7 +148,10 @@ export default function Home() {
       ;(data||[]).forEach(s => { map[s.key] = s.value })
       setAnnouncement(map.announcement || '')
       setMaintenance(map.maintenance_mode === 'true')
-      try { setPopup(map.home_popup ? JSON.parse(map.home_popup) : null) } catch (_) { setPopup(null) }
+      try {
+        const v = map.home_popup ? JSON.parse(map.home_popup) : []
+        setPopups(Array.isArray(v) ? v : (v && v.image_url ? [v] : []))
+      } catch (_) { setPopups([]) }
     }
     fetchSettings()
   }, [])
@@ -350,14 +355,20 @@ export default function Home() {
     }
     return true
   }).sort((a, b) => {
-    // Sort by match score with rider's request (best matches first)
+    // 1) Rides on the rider's saved commute first (same area > same zone > none)
+    const ca = commuteScore(myCommute, a, profile?.city), cb = commuteScore(myCommute, b, profile?.city)
+    if (cb !== ca) return cb - ca
+    // 2) Then match against an open ride request, if they posted one
     if (myRequest) {
       const sa = matchScore(myRequest.from_location, myRequest.to_location, a.from_location, a.to_location, a.route_description)
       const sb = matchScore(myRequest.from_location, myRequest.to_location, b.from_location, b.to_location, b.route_description)
       if (sb !== sa) return sb - sa
     }
-    return 0
+    // 3) Then by departure time — nobody ever sees an empty page
+    return String(a.ride_time || '').localeCompare(String(b.ride_time || ''))
   })
+  // "On your route" = at least one end matches the saved commute by area/zone.
+  const onRouteCount = myCommute ? filtered.filter(r => r.driver_id !== user?.id && commuteScore(myCommute, r, profile?.city) >= 1.5).length : 0
 
 
   // Pull to refresh
@@ -649,10 +660,26 @@ export default function Home() {
             {filtered.filter(r => r.driver_id === user?.id).map(ride => (
               <MyRideCard key={ride.id} ride={ride} navigate={navigate} getCompanyFromEmail={getCompanyFromEmail} onTogglePause={togglePause} />
             ))}
-            {/* ALL OTHER RIDES — compact */}
-            {filtered.filter(r => r.driver_id !== user?.id).map(ride => (
-              <CompactRideCard key={ride.id} ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id] || bookedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} onPay={() => navigate(`/book/${ride.id}`)} />
-            ))}
+            {/* ALL OTHER RIDES — compact. Rides on the rider's commute come first,
+                then a divider, then everything else by time. */}
+            {filtered.filter(r => r.driver_id !== user?.id).map((ride, i, arr) => {
+              const onRoute = onRouteCount > 0 && commuteScore(myCommute, ride, profile?.city) >= 1.5
+              const prevOnRoute = i > 0 && commuteScore(myCommute, arr[i - 1], profile?.city) >= 1.5
+              const showHeader = onRouteCount > 0 && (i === 0 || (prevOnRoute && !onRoute))
+              return (
+                <div key={ride.id}>
+                  {showHeader && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: i === 0 ? '4px 0 8px' : '14px 0 8px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: onRoute ? '#15803d' : '#64748b', letterSpacing: 0.5 }}>
+                        {onRoute ? `🎯 ON YOUR ROUTE · ${onRouteCount}` : 'OTHER RIDES'}
+                      </span>
+                      <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                    </div>
+                  )}
+                  <CompactRideCard ride={ride} onTap={() => setSheetRide(ride)} getCompanyFromEmail={getCompanyFromEmail} myStatus={bookedRideIds.has(ride.id) ? 'booked' : requestedRideIds.has(ride.id) ? 'requested' : null} myBookingId={requestedMap[ride.id] || bookedMap[ride.id]} onMessage={(id) => navigate(`/chat/${id}`)} onWithdraw={withdrawRequest} onPay={() => navigate(`/book/${ride.id}`)} />
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -782,7 +809,7 @@ export default function Home() {
       <WhatsAppChannel />
       <BottomNav />
       <GuidedTour />
-      {!maintenance && <HomePopup popup={popup} />}
+      {!maintenance && <HomePopup popups={popups} />}
       {selectedDriver && <DriverProfileModal driverId={selectedDriver} onClose={() => setSelectedDriver(null)} />}
     </div>
   )

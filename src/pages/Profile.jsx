@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import BottomNav from '../components/BottomNav'
 import { getCompanyFromEmail } from '../lib/companyDomains'
-import { CITIES } from '../lib/cities'
+import { CITIES, CITY_NAMES, cityKeyFor } from '../lib/cities'
 import NotificationBell from '../components/NotificationBell'
 
 export default function Profile() {
@@ -41,6 +41,7 @@ export default function Profile() {
     vehicle_model: profile?.vehicle_model || '',
     vehicle_number: profile?.vehicle_number || '',
     upi_id: profile?.upi_id || '',
+    pay_by_phone: profile?.pay_by_phone !== false,
     role: profile?.role || 'both',
     emergency_contact_name: profile?.emergency_contact_name || '',
     emergency_contact_phone: profile?.emergency_contact_phone || '',
@@ -72,6 +73,7 @@ export default function Profile() {
       vehicle_model: form.vehicle_model || null,
       vehicle_number: form.vehicle_number?.toUpperCase() || null,
       upi_id: form.upi_id || null, role: form.role,
+      pay_by_phone: form.pay_by_phone !== false,
       emergency_contact_name: form.emergency_contact_name || null,
       emergency_contact_phone: form.emergency_contact_phone || null,
     }).eq('id', user.id)
@@ -333,7 +335,7 @@ export default function Profile() {
                   <span style={lbl}>Phone</span><input style={inp} value={form.phone} onChange={e => set('phone', e.target.value)} type="tel" />
                   <span style={lbl}>City</span>
                   <select style={inp} value={form.city || 'Hyderabad'} onChange={e => set('city', e.target.value)}>
-                    {['Hyderabad','Bangalore','Pune','Mumbai','Delhi NCR','Chennai'].map(c => (
+                    {CITY_NAMES.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
@@ -346,6 +348,12 @@ export default function Profile() {
                   <span style={lbl}>Vehicle Model</span><input style={inp} placeholder="e.g. Tata Nexon EV" value={form.vehicle_model} onChange={e => set('vehicle_model', e.target.value)} />
                   <span style={lbl}>Vehicle Number</span><input style={inp} placeholder="e.g. TS09AB1234" value={form.vehicle_number} onChange={e => set('vehicle_number', e.target.value.toUpperCase())} />
                   <span style={lbl}>UPI ID</span><input style={inp} placeholder="e.g. 9999999999@upi" value={form.upi_id} onChange={e => set('upi_id', e.target.value)} />
+                  {form.role !== 'rider' && (
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 12, color: '#444', lineHeight: 1.45, margin: '2px 0 12px', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={form.pay_by_phone !== false} onChange={e => set('pay_by_phone', e.target.checked)} style={{ marginTop: 2 }} />
+                      <span><b>Riders can pay me via my mobile number.</b> Shown only to riders you've approved, on their pay screen. Turn off if you'd rather they use your UPI ID only.</span>
+                    </label>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setEditing(false)} style={{ flex: 1, padding: 11, background: '#f5f5f5', color: '#555', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
                     <button onClick={saveProfile} disabled={loading} style={{ flex: 2, padding: 11, background: '#111', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{loading ? 'Saving...' : '✅ Save Changes'}</button>
@@ -439,7 +447,7 @@ export default function Profile() {
 
               <div style={{ height: 1, background: '#f1f1f1', margin: '12px 0' }} />
 
-              {[['🚗', 'Version', '1.0.0'], ['📍', 'City', CITIES[profile?.city || 'hyderabad']?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
+              {[['🚗', 'Version', '1.0.0'], ['📍', 'City', CITIES[cityKeyFor(profile?.city)]?.name || 'Hyderabad'], ['💰', 'Platform Fee', '₹2 per booking'], ['⚡', 'Payments', 'Direct UPI between users']].map(([icon, k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f9f9f9' }}>
                   <span style={{ fontSize: 13, color: '#888' }}>{icon} {k}</span>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>
