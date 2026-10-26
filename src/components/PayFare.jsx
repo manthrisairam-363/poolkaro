@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -13,20 +13,33 @@ import { useAuth } from '../lib/AuthContext'
 //      In the app: "To UPI ID" / "To Mobile Number" → paste → amount → pay.
 //   2. UPI ID and mobile number shown with Copy buttons.
 //   3. QR (amount pre-filled) for a second device, or save → Scan → Gallery.
-//   4. "I've paid" → rider CLAIMS (two-step, optional UTR). The owner then confirms
+//   4. "I've paid" → rider CLAIMS (one tap, undoable). The owner then confirms
 //      or disputes it from My Rides. Only the owner can confirm (DB trigger, 15_*.sql).
 // Used by BookRide (after booking) and MyRides (pay sheet). Change it here only.
 
-// Both platforms open the app by its URL scheme, called synchronously inside the
-// tap (Android Chrome drops the launch once the tap's user-activation lapses, so no
-// await / setTimeout before it). There is deliberately NO Play Store fallback: when
-// the app is installed it must open the app, and a store page for an app the rider
-// already has is wrong. If nothing opens, the page stays visible and we say so.
+// Opening the UPI app from a web page.
+// iPhone: the app's URL scheme works (phonepe://, tez://, paytmmp://).
+// Android: Chrome only launches an app when the link matches an intent filter
+// that app declared, and every app declares different ones, so no single link
+// format is guaranteed. We therefore keep a short LIST of formats per app, try
+// the next one each tap, and REMEMBER the one that worked on this phone
+// (localStorage) so it is a single tap from then on. There is deliberately NO
+// Play Store fallback: for an app the rider already has, a store page is wrong.
 const APPS = [
-  { key: 'phonepe', label: 'PhonePe',    scheme: 'phonepe://', bg: '#5f259f', fg: '#fff' },
-  { key: 'gpay',    label: 'Google Pay', scheme: 'tez://',     bg: '#1a73e8', fg: '#fff' },
-  { key: 'paytm',   label: 'Paytm',      scheme: 'paytmmp://', bg: '#00b9f1', fg: '#fff' },
+  { key: 'phonepe', label: 'PhonePe',    scheme: 'phonepe', host: 'pay',     pkg: 'com.phonepe.app',                        bg: '#5f259f', fg: '#fff' },
+  { key: 'gpay',    label: 'Google Pay', scheme: 'tez',     host: 'upi/pay', pkg: 'com.google.android.apps.nbu.paisa.user', bg: '#1a73e8', fg: '#fff' },
+  { key: 'paytm',   label: 'Paytm',      scheme: 'paytmmp', host: 'pay',     pkg: 'net.one97.paytm',                        bg: '#00b9f1', fg: '#fff' },
 ]
+function androidLinks(app) {
+  const { scheme: s, host, pkg } = app
+  return [
+    `intent://#Intent;scheme=${s};package=${pkg};end`,         // scheme, pinned to the app
+    `${s}://`,                                                   // plain scheme
+    `intent://${host}#Intent;scheme=${s};package=${pkg};end`,   // scheme + the host the app registers
+    `android-app://${pkg}`,                                      // Chrome's "launch this app" form
+    `intent:#Intent;package=${pkg};end`,                         // package only
+  ]
+}
 const UA = typeof navigator !== 'undefined' ? navigator.userAgent : ''
 const IS_ANDROID = /Android/i.test(UA)
 const IS_IOS = /iPhone|iPad|iPod/i.test(UA)
@@ -59,18 +72,17 @@ export default function PayFare({
   const [qr, setQr] = useState(null)
   const [copied, setCopied] = useState('')      // 'upi' | 'phone' | app key
   const [hint, setHint] = useState('')
+  const [hintBad, setHintBad] = useState(false)
+  const tries = useRef({})                    // app key -> next android link index
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
-  const [confirming, setConfirming] = useState(false)   // 'I've paid' check step
-  const [sawSuccess, setSawSuccess] = useState(false)
-  const [ref, setRef] = useState('')
 
   useEffect(() => {
     if (!upi || !amount) { setQr(null); return }
     QRCode.toDataURL(buildQrUrl(upi, ownerName, amount), { width: 440, margin: 1 }).then(setQr).catch(() => setQr(null))
   }, [upi, amount, ownerName])
 
-  function flash(key, text) { setCopied(key); setHint(text); setTimeout(() => setCopied(''), 1600) }
+  function flash(key, text) { setCopied(key); setHint(text); setHintBad(false); setTimeout(() => setCopied(''), 1600) }
 
   function copyAndOpen(app) {
     if (!payee) return
@@ -78,27 +90,41 @@ export default function PayFare({
     copyText(payee)
     const how = `tap "To ${upi ? 'UPI ID' : 'Mobile Number'}" → paste → enter ₹${amount} → pay.`
     flash(app.key, `✓ ${payeeKind} copied. In ${app.label}: ${how}`)
-    if (!(IS_ANDROID || IS_IOS)) return
+
+    if (IS_IOS) { try { window.location.href = `${app.scheme}://` } catch (_) {} return }
+    if (!IS_ANDROID) return
+
+    const links = androidLinks(app)
+    const storeKey = `ck_open_${app.key}`
+    let learned = -1
+    try { learned = parseInt(localStorage.getItem(storeKey), 10) } catch (_) {}
+    if (tries.current[app.key] == null) tries.current[app.key] = learned >= 0 && learned < links.length ? learned : 0
+    const idx = tries.current[app.key] % links.length
+    tries.current[app.key] = idx + 1
+
     let left = false
     const onHide = () => { if (document.hidden) left = true }
     document.addEventListener('visibilitychange', onHide)
-    try { window.location.href = app.scheme } catch (_) {}
-    if (IS_ANDROID) {
-      // If we are still on screen after a moment, the app did not open.
-      setTimeout(() => {
-        document.removeEventListener('visibilitychange', onHide)
-        if (!left && !document.hidden) setHint(`${app.label} didn't open by itself — your ${payeeKind} is copied. Open ${app.label} yourself: ${how}`)
-      }, 1600)
-    } else {
-      setTimeout(() => document.removeEventListener('visibilitychange', onHide), 1600)
-    }
+    try { window.location.href = links[idx] } catch (_) {}
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', onHide)
+      if (left) {                                   // the app opened: remember this format
+        try { localStorage.setItem(storeKey, String(idx)) } catch (_) {}
+        tries.current[app.key] = idx
+        return
+      }
+      if (document.hidden) return
+      setHintBad(true)
+      setHint(idx + 1 < links.length
+        ? `${app.label} didn't open (way ${idx + 1} of ${links.length}). Tap ${app.label} again to try another way — your ${payeeKind} is already copied.`
+        : `${app.label} won't open from here on this phone. Your ${payeeKind} is copied — open ${app.label} yourself: ${how}`)
+    }, 1000)
   }
 
   async function markPaid() {
     if (!bookingId || !user?.id) return
-    if (!sawSuccess) return
     setSaving(true)
-    const cleanRef = ref.trim().replace(/\s+/g, '').slice(0, 40)
+    const cleanRef = ''
     const { data, error } = await supabase.from('bookings')
       .update({ payment_status: 'paid', payment_ref: cleanRef || null })
       .eq('id', bookingId).eq('rider_id', user.id).select('id')
@@ -160,7 +186,7 @@ export default function PayFare({
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 12, color: hint ? (dark ? '#4ade80' : '#15803d') : c.sub, lineHeight: 1.5, marginBottom: 16, minHeight: 18 }}>
+          <div style={{ fontSize: 12, color: hint ? (hintBad ? (dark ? '#fbbf24' : '#b45309') : (dark ? '#4ade80' : '#15803d')) : c.sub, lineHeight: 1.5, marginBottom: 16, minHeight: 18 }}>
             {hint || `Copies the ${payeeKind} and opens the app. Then: "To ${upi ? 'UPI ID' : 'Mobile Number'}" → paste → ₹${amount} → pay.`}
           </div>
 
@@ -199,31 +225,11 @@ export default function PayFare({
         </>
       )}
 
-      {/* 4. Claim — two steps so a stray tap can't claim a payment */}
-      {bookingId && !confirming && (
-        <button onClick={() => setConfirming(true)} style={{ width: '100%', padding: 14, background: c.ok, color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer', marginTop: 4 }}>
-          ✓ I've paid ₹{amount}
+      {/* 4. One tap. Safety is the owner's Received / Not received and the rider's Undo, not rider friction. */}
+      {bookingId && (
+        <button onClick={markPaid} disabled={saving} style={{ width: '100%', padding: 14, background: c.ok, color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer', opacity: saving ? 0.6 : 1, marginTop: 4 }}>
+          {saving ? 'Sending…' : `✓ I've paid ₹${amount}`}
         </button>
-      )}
-      {bookingId && confirming && (
-        <div style={{ background: c.warnBg, border: `1px solid ${c.warnLine}`, borderRadius: 14, padding: 14, marginTop: 4 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: c.warnFg, marginBottom: 6 }}>Only continue if the money has left your account</div>
-          <div style={{ fontSize: 12, color: c.sub, lineHeight: 1.5, marginBottom: 10 }}>
-            {ownerName || 'The driver'} will check their own UPI app or bank for ₹{amount}. If it isn't there, they will mark it <b>not received</b> and you'll be asked to pay again.
-          </div>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: c.fg, lineHeight: 1.4, marginBottom: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={sawSuccess} onChange={e => setSawSuccess(e.target.checked)} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }} />
-            <span>My UPI app showed <b>payment successful</b> for ₹{amount}</span>
-          </label>
-          <input value={ref} onChange={e => setRef(e.target.value)} placeholder="Transaction / UTR number (optional, helps them match it)"
-            style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${c.line}`, borderRadius: 10, fontSize: 13, background: dark ? '#111' : '#fff', color: c.fg, marginBottom: 10 }} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { setConfirming(false); setSawSuccess(false) }} disabled={saving} style={{ flex: 1, padding: 13, background: 'transparent', color: c.sub, border: `1px solid ${c.line}`, borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Not yet</button>
-            <button onClick={markPaid} disabled={saving || !sawSuccess} style={{ flex: 2, padding: 13, background: c.ok, color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: sawSuccess ? 'pointer' : 'not-allowed', opacity: saving || !sawSuccess ? 0.5 : 1 }}>
-              {saving ? 'Sending…' : `Send to ${ownerName || 'driver'}`}
-            </button>
-          </div>
-        </div>
       )}
     </div>
   )
