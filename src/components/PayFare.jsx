@@ -16,11 +16,24 @@ import { useAuth } from '../lib/AuthContext'
 //   4. "I've paid" → marks the booking and notifies the driver, who confirms.
 // Used by BookRide (after booking) and MyRides (pay sheet). Change it here only.
 
+// iOS opens an app by its URL scheme. Android opens it by PACKAGE NAME through
+// an intent:// URL (a bare scheme like phonepe:// does nothing there), and the
+// Play Store page is the fallback if the app isn't installed.
 const APPS = [
-  { key: 'phonepe', label: 'PhonePe',    scheme: 'phonepe://', bg: '#5f259f', fg: '#fff' },
-  { key: 'gpay',    label: 'Google Pay', scheme: 'tez://',     bg: '#1a73e8', fg: '#fff' },
-  { key: 'paytm',   label: 'Paytm',      scheme: 'paytmmp://', bg: '#00b9f1', fg: '#fff' },
+  { key: 'phonepe', label: 'PhonePe',    scheme: 'phonepe://', pkg: 'com.phonepe.app',                        bg: '#5f259f', fg: '#fff' },
+  { key: 'gpay',    label: 'Google Pay', scheme: 'tez://',     pkg: 'com.google.android.apps.nbu.paisa.user', bg: '#1a73e8', fg: '#fff' },
+  { key: 'paytm',   label: 'Paytm',      scheme: 'paytmmp://', pkg: 'net.one97.paytm',                        bg: '#00b9f1', fg: '#fff' },
 ]
+const UA = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+const IS_ANDROID = /Android/i.test(UA)
+const IS_IOS = /iPhone|iPad|iPod/i.test(UA)
+function appUrl(app) {
+  if (IS_ANDROID) {
+    const fallback = encodeURIComponent(`https://play.google.com/store/apps/details?id=${app.pkg}`)
+    return `intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.pkg};S.browser_fallback_url=${fallback};end`
+  }
+  return app.scheme
+}
 
 function buildQrUrl(upi, name, amount) {
   const pa = String(upi || '').trim()
@@ -60,12 +73,16 @@ export default function PayFare({
 
   function flash(key, text) { setCopied(key); setHint(text); setTimeout(() => setCopied(''), 1600) }
 
-  async function copyAndOpen(app) {
+  function copyAndOpen(app) {
     if (!payee) return
-    await copyText(payee)
+    // Everything here must stay SYNCHRONOUS inside the tap: Android Chrome
+    // refuses to open another app once the tap's "user activation" has lapsed,
+    // and an await or a setTimeout lapses it. Copy first (not awaited), then go.
+    copyText(payee)
     flash(app.key, `✓ ${payeeKind} copied. In ${app.label}: tap "To ${upi ? 'UPI ID' : 'Mobile Number'}" → paste → enter ₹${amount} → pay.`)
-    // Open the app itself (NOT a payment link — those are blocked for P2P).
-    setTimeout(() => { try { window.location.href = app.scheme } catch (_) {} }, 250)
+    if (IS_ANDROID || IS_IOS) {
+      try { window.location.href = appUrl(app) } catch (_) {}
+    }
   }
 
   async function markPaid() {
