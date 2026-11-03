@@ -288,7 +288,9 @@ export default function Home() {
     const { data, error } = await supabase
       .from('rides')
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
-      .in('status', ['active'])
+      // Riders see only rides with seats. The OWNER keeps seeing their own ride
+      // even when it's full, so the last seat's request can be approved here too.
+      .or(user?.id ? `status.eq.active,and(status.eq.full,driver_id.eq.${user.id})` : 'status.eq.active')
       .gte('ride_date', today)
       .lte('ride_date', weekEnd)
       .eq('city', profile?.city || 'Hyderabad')
