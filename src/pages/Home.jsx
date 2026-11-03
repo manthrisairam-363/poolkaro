@@ -116,7 +116,7 @@ export default function Home() {
     if (didAutoDate.current || loading) return
     didAutoDate.current = true
     const off = 5.5 * 60 * 60 * 1000
-    const dayCount = iso => rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
+    const dayCount = iso => rides.filter(r => r.ride_date === iso && visibleToMe(r)).length
     if (dayCount(selectedDate) > 0) return
     for (let i = 0; i < 7; i++) {
       const iso = new Date(Date.now() + off + i * 86400000).toISOString().split('T')[0]
@@ -173,6 +173,18 @@ export default function Home() {
     const bMap = {}; conf.forEach(b => { bMap[b.ride_id] = b.id }); setBookedMap(bMap)
   }
   useEffect(() => { fetchMyBookings() }, [user?.id])
+
+  // Who sees a ride on Home:
+  //  - paused rides: only the owner
+  //  - FULL rides: the owner (to approve the last request), and riders who hold
+  //    a seat or a pending request on it (their booked card must not vanish).
+  //    Everyone else can't book it, so it's hidden.
+  function visibleToMe(r) {
+    const mine = r.driver_id === user?.id
+    if (r.paused && !mine) return false
+    if (r.status === 'full' && !mine && !bookedRideIds.has(r.id) && !requestedRideIds.has(r.id)) return false
+    return true
+  }
 
   async function withdrawRequest(bookingId) {
     if (!confirm('Withdraw your request?\n\nThe seat is released and nothing was charged.')) return
@@ -288,7 +300,8 @@ export default function Home() {
     const { data, error } = await supabase
       .from('rides')
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
-      .in('status', ['active'])
+      // Full rides are fetched too; visibleToMe() decides who sees them.
+      .in('status', ['active', 'full'])
       .gte('ride_date', today)
       .lte('ride_date', weekEnd)
       .eq('city', profile?.city || 'Hyderabad')
@@ -331,7 +344,7 @@ export default function Home() {
   }
 
   const filtered = rides.filter(r => {
-    if (r.paused && r.driver_id !== user?.id) return false
+    if (!visibleToMe(r)) return false
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
     // Only apply MANUAL filters (from the filter panel) — never auto-hide based on request
@@ -538,7 +551,7 @@ export default function Home() {
               // timezone and shift the label a day off.
               const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
               const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : WD[d.getUTCDay()]
-              const count = rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
+              const count = rides.filter(r => r.ride_date === iso && visibleToMe(r)).length
               const active = selectedDate === iso
               return (
                 <button key={iso} onClick={() => setSelectedDate(iso)} style={{
@@ -730,11 +743,12 @@ export default function Home() {
                       {(() => {
                         const model = sheetRide.vehicle_model || sheetRide.profiles?.vehicle_model || 'Car'
                         const full = sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number || ''
-                        const shown = full ? (full.replace(/\s/g, '').slice(0, 4) + '****') : '—'
+                        const booked = bookedRideIds.has(sheetRide.id)
+                        const shown = !full ? '—' : booked ? full : (full.replace(/\s/g, '').slice(0, 4) + '****')
                         return `${model} · ${shown}`
                       })()}
                     </div>
-                    {(sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number) && (
+                    {(sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number) && !bookedRideIds.has(sheetRide.id) && (
                       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
                         🔒 Full number shown in "My Rides" after you book
                       </div>
@@ -825,10 +839,10 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBooking
 
   const carModel = ride.vehicle_model || ride.profiles?.vehicle_model || 'Car'
   const fullPlate = ride.vehicle_number || ride.profiles?.vehicle_number || ''
-  // Plate is ALWAYS masked on the public Rides list. The rider sees the full
-  // number in "My Rides → I Booked" after booking (where they need it at
-  // pickup); by then this card is gone from the list anyway.
-  const plate = fullPlate ? (fullPlate.replace(/\s/g, '').slice(0, 4) + '****') : ''
+  // Plate is masked on the public list. Once this rider's seat is CONFIRMED the
+  // full number shows here, because this card stays on Home until the ride
+  // leaves and the rider needs the plate at pickup.
+  const plate = !fullPlate ? '' : myStatus === 'booked' ? fullPlate : (fullPlate.replace(/\s/g, '').slice(0, 4) + '****')
 
   return (
     <div onClick={onTap}
@@ -877,7 +891,7 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBooking
           🕐 {formatTime(ride.ride_time)} · {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          🚗 {carModel}{plate ? ` · ${plate}` : ''}
+          🚗 {carModel}{plate ? ` · ` : ''}{plate && <b style={myStatus === 'booked' ? { color: '#0f172a', letterSpacing: 0.5 } : undefined}>{plate}</b>}
         </span>
       </div>
 
