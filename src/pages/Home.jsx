@@ -743,11 +743,12 @@ export default function Home() {
                       {(() => {
                         const model = sheetRide.vehicle_model || sheetRide.profiles?.vehicle_model || 'Car'
                         const full = sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number || ''
-                        const shown = full ? (full.replace(/\s/g, '').slice(0, 4) + '****') : '—'
+                        const booked = bookedRideIds.has(sheetRide.id)
+                        const shown = !full ? '—' : booked ? full : (full.replace(/\s/g, '').slice(0, 4) + '****')
                         return `${model} · ${shown}`
                       })()}
                     </div>
-                    {(sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number) && (
+                    {(sheetRide.vehicle_number || sheetRide.profiles?.vehicle_number) && !bookedRideIds.has(sheetRide.id) && (
                       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
                         🔒 Full number shown in "My Rides" after you book
                       </div>
@@ -838,10 +839,10 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBooking
 
   const carModel = ride.vehicle_model || ride.profiles?.vehicle_model || 'Car'
   const fullPlate = ride.vehicle_number || ride.profiles?.vehicle_number || ''
-  // Plate is ALWAYS masked on the public Rides list. The rider sees the full
-  // number in "My Rides → I Booked" after booking (where they need it at
-  // pickup); by then this card is gone from the list anyway.
-  const plate = fullPlate ? (fullPlate.replace(/\s/g, '').slice(0, 4) + '****') : ''
+  // Plate is masked on the public list. Once this rider's seat is CONFIRMED the
+  // full number shows here, because this card stays on Home until the ride
+  // leaves and the rider needs the plate at pickup.
+  const plate = !fullPlate ? '' : myStatus === 'booked' ? fullPlate : (fullPlate.replace(/\s/g, '').slice(0, 4) + '****')
 
   return (
     <div onClick={onTap}
@@ -890,7 +891,7 @@ function CompactRideCard({ ride, onTap, getCompanyFromEmail, myStatus, myBooking
           🕐 {formatTime(ride.ride_time)} · {new Date(ride.ride_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          🚗 {carModel}{plate ? ` · ${plate}` : ''}
+          🚗 {carModel}{plate ? ` · ` : ''}{plate && <b style={myStatus === 'booked' ? { color: '#0f172a', letterSpacing: 0.5 } : undefined}>{plate}</b>}
         </span>
       </div>
 
