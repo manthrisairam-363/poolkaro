@@ -116,7 +116,7 @@ export default function Home() {
     if (didAutoDate.current || loading) return
     didAutoDate.current = true
     const off = 5.5 * 60 * 60 * 1000
-    const dayCount = iso => rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
+    const dayCount = iso => rides.filter(r => r.ride_date === iso && visibleToMe(r)).length
     if (dayCount(selectedDate) > 0) return
     for (let i = 0; i < 7; i++) {
       const iso = new Date(Date.now() + off + i * 86400000).toISOString().split('T')[0]
@@ -173,6 +173,18 @@ export default function Home() {
     const bMap = {}; conf.forEach(b => { bMap[b.ride_id] = b.id }); setBookedMap(bMap)
   }
   useEffect(() => { fetchMyBookings() }, [user?.id])
+
+  // Who sees a ride on Home:
+  //  - paused rides: only the owner
+  //  - FULL rides: the owner (to approve the last request), and riders who hold
+  //    a seat or a pending request on it (their booked card must not vanish).
+  //    Everyone else can't book it, so it's hidden.
+  function visibleToMe(r) {
+    const mine = r.driver_id === user?.id
+    if (r.paused && !mine) return false
+    if (r.status === 'full' && !mine && !bookedRideIds.has(r.id) && !requestedRideIds.has(r.id)) return false
+    return true
+  }
 
   async function withdrawRequest(bookingId) {
     if (!confirm('Withdraw your request?\n\nThe seat is released and nothing was charged.')) return
@@ -288,9 +300,8 @@ export default function Home() {
     const { data, error } = await supabase
       .from('rides')
       .select('*, profiles(full_name, vehicle_model, vehicle_number, avg_rating, is_verified, email, work_email, work_email_verified, avatar_url)')
-      // Riders see only rides with seats. The OWNER keeps seeing their own ride
-      // even when it's full, so the last seat's request can be approved here too.
-      .or(user?.id ? `status.eq.active,and(status.eq.full,driver_id.eq.${user.id})` : 'status.eq.active')
+      // Full rides are fetched too; visibleToMe() decides who sees them.
+      .in('status', ['active', 'full'])
       .gte('ride_date', today)
       .lte('ride_date', weekEnd)
       .eq('city', profile?.city || 'Hyderabad')
@@ -333,7 +344,7 @@ export default function Home() {
   }
 
   const filtered = rides.filter(r => {
-    if (r.paused && r.driver_id !== user?.id) return false
+    if (!visibleToMe(r)) return false
     if (filter === 'to_office' && r.ride_type !== 'to_office') return false
     if (filter === 'to_home' && r.ride_type !== 'to_home') return false
     // Only apply MANUAL filters (from the filter panel) — never auto-hide based on request
@@ -540,7 +551,7 @@ export default function Home() {
               // timezone and shift the label a day off.
               const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
               const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : WD[d.getUTCDay()]
-              const count = rides.filter(r => r.ride_date === iso && !(r.paused && r.driver_id !== user?.id)).length
+              const count = rides.filter(r => r.ride_date === iso && visibleToMe(r)).length
               const active = selectedDate === iso
               return (
                 <button key={iso} onClick={() => setSelectedDate(iso)} style={{
