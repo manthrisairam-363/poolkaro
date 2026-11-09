@@ -1814,7 +1814,31 @@ function RevenueTab({ supabase }) {
 // ── RECHARGES (real wallet top-ups via Razorpay) ──
 function RechargesTab({ supabase }) {
   const [rows, setRows] = useState(null)
+  const [sweep, setSweep] = useState({ busy: false, msg: '' })
   useEffect(() => { load() }, [])
+
+  // Ask Razorpay about every order from the last 30 days that we never credited.
+  // Anything captured there gets credited now (idempotent — safe to run any time).
+  async function reconcileAll() {
+    setSweep({ busy: true, msg: 'Checking Razorpay for uncredited payments…' })
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'admin_reconcile', since_days: 30 }),
+      })
+      const r = await res.json()
+      if (!r?.success) throw new Error(r?.error || 'failed')
+      const total = (r.credited || []).reduce((t, c) => t + c.amount, 0) / 100
+      setSweep({ busy: false, msg: r.credited?.length
+        ? `✅ Credited ${r.credited.length} payment(s), ₹${total}. Checked ${r.checked} unfinished order(s).`
+        : `✓ Nothing to credit. ${r.checked} unfinished order(s) checked — none were paid.` })
+      if (r.credited?.length) load()
+    } catch (e) {
+      setSweep({ busy: false, msg: `Could not reconcile: ${e.message}` })
+    }
+  }
   async function load() {
     const { data: txns } = await supabase
       .from('wallet_transactions')
@@ -1848,6 +1872,18 @@ function RechargesTab({ supabase }) {
           <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>🧾 Transactions</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: '#facc15' }}>{rows.length}</div>
         </div>
+      </div>
+      <div style={{ background: '#1a1a1a', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 700, color: '#fff', fontSize: 13 }}>Paid at Razorpay but not in a wallet?</div>
+            <div style={{ fontSize: 11, color: '#777', marginTop: 2 }}>Re-checks every unfinished order from the last 30 days and credits what Razorpay captured.</div>
+          </div>
+          <button onClick={reconcileAll} disabled={sweep.busy} style={{ padding: '9px 14px', background: '#facc15', color: '#111', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 12, cursor: 'pointer', opacity: sweep.busy ? 0.6 : 1 }}>
+            {sweep.busy ? 'Checking…' : '🔄 Reconcile with Razorpay'}
+          </button>
+        </div>
+        {sweep.msg && <div style={{ marginTop: 10, fontSize: 12, color: sweep.msg.startsWith('✅') || sweep.msg.startsWith('✓') ? '#4ade80' : '#fca5a5', lineHeight: 1.5 }}>{sweep.msg}</div>}
       </div>
       {rows.length === 0 ? (
         <div style={{ color: '#555', textAlign: 'center', padding: 40 }}>No recharges yet</div>
