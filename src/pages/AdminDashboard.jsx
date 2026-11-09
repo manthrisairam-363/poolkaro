@@ -529,8 +529,21 @@ export default function AdminDashboard() {
               ['🧑‍💼 Role', ROLE_META[u.role]?.long || '— not set'],
               ['📱 Phone', u.phone || '—'],
               ['💰 Wallet', `₹${Math.round((wallets[u.id] || 0) / 100)}`],
-              ['🚗 Rides given', u.total_rides_given || 0],
-              ['🙋 Rides taken', u.total_rides_taken || 0],
+              // Counted live from the loaded rides/bookings. profiles.total_rides_* were
+              // never incremented by the app (nothing marked rides completed), so they read 0.
+              ['🚗 Rides given', (() => {
+                const mine = rides.filter(r => r.driver_id === u.id && r.status !== 'cancelled')
+                const done = mine.filter(r => r.status === 'completed').length
+                const withPax = new Set(bookings.filter(b => ['confirmed', 'completed'].includes(b.status) && mine.some(r => r.id === b.ride_id)).map(b => b.ride_id)).size
+                return `${done} done · ${withPax} with riders · ${mine.length} posted`
+              })()],
+              ['🙋 Rides taken', (() => {
+                const mine = bookings.filter(b => b.rider_id === u.id)
+                const done = mine.filter(b => b.status === 'completed').length
+                const conf = mine.filter(b => b.status === 'confirmed').length
+                const pend = mine.filter(b => b.status === 'pending').length
+                return `${done} done · ${conf} upcoming${pend ? ` · ${pend} pending` : ''}`
+              })()],
               ['⭐ Rating', Number(u.avg_rating || 0).toFixed(1)],
               ['🎁 Referral code', u.referral_code || '—'],
               ['🚘 Vehicle', `${u.vehicle_model || '—'}${u.vehicle_number ? ' · ' + u.vehicle_number : ''}`],
@@ -831,6 +844,49 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
+
+                {/* Active rides by city — live supply at a glance */}
+                {(() => {
+                  const todayIST = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10)
+                  const live = rides.filter(r => ['active', 'full'].includes(r.status) && r.ride_date >= todayIST)
+                  const byCity = {}
+                  live.forEach(r => {
+                    const c = r.city || 'Hyderabad'
+                    byCity[c] = byCity[c] || { rides: 0, seats: 0, full: 0, today: 0, owners: new Set() }
+                    byCity[c].rides++; byCity[c].seats += r.seats_available || 0
+                    if (r.status === 'full') byCity[c].full++
+                    if (r.ride_date === todayIST) byCity[c].today++
+                    byCity[c].owners.add(r.driver_id)
+                  })
+                  const order = ['Hyderabad', 'Bengaluru', 'Pune', 'Mumbai', 'Delhi NCR', 'Chennai']
+                  const cities = [...new Set([...order, ...Object.keys(byCity)])].filter(c => byCity[c] || order.includes(c))
+                  const max = Math.max(1, ...cities.map(c => byCity[c]?.rides || 0))
+                  return (
+                    <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#facc15' }}>🏙️ Active rides by city</div>
+                        <div style={{ fontSize: 11, color: '#666' }}>{live.length} upcoming · {Object.values(byCity).reduce((t, c) => t + c.seats, 0)} open seats</div>
+                      </div>
+                      {cities.map(c => {
+                        const d = byCity[c] || { rides: 0, seats: 0, full: 0, today: 0, owners: new Set() }
+                        return (
+                          <div key={c} onClick={() => { setRideCity(c); setTab('rides') }} style={{ display: 'grid', gridTemplateColumns: '92px 1fr auto', gap: 10, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: d.rides ? '#fff' : '#555' }}>{c}</div>
+                            <div style={{ height: 8, background: '#262626', borderRadius: 4, overflow: 'hidden' }}>
+                              <div style={{ width: `${(d.rides / max) * 100}%`, height: '100%', background: d.rides ? '#facc15' : 'transparent', borderRadius: 4 }} />
+                            </div>
+                            <div style={{ fontSize: 12, color: d.rides ? '#ddd' : '#555', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <b style={{ color: d.rides ? '#facc15' : '#555' }}>{d.rides}</b> rides · {d.seats} seats
+                              {d.today > 0 && <span style={{ color: '#4ade80' }}> · {d.today} today</span>}
+                              <span style={{ color: '#666' }}> · {d.owners.size} owners</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div style={{ fontSize: 10, color: '#555', marginTop: 8 }}>Tap a city to open its rides. "Active" = posted, not cancelled, not yet past.</div>
+                    </div>
+                  )
+                })()}
 
                 {/* Today's Activity */}
                 <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
