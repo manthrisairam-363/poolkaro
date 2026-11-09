@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const LAST_UPDATED = '21 September 2026'
@@ -59,15 +59,29 @@ const sections = {
   ],
 }
 
-export default function TermsPrivacy() {
+// Public page (no login needed): /terms, /privacy and /refund-policy all render this.
+//   initialTab — which tab opens first ('terms' | 'privacy')
+//   focusId    — optional section card to scroll to, e.g. 'sec-terms-4' = "4. Wallet & Refunds"
+export default function TermsPrivacy({ initialTab = 'terms', focusId = null }) {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('terms')
+  const [tab, setTab] = useState(initialTab)
+
+  useEffect(() => {
+    if (!focusId) return
+    const t = setTimeout(() => {
+      document.getElementById(focusId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+    return () => clearTimeout(t)
+  }, [focusId])
+
+  // Opened straight from a link (new tab / website) there is nothing to go back to.
+  const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate('/'))
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa', paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ background: '#111', padding: '20px 16px 16px', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 40 }}>
-        <button onClick={() => navigate(-1)}
+        <button onClick={goBack}
           style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>←</button>
         <div style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>📄 Legal</div>
       </div>
@@ -92,7 +106,7 @@ export default function TermsPrivacy() {
         </div>
 
         {sections[tab].map((section, i) => (
-          <div key={i} style={{ background: '#fff', borderRadius: 14, padding: 16, marginBottom: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+          <div key={i} id={`sec-${tab}-${i + 1}`} style={{ background: '#fff', borderRadius: 14, padding: 16, marginBottom: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', scrollMarginTop: 76 }}>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#111' }}>
               {section.title}
             </div>
