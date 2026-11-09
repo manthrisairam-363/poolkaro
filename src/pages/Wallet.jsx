@@ -73,8 +73,66 @@ export default function Wallet() {
   const [customAmount, setCustomAmount] = useState('')
   const [recharging, setRecharging] = useState(false)
   const [success, setSuccess] = useState('')
+  const [checking, setChecking] = useState(false)   // reconciling with Razorpay
+  const [checkMsg, setCheckMsg] = useState('')
 
-  useEffect(() => { fetchWallet() }, [])
+  const PENDING_KEY = `ck_rzp_pending_${user?.id}`
+
+  useEffect(() => {
+    fetchWallet()
+    // A recharge is "unfinished" when Razorpay captured the money but the app never
+    // got to run the verify step (Android killed the page while the user was in
+    // PhonePe/GPay). The server webhook normally fixes that within seconds; this is
+    // the belt to that braces: ask the server on every Wallet open, and again when
+    // the app comes back to the foreground while a recharge is in flight.
+    checkPayments({ quiet: true })
+    const onVisible = () => {
+      let inflight = false
+      try { inflight = !!localStorage.getItem(PENDING_KEY) } catch (_) {}
+      if (document.visibilityState === 'visible' && inflight) checkPayments({ quiet: true })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  async function callRzp(action, extra = {}) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ action, ...extra }),
+    })
+    return res.json()
+  }
+
+  // quiet: only call Razorpay if the server says this user has an unfinished order.
+  // loud (button): always check and always report.
+  async function checkPayments({ quiet } = { quiet: false }) {
+    if (checking) return
+    try {
+      if (quiet) {
+        const p = await callRzp('pending')
+        if (!p?.pending) { try { localStorage.removeItem(PENDING_KEY) } catch (_) {} ; return }
+      }
+      setChecking(true); setCheckMsg('Checking your payment with Razorpay…')
+      const r = await callRzp('reconcile')
+      try { localStorage.removeItem(PENDING_KEY) } catch (_) {}
+      if (r?.credited_count > 0) {
+        setCheckMsg(`✅ ₹${r.credited_rupees} added to your wallet.`)
+        fetchWallet()
+      } else if (!quiet) {
+        setCheckMsg(r?.checked > 0
+          ? 'We found your payment attempt but Razorpay has not confirmed it yet. If money left your account, it is refunded by your bank within 5–7 days, or credited here as soon as Razorpay confirms.'
+          : 'No unfinished payments. If money left your account, send the UPI reference to support@carpoolkaro.com and we will credit it.')
+      } else {
+        setCheckMsg('')
+      }
+    } catch (_) {
+      if (!quiet) setCheckMsg('Could not reach the server. Try again in a minute.')
+    }
+    setChecking(false)
+    if (quiet) setTimeout(() => setCheckMsg(''), 6000)
+  }
 
   async function fetchWallet() {
     setLoading(true)
@@ -160,11 +218,14 @@ export default function Wallet() {
           )
           const result = await verifyRes.json()
           if (result.success) {
+            try { localStorage.removeItem(PENDING_KEY) } catch (_) {}
             setSuccess(`₹${amount} added to your wallet! ✅`)
             setTimeout(() => setSuccess(''), 4000)
             fetchWallet()
           } else {
-            alert('Payment verification failed. Contact support.')
+            // Don't push the user to support. Razorpay has the money or it doesn't;
+            // ask the server to reconcile and tell them what it found.
+            await checkPayments({ quiet: false })
           }
           setRecharging(false)
           setShowRecharge(false)
@@ -175,6 +236,7 @@ export default function Wallet() {
           ondismiss: () => { setRecharging(false) }
         }
       }
+      try { localStorage.setItem(PENDING_KEY, order.id) } catch (_) {}
       const rzp = new window.Razorpay(options)
       rzp.open()
 
@@ -253,6 +315,14 @@ export default function Wallet() {
             {success}
           </div>
         )}
+        {checkMsg && (
+          <div style={{ background: checkMsg.startsWith('✅') ? '#f0fdf4' : '#fffbeb', color: checkMsg.startsWith('✅') ? '#16a34a' : '#92400e', border: `1px solid ${checkMsg.startsWith('✅') ? '#bbf7d0' : '#fde68a'}`, padding: '12px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, marginBottom: 14, lineHeight: 1.5 }}>
+            {checkMsg}
+          </div>
+        )}
+        <button onClick={() => checkPayments({ quiet: false })} disabled={checking} style={{ width: '100%', background: 'transparent', border: '1px dashed #cbd5e1', color: '#475569', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 600, marginBottom: 14, cursor: 'pointer', opacity: checking ? 0.6 : 1 }}>
+          {checking ? 'Checking with Razorpay…' : 'Paid but balance not updated? Check now'}
+        </button>
 
         {/* How it works */}
         <div style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
