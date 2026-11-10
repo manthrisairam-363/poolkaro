@@ -884,16 +884,18 @@ export default function AdminDashboard() {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                   {[
-                    ['👥', 'Total Users', stats.totalUsers, '#2563eb'],
-                    ['✅', 'Verified', stats.verifiedUsers, '#16a34a'],
-                    ['🏢', 'Work Verified', stats.workVerifiedUsers, '#7c3aed'],
-                    ['🚗', 'Active Rides', stats.activeRides, '#d97706'],
-                    ['🎫', 'Bookings', stats.totalBookings, '#0891b2'],
-                    ['💰', 'Revenue (₹)', stats.totalRevenue == null ? '—' : money(stats.totalRevenue), '#16a34a'],
-                    ['🏦', 'Wallet Pool (₹)', stats.totalWalletBalance, '#f59e0b'],
-                    ['🎁', 'Referrals', stats.totalReferrals, '#7c3aed'],
-                  ].map(([icon, label, value, color]) => (
-                    <div key={label} style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222' }}>
+                    ['👥', 'Total Users', stats.totalUsers, '#2563eb', () => { setUserFilter('all'); switchTab('users') }],
+                    ['✅', 'Verified', stats.verifiedUsers, '#16a34a', () => { setUserFilter('verified'); switchTab('users') }],
+                    ['🏢', 'Work Verified', stats.workVerifiedUsers, '#7c3aed', () => { setUserFilter('all'); switchTab('users') }],
+                    ['🚗', 'Active Rides', stats.activeRides, '#d97706', () => { setRideCity('all'); setRideFilter('upcoming'); switchTab('rides') }],
+                    ['🎫', 'Bookings', stats.totalBookings, '#0891b2', () => { setRideCity('all'); setRideFilter('bookings'); switchTab('rides') }],
+                    ['💰', 'Revenue (₹)', stats.totalRevenue == null ? '—' : money(stats.totalRevenue), '#16a34a', () => switchTab('revenue')],
+                    ['🏦', 'Wallet Pool (₹)', stats.totalWalletBalance, '#f59e0b', () => switchTab('recharges')],
+                    ['🎁', 'Referrals', stats.totalReferrals, '#7c3aed', () => switchTab('referrals')],
+                  ].map(([icon, label, value, color, go]) => (
+                    // Every tile opens the screen its number comes from.
+                    <div key={label} onClick={go} role="button" style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', cursor: 'pointer', position: 'relative' }}>
+                      <span style={{ position: 'absolute', top: 12, right: 14, color: '#444', fontSize: 16 }}>›</span>
                       <div style={{ fontSize: 24 }}>{icon}</div>
                       <div style={{ fontSize: 24, fontWeight: 800, color, marginTop: 8 }}>{typeof value === 'number' ? money(value) : value}</div>
                       <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{label}</div>
@@ -947,23 +949,23 @@ export default function AdminDashboard() {
                 {/* Today's Activity */}
                 <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
                   <div style={{ fontWeight: 700, marginBottom: 12, color: '#facc15' }}>📅 Today's Activity</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                  <div onClick={() => { setRideCity('all'); setRideFilter('upcoming'); switchTab('rides') }} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>🚗 Rides leaving today</span>
-                    <span style={{ fontWeight: 700 }}>{stats.todayRides}</span>
+                    <span style={{ fontWeight: 700 }}>{stats.todayRides} ›</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                  <div onClick={() => { setRideCity('all'); setRideFilter('bookings'); switchTab('rides') }} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>🎫 Booking requests today</span>
-                    <span style={{ fontWeight: 700 }}>{stats.todayBookings}</span>
+                    <span style={{ fontWeight: 700 }}>{stats.todayBookings} ›</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                  <div onClick={() => { setRideCity('all'); setRideFilter('upcoming'); switchTab('rides') }} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>🧑‍✈️ Active drivers</span>
-                    <span style={{ fontWeight: 700 }}>{stats.activeDrivers}</span>
+                    <span style={{ fontWeight: 700 }}>{stats.activeDrivers} ›</span>
                   </div>
                   <div onClick={() => switchTab('pending')} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>⏳ Requests awaiting owner approval</span>
                     <span style={{ fontWeight: 700, color: stats.pendingRequests > 0 ? '#f97316' : '#fff' }}>{stats.pendingRequests} ›</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                  <div onClick={() => switchTab('revenue')} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>💰 Revenue today</span>
                     <span style={{ fontWeight: 700, color: stats.todayRevenue == null ? '#666' : '#16a34a' }}>{stats.todayRevenue == null ? '—' : `₹${money(stats.todayRevenue)}`}</span>
                   </div>
@@ -971,7 +973,7 @@ export default function AdminDashboard() {
 
                 {/* Revenue Chart */}
                 <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 16, color: '#facc15' }}>📊 Real Revenue — Last 30 Days</div>
+                  <div onClick={() => switchTab('revenue')} style={{ fontWeight: 700, marginBottom: 16, color: '#facc15', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><span>📊 Real Revenue — Last 30 Days</span><span style={{ color: '#666', fontWeight: 400 }}>›</span></div>
                   {revenueError ? (
                     // A silent ₹0 hid this bug for weeks. If the numbers can't load, say so.
                     <div style={{ background: '#2a1a05', border: '1px solid #92400e', borderRadius: 10, padding: 12, fontSize: 12, color: '#fbbf24', lineHeight: 1.6 }}>
@@ -2101,7 +2103,7 @@ function RatingsTab({ supabase }) {
     const ratedWithNames = (r1.data||[]).map(r => ({
       ...r,
       raterName: nameMap[r.rated_by] || r.rated_by?.slice(0,8) || '?',
-      rateeName: nameMap[r.rated_user_id] || r.rated_user_id?.slice(0,8) || '?',
+      rateeName: nameMap[r.rated_user] || r.rated_user?.slice(0,8) || '?',
     }))
     setRatings(ratedWithNames)
     setLowUsers(r2.data||[])
@@ -2144,7 +2146,7 @@ function RatingsTab({ supabase }) {
               {r.comment&&<div style={{fontSize:11,color:'#666',marginTop:4,fontStyle:'italic'}}>"{r.comment}"</div>}
               <div style={{fontSize:10,color:'#555',marginTop:3}}>{new Date(r.created_at).toLocaleDateString('en-IN')}</div>
             </div>
-            <div style={{fontSize:18,fontWeight:900,color:r.rating>=4?'#facc15':r.rating>=3?'#f97316':'#ef4444',marginLeft:12}}>{'⭐'.repeat(Math.min(r.rating||0,5))}</div>
+            <div style={{fontSize:18,fontWeight:900,color:r.stars>=4?'#facc15':r.stars>=3?'#f97316':'#ef4444',marginLeft:12,whiteSpace:'nowrap'}}>{'⭐'.repeat(Math.min(r.stars||0,5))}</div>
           </div>
         ))
       }
