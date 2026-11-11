@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { detectPlatform } from './lib/platform'
@@ -219,6 +219,7 @@ function AppRoutes() {
   const { user, profile, loading, profileError, fetchProfile, signOut } = useAuth()
   usePushNotifications(user?.id)
   useAppUpdate()
+  const location = useLocation()
 
   // Track last seen + what device/mode they're on (for admin install guidance)
   useEffect(() => {
@@ -232,10 +233,16 @@ function AppRoutes() {
     }).eq('id', user.id).then(() => {})
   }, [user?.id])
 
-  // Public pages that must work WITHOUT login (Play requires a reachable
-  // account-deletion URL; legal pages are handy public too).
-  const publicPath = typeof window !== 'undefined' ? window.location.pathname : ''
+  // Public pages that must work WITHOUT login. Play needs a reachable
+  // account-deletion URL and privacy policy, and the Terms/Privacy links on the
+  // Login screen, the Onboarding screen and carpoolkaro.com all point here —
+  // they used to hit the login/onboarding gate below and just reload it.
+  // Uses the router location (not window.location) so the page follows back/forward.
+  const publicPath = location.pathname.replace(/\/+$/, '')
   if (publicPath === '/delete-account') return <DeleteAccount />
+  if (publicPath === '/terms') return <TermsPrivacy key="terms" initialTab="terms" />
+  if (publicPath === '/privacy') return <TermsPrivacy key="privacy" initialTab="privacy" />
+  if (publicPath === '/refund-policy') return <TermsPrivacy key="refund" initialTab="terms" focusId="sec-terms-4" />
 
   if (loading) return <Loader />
   if (!user) return <Login />

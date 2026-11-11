@@ -14,6 +14,62 @@ const ROLE_META = {
 }
 const fmtHHMM = (t) => { const [h, m] = String(t || '').split(':'); return h ? `${((+h % 12) || 12)}:${m} ${+h >= 12 ? 'PM' : 'AM'}` : '—' }
 
+// ── India time + money helpers (the whole dashboard speaks IST and paise) ──
+const IST_MS = 5.5 * 3600000
+// Today's date in IST, and the clock as HH:MM in IST.
+const istToday = () => new Date(Date.now() + IST_MS).toISOString().slice(0, 10)
+const istClock = () => new Date(Date.now() + IST_MS).toISOString().slice(11, 16)
+// The IST calendar day of a database timestamp. Timestamps come back in UTC, so a booking made at
+// 00:30 IST has the PREVIOUS date in UTC — comparing it to today's IST date made "today" counters
+// read 0 between midnight and 5:30 am.
+const istDay = (ts) => (ts ? new Date(new Date(ts).getTime() + IST_MS).toISOString().slice(0, 10) : '')
+// A ride that has not left yet. One definition for the Overview tile, the city card and the Rides tab.
+const isUpcomingRide = (r, todayIST, nowTime) =>
+  ['active', 'full'].includes(r.status) && !r.from_location?.startsWith('TEST_') &&
+  (r.ride_date > todayIST || (r.ride_date === todayIST && (r.ride_time || '') >= nowTime))
+const rupees = (paise) => (Number(paise) || 0) / 100
+const money = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN')
+const dayLabel = (ymd) => new Date(ymd + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+// Booking status pill: only 'confirmed' used to be green and EVERYTHING else red, so completed
+// rides (once they auto-complete) and pending requests looked like failures.
+const BOOKING_BADGE = {
+  confirmed: { bg: '#052e16', color: '#22c55e' },
+  completed: { bg: '#0c2a4d', color: '#60a5fa' },
+  pending:   { bg: '#3b2a05', color: '#fbbf24' },
+  expired:   { bg: '#262626', color: '#9ca3af' },
+  declined:  { bg: '#3b1212', color: '#f87171' },
+  cancelled: { bg: '#3b1212', color: '#f87171' },
+}
+const bookingBadge = (s) => BOOKING_BADGE[s] || { bg: '#262626', color: '#9ca3af' }
+
+// Real-revenue bars (wallet recharges in yellow, Pro in purple). `days` = [{date,label,recharge,pro}] in rupees.
+function RevenueBars({ days, height = 70 }) {
+  const total = (d) => d.recharge + d.pro
+  const max = Math.max(...days.map(total), 1)
+  // All 30 days fit the card width. (They used to have a fixed minimum width and scroll sideways, starting
+  // at the OLDEST day — so on a phone the recent days, the ones with money in them, were off-screen.)
+  // Amounts are printed on the bars only while there are few enough not to collide; hover/long-press shows each day.
+  const labelled = days.filter(d => total(d) > 0).length <= 8
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: height + 16 }}>
+      {days.map(d => {
+        const t = total(d)
+        const h = t > 0 ? Math.max(4, (t / max) * height) : 4
+        const proH = t > 0 ? (d.pro / t) * h : 0
+        return (
+          <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 0', minWidth: 0, gap: 2 }}
+            title={`${d.label}: ₹${money(t)}${d.pro ? ` (recharge ₹${money(d.recharge)} + Pro ₹${money(d.pro)})` : ''}`}>
+            {t > 0 && labelled && <div style={{ fontSize: 8, color: '#facc15', fontWeight: 700, whiteSpace: 'nowrap' }}>₹{money(t)}</div>}
+            <div style={{ width: '100%', height: h, borderRadius: '3px 3px 0 0', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: t > 0 ? '#facc15' : '#2a2a2a' }}>
+              {proH > 0 && <div style={{ height: proH, background: '#a855f7' }} />}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AdminDashboard() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
@@ -41,6 +97,7 @@ export default function AdminDashboard() {
   const [broadcastLoading, setBroadcastLoading] = useState(false)
   const [broadcastSent, setBroadcastSent] = useState(null)
   const [revenueData, setRevenueData] = useState([])
+  const [revenueError, setRevenueError] = useState(null)   // why the revenue numbers could not load
   const [popularRoutes, setPopularRoutes] = useState([])
   const [reports, setReports] = useState([])
   const [userFilter, setUserFilter] = useState('all')
@@ -61,28 +118,34 @@ export default function AdminDashboard() {
   async function fetchAll() {
     setLoading(true)
     try {
-      const [usersRes, ridesRes, bookingsRes, txnRes] = await Promise.all([
+      const [usersRes, ridesRes, bookingsRes, ovRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('rides').select('*, profiles(full_name, phone, vehicle_model, vehicle_number)').order('created_at', { ascending: false }).limit(1000),
         supabase.from('bookings').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(1000),
-        supabase.from('wallet_transactions').select('created_at, type, amount').in('type', ['booking_fee', 'posting_fee', 'razorpay', 'subscription']),
+        // Money and headline totals are added up IN the database (19_admin_revenue.sql). The old code
+        // downloaded every wallet_transactions row, which the API cuts off at 1,000 — and it could never
+        // see Pro money anyway: Pro purchases are stored as a ₹0 marker row, the price is in the Razorpay ledger.
+        supabase.rpc('admin_overview_stats'),
       ])
 
       const usersData = usersRes.data || []
       const ridesData = ridesRes.data || []
       const bookingsData = bookingsRes.data || []
-      const txnData = txnRes.data || []
 
-      const confirmedBookings = bookingsData.filter(b => b.status === 'confirmed')
+      // Exact server-side numbers; null until 19_admin_revenue.sql has been run.
+      const ov = ovRes.error ? null : ovRes.data
+      setRevenueError(ovRes.error ? (ovRes.error.message || 'unknown error') : null)
+
+      const okBookings = bookingsData.filter(b => ['confirmed', 'completed'].includes(b.status))
       const cancelledBookings = bookingsData.filter(b => b.status === 'cancelled')
-      // REAL revenue = recharges (razorpay) + Pro subscriptions — actual cash in
-      // Platform fees are NOT counted (mostly paid from bonus money we gifted)
-      const totalRevenue = txnData.filter(t =>
-        t.type === 'razorpay' || t.type === 'subscription'
-      ).reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) / 100
 
-      const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
-      const todayIST = istNow.toISOString().split('T')[0]
+      // REAL revenue = money Razorpay actually captured: wallet recharges + Pro. Platform fees are NOT
+      // counted (mostly paid from bonus money we gifted), and neither is admin-granted credit.
+      const totalRevenue = ov ? rupees(ov.rev.recharge_all + ov.rev.pro_all) : null
+      const todayRevenue = ov ? rupees(ov.rev.recharge_today + ov.rev.pro_today) : null
+
+      const todayIST = istToday()
+      const nowTime = istClock()
 
       const { data: walletsData } = await supabase.from('wallets').select('user_id, balance')
       const walletMap = {}
@@ -91,23 +154,10 @@ export default function AdminDashboard() {
 
       const totalWalletBalance = (walletsData || []).reduce((s, w) => s + (w.balance || 0), 0)
 
-      // Revenue chart — REAL revenue (recharge + subscription) per day
-      const dayMap = {}
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(Date.now() - i * 86400000)
-        const key = d.toISOString().split('T')[0]
-        dayMap[key] = 0
-      }
-      txnData.forEach(t => {
-        if (t.type !== 'razorpay' && t.type !== 'subscription') return
-        const key = t.created_at?.split('T')[0]
-        if (key && dayMap[key] !== undefined) dayMap[key] += Math.abs(Number(t.amount || 0)) / 100
-      })
-      const rev = Object.entries(dayMap).map(([date, amount]) => ({
-        date, revenue: amount,
-        label: new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-      }))
-      setRevenueData(rev)
+      // Revenue chart — last 30 IST days, wallet recharges and Pro kept apart
+      setRevenueData((ov?.daily || []).map(x => ({
+        date: x.d, label: dayLabel(x.d), recharge: rupees(x.recharge), pro: rupees(x.pro),
+      })))
 
       // Popular routes
       const routeMap = {}
@@ -120,22 +170,30 @@ export default function AdminDashboard() {
       const routes = Object.entries(routeMap).sort((a, b) => b[1] - a[1]).slice(0, 8)
       setPopularRoutes(routes)
 
+      // "Upcoming" = not yet departed (IST date + time) — the same rule as the city card and the Rides tab.
+      // Rides nobody closed used to sit as 'active' forever and inflate this tile.
+      const upcomingRides = ridesData.filter(r => isUpcomingRide(r, todayIST, nowTime))
       setStats({
-        totalUsers: usersData.length,
+        // Exact totals from the server when available (the lists below stop at 1,000 rows).
+        totalUsers: ov?.users ?? usersData.length,
         totalRides: ridesData.length,
-        activeRides: ridesData.filter(r => ['active','full'].includes(r.status)).length,
-        totalBookings: confirmedBookings.length,
+        activeRides: upcomingRides.length,
+        // confirmed + completed: once 18_auto_complete.sql runs, finished rides move to 'completed' and
+        // would otherwise vanish from this count.
+        totalBookings: ov?.bookings ?? okBookings.length,
         cancelledBookings: cancelledBookings.length,
         totalRevenue,
-        totalWalletBalance: Math.round(totalWalletBalance / 100),
-        todayRides: ridesData.filter(r => r.ride_date === todayIST).length,
-        todayBookings: bookingsData.filter(b => b.created_at?.startsWith(todayIST)).length,
-        activeDrivers: new Set(ridesData.filter(r => ['active','full'].includes(r.status)).map(r => r.driver_id)).size,
+        totalWalletBalance: Math.round((ov ? ov.wallet_pool : totalWalletBalance) / 100),
+        // Rides leaving today (not cancelled) — it was labelled "posted today" but never counted by posting date.
+        todayRides: ridesData.filter(r => r.ride_date === todayIST && r.status !== 'cancelled' && !r.from_location?.startsWith('TEST_')).length,
+        // Booking requests made today, by IST day (UTC timestamps made this read 0 until 5:30 am).
+        todayBookings: bookingsData.filter(b => istDay(b.created_at) === todayIST).length,
+        activeDrivers: new Set(upcomingRides.map(r => r.driver_id)).size,
         pendingRequests: bookingsData.filter(b => b.status === 'pending').length,
-        todayRevenue: txnData.filter(t => t.created_at?.startsWith(todayIST) && (t.type === 'razorpay' || t.type === 'subscription')).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100,
-        verifiedUsers: usersData.filter(u => u.is_verified).length,
-        workVerifiedUsers: usersData.filter(u => u.work_email_verified).length,
-        totalReferrals: usersData.filter(u => u.referred_by).length,
+        todayRevenue,
+        verifiedUsers: ov?.verified ?? usersData.filter(u => u.is_verified).length,
+        workVerifiedUsers: ov?.work_verified ?? usersData.filter(u => u.work_email_verified).length,
+        totalReferrals: ov?.referrals ?? usersData.filter(u => u.referred_by).length,
       })
       setUsers(usersData)
       setRides(ridesData)
@@ -397,8 +455,6 @@ export default function AdminDashboard() {
     fontWeight: tab === v ? 700 : 400, fontSize: 12,
   })
 
-  const maxRevenue = Math.max(...revenueData.map(d => d.revenue), 1)
-
   const QUICK_NOTES = [
     '🎁 New Year Bonus',
     '🎉 Festive Bonus',
@@ -529,8 +585,21 @@ export default function AdminDashboard() {
               ['🧑‍💼 Role', ROLE_META[u.role]?.long || '— not set'],
               ['📱 Phone', u.phone || '—'],
               ['💰 Wallet', `₹${Math.round((wallets[u.id] || 0) / 100)}`],
-              ['🚗 Rides given', u.total_rides_given || 0],
-              ['🙋 Rides taken', u.total_rides_taken || 0],
+              // Counted live from the loaded rides/bookings. profiles.total_rides_* were
+              // never incremented by the app (nothing marked rides completed), so they read 0.
+              ['🚗 Rides given', (() => {
+                const mine = rides.filter(r => r.driver_id === u.id && r.status !== 'cancelled')
+                const done = mine.filter(r => r.status === 'completed').length
+                const withPax = new Set(bookings.filter(b => ['confirmed', 'completed'].includes(b.status) && mine.some(r => r.id === b.ride_id)).map(b => b.ride_id)).size
+                return `${done} done · ${withPax} with riders · ${mine.length} posted`
+              })()],
+              ['🙋 Rides taken', (() => {
+                const mine = bookings.filter(b => b.rider_id === u.id)
+                const done = mine.filter(b => b.status === 'completed').length
+                const conf = mine.filter(b => b.status === 'confirmed').length
+                const pend = mine.filter(b => b.status === 'pending').length
+                return `${done} done · ${conf} upcoming${pend ? ` · ${pend} pending` : ''}`
+              })()],
               ['⭐ Rating', Number(u.avg_rating || 0).toFixed(1)],
               ['🎁 Referral code', u.referral_code || '—'],
               ['🚘 Vehicle', `${u.vehicle_model || '—'}${u.vehicle_number ? ' · ' + u.vehicle_number : ''}`],
@@ -815,70 +884,123 @@ export default function AdminDashboard() {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                   {[
-                    ['👥', 'Total Users', stats.totalUsers, '#2563eb'],
-                    ['✅', 'Verified', stats.verifiedUsers, '#16a34a'],
-                    ['🏢', 'Work Verified', stats.workVerifiedUsers, '#7c3aed'],
-                    ['🚗', 'Active Rides', stats.activeRides, '#d97706'],
-                    ['🎫', 'Bookings', stats.totalBookings, '#0891b2'],
-                    ['💰', 'Revenue (₹)', stats.totalRevenue, '#16a34a'],
-                    ['🏦', 'Wallet Pool (₹)', stats.totalWalletBalance, '#f59e0b'],
-                    ['🎁', 'Referrals', stats.totalReferrals, '#7c3aed'],
-                  ].map(([icon, label, value, color]) => (
-                    <div key={label} style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222' }}>
+                    ['👥', 'Total Users', stats.totalUsers, '#2563eb', () => { setUserFilter('all'); switchTab('users') }],
+                    ['✅', 'Verified', stats.verifiedUsers, '#16a34a', () => { setUserFilter('verified'); switchTab('users') }],
+                    ['🏢', 'Work Verified', stats.workVerifiedUsers, '#7c3aed', () => { setUserFilter('all'); switchTab('users') }],
+                    ['🚗', 'Active Rides', stats.activeRides, '#d97706', () => { setRideCity('all'); setRideFilter('upcoming'); switchTab('rides') }],
+                    ['🎫', 'Bookings', stats.totalBookings, '#0891b2', () => { setRideCity('all'); setRideFilter('bookings'); switchTab('rides') }],
+                    ['💰', 'Revenue (₹)', stats.totalRevenue == null ? '—' : money(stats.totalRevenue), '#16a34a', () => switchTab('revenue')],
+                    ['🏦', 'Wallet Pool (₹)', stats.totalWalletBalance, '#f59e0b', () => switchTab('recharges')],
+                    ['🎁', 'Referrals', stats.totalReferrals, '#7c3aed', () => switchTab('referrals')],
+                  ].map(([icon, label, value, color, go]) => (
+                    // Every tile opens the screen its number comes from.
+                    <div key={label} onClick={go} role="button" style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', cursor: 'pointer', position: 'relative' }}>
+                      <span style={{ position: 'absolute', top: 12, right: 14, color: '#444', fontSize: 16 }}>›</span>
                       <div style={{ fontSize: 24 }}>{icon}</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color, marginTop: 8 }}>{value}</div>
+                      <div style={{ fontSize: 24, fontWeight: 800, color, marginTop: 8 }}>{typeof value === 'number' ? money(value) : value}</div>
                       <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{label}</div>
                     </div>
                   ))}
                 </div>
 
+                {/* Active rides by city — live supply at a glance */}
+                {(() => {
+                  const todayIST = istToday(), nowTime = istClock()
+                  const live = rides.filter(r => isUpcomingRide(r, todayIST, nowTime))
+                  const byCity = {}
+                  live.forEach(r => {
+                    const c = r.city || 'Hyderabad'
+                    byCity[c] = byCity[c] || { rides: 0, seats: 0, full: 0, today: 0, owners: new Set() }
+                    byCity[c].rides++; byCity[c].seats += r.seats_available || 0
+                    if (r.status === 'full') byCity[c].full++
+                    if (r.ride_date === todayIST) byCity[c].today++
+                    byCity[c].owners.add(r.driver_id)
+                  })
+                  const order = ['Hyderabad', 'Bengaluru', 'Pune', 'Mumbai', 'Delhi NCR', 'Chennai']
+                  const cities = [...new Set([...order, ...Object.keys(byCity)])].filter(c => byCity[c] || order.includes(c))
+                  const max = Math.max(1, ...cities.map(c => byCity[c]?.rides || 0))
+                  return (
+                    <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+                        <div style={{ fontWeight: 700, color: '#facc15' }}>🏙️ Active rides by city</div>
+                        <div style={{ fontSize: 11, color: '#666' }}>{live.length} upcoming · {Object.values(byCity).reduce((t, c) => t + c.seats, 0)} open seats</div>
+                      </div>
+                      {cities.map(c => {
+                        const d = byCity[c] || { rides: 0, seats: 0, full: 0, today: 0, owners: new Set() }
+                        return (
+                          <div key={c} onClick={() => { setRideCity(c); setTab('rides') }} style={{ display: 'grid', gridTemplateColumns: '92px 1fr auto', gap: 10, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: d.rides ? '#fff' : '#555' }}>{c}</div>
+                            <div style={{ height: 8, background: '#262626', borderRadius: 4, overflow: 'hidden' }}>
+                              <div style={{ width: `${(d.rides / max) * 100}%`, height: '100%', background: d.rides ? '#facc15' : 'transparent', borderRadius: 4 }} />
+                            </div>
+                            <div style={{ fontSize: 12, color: d.rides ? '#ddd' : '#555', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <b style={{ color: d.rides ? '#facc15' : '#555' }}>{d.rides}</b> {d.rides === 1 ? 'ride' : 'rides'} · {d.seats} {d.seats === 1 ? 'seat' : 'seats'}
+                              {d.today > 0 && <span style={{ color: '#4ade80' }}> · {d.today} today</span>}
+                              <span style={{ color: '#666' }}> · {d.owners.size} {d.owners.size === 1 ? 'owner' : 'owners'}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div style={{ fontSize: 10, color: '#555', marginTop: 8 }}>Tap a city to open its rides. "Active" = posted, not cancelled, not yet past.</div>
+                    </div>
+                  )
+                })()}
+
                 {/* Today's Activity */}
                 <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
                   <div style={{ fontWeight: 700, marginBottom: 12, color: '#facc15' }}>📅 Today's Activity</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
-                    <span style={{ color: '#888', fontSize: 13 }}>🚗 Rides posted today</span>
-                    <span style={{ fontWeight: 700 }}>{stats.todayRides}</span>
+                  <div onClick={() => { setRideCity('all'); setRideFilter('upcoming'); switchTab('rides') }} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
+                    <span style={{ color: '#888', fontSize: 13 }}>🚗 Rides leaving today</span>
+                    <span style={{ fontWeight: 700 }}>{stats.todayRides} ›</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
-                    <span style={{ color: '#888', fontSize: 13 }}>🎫 Bookings today</span>
-                    <span style={{ fontWeight: 700 }}>{stats.todayBookings}</span>
+                  <div onClick={() => { setRideCity('all'); setRideFilter('bookings'); switchTab('rides') }} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
+                    <span style={{ color: '#888', fontSize: 13 }}>🎫 Booking requests today</span>
+                    <span style={{ fontWeight: 700 }}>{stats.todayBookings} ›</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222' }}>
+                  <div onClick={() => { setRideCity('all'); setRideFilter('upcoming'); switchTab('rides') }} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>🧑‍✈️ Active drivers</span>
-                    <span style={{ fontWeight: 700 }}>{stats.activeDrivers}</span>
+                    <span style={{ fontWeight: 700 }}>{stats.activeDrivers} ›</span>
                   </div>
                   <div onClick={() => switchTab('pending')} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #222', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>⏳ Requests awaiting owner approval</span>
                     <span style={{ fontWeight: 700, color: stats.pendingRequests > 0 ? '#f97316' : '#fff' }}>{stats.pendingRequests} ›</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                  <div onClick={() => switchTab('revenue')} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', cursor: 'pointer' }}>
                     <span style={{ color: '#888', fontSize: 13 }}>💰 Revenue today</span>
-                    <span style={{ fontWeight: 700, color: '#16a34a' }}>₹{stats.todayRevenue}</span>
+                    <span style={{ fontWeight: 700, color: stats.todayRevenue == null ? '#666' : '#16a34a' }}>{stats.todayRevenue == null ? '—' : `₹${money(stats.todayRevenue)}`}</span>
                   </div>
                 </div>
 
                 {/* Revenue Chart */}
                 <div style={{ background: '#1a1a1a', borderRadius: 14, padding: 16, border: '1px solid #222', marginBottom: 16 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 16, color: '#facc15' }}>📊 Real Revenue — Last 30 Days</div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, overflowX: 'auto' }}>
-                    {revenueData.map((d, i) => (
-                      <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 18, gap: 2 }}>
-                        {d.revenue > 0 && <div style={{ fontSize: 8, color: '#facc15', fontWeight: 700 }}>₹{d.revenue.toFixed(0)}</div>}
-                        <div style={{
-                          width: '100%', background: d.revenue > 0 ? '#facc15' : '#2a2a2a',
-                          height: Math.max(4, (d.revenue / maxRevenue) * 70), borderRadius: '3px 3px 0 0',
-                          transition: '0.2s',
-                        }} title={`${d.label}: ₹${d.revenue}`} />
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                    <span style={{ fontSize: 9, color: '#444' }}>{revenueData[0]?.label}</span>
-                    <span style={{ fontSize: 9, color: '#444' }}>{revenueData[revenueData.length-1]?.label}</span>
-                  </div>
-                  <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginTop: 4 }}>
-                    Total: ₹{revenueData.reduce((s, d) => s + d.revenue, 0).toFixed(0)} this month · Real revenue (recharges + Pro)
-                  </div>
+                  <div onClick={() => switchTab('revenue')} style={{ fontWeight: 700, marginBottom: 16, color: '#facc15', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><span>📊 Real Revenue — Last 30 Days</span><span style={{ color: '#666', fontWeight: 400 }}>›</span></div>
+                  {revenueError ? (
+                    // A silent ₹0 hid this bug for weeks. If the numbers can't load, say so.
+                    <div style={{ background: '#2a1a05', border: '1px solid #92400e', borderRadius: 10, padding: 12, fontSize: 12, color: '#fbbf24', lineHeight: 1.6 }}>
+                      ⚠️ Revenue could not be loaded, so it is <b>not</b> ₹0 — it is unknown.<br />
+                      Run <b>19_admin_revenue.sql</b> once in the Supabase SQL Editor, then reopen this page.
+                      <div style={{ color: '#a16207', fontSize: 10, marginTop: 6, wordBreak: 'break-word' }}>{revenueError}</div>
+                    </div>
+                  ) : (() => {
+                    const rc = revenueData.reduce((s, d) => s + d.recharge, 0)
+                    const pr = revenueData.reduce((s, d) => s + d.pro, 0)
+                    return (
+                      <>
+                        <RevenueBars days={revenueData} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                          <span style={{ fontSize: 9, color: '#444' }}>{revenueData[0]?.label}</span>
+                          <span style={{ fontSize: 9, color: '#444' }}>{revenueData[revenueData.length - 1]?.label}</span>
+                        </div>
+                        <div style={{ textAlign: 'center', fontSize: 11, color: '#888', marginTop: 4 }}>
+                          Total: <b style={{ color: '#facc15' }}>₹{money(rc + pr)}</b> in the last 30 days
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 14, fontSize: 10, color: '#666', marginTop: 4 }}>
+                          <span><span style={{ color: '#facc15' }}>■</span> Wallet recharges ₹{money(rc)}</span>
+                          <span><span style={{ color: '#a855f7' }}>■</span> Pro ₹{money(pr)}</span>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
 
                 {/* Popular Routes */}
@@ -891,7 +1013,7 @@ export default function AdminDashboard() {
                       <div style={{ fontSize: 12, color: '#ccc' }}>
                         <span style={{ color: '#facc15', fontWeight: 700, marginRight: 8 }}>#{i+1}</span>{route}
                       </div>
-                      <span style={{ background: '#222', padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 700, color: '#facc15' }}>{count} rides</span>
+                      <span style={{ background: '#222', padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 700, color: '#facc15' }}>{count} {count === 1 ? 'ride' : 'rides'}</span>
                     </div>
                   ))}
                 </div>
@@ -903,7 +1025,7 @@ export default function AdminDashboard() {
               <div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
-                  ['users',     '👥', 'Users',     `${users.length} total`,    '#2563eb'],
+                  ['users',     '👥', 'Users',     `${stats?.totalUsers ?? users.length} total`,    '#2563eb'],
                   ['suspicious','🛡️', 'Safety',    (suspiciousUsers.length + reports.length) > 0 ? `${suspiciousUsers.length + reports.length} to review` : 'Clean', '#ef4444'],
                   ['rides',     '🚗', 'Rides & Bookings', 'All rides + bookings',  '#d97706'],
                   ['pending',   '⏳', 'Pending Requests', stats?.pendingRequests ? `${stats.pendingRequests} waiting` : 'None waiting', '#f97316'],
@@ -1194,7 +1316,7 @@ export default function AdminDashboard() {
                               <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
                               <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{new Date(b.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })} · payment: {b.payment_status || 'pending'}</div>
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: bookingBadge(b.status).bg, color: bookingBadge(b.status).color }}>● {b.status}</span>
                           </div>
                         </div>
                       )
@@ -1281,7 +1403,7 @@ export default function AdminDashboard() {
                           <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>Paid ₹{b.total_paid} · Owner gets ₹{b.driver_receives}</div>
                           <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{new Date(b.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short' })} · payment: {b.payment_status || 'pending'}</div>
                         </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: b.status === 'confirmed' ? '#052e16' : '#3b1212', color: b.status === 'confirmed' ? '#22c55e' : '#f87171' }}>● {b.status}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, height: 'fit-content', background: bookingBadge(b.status).bg, color: bookingBadge(b.status).color }}>● {b.status}</span>
                       </div>
                     </div>
                   )
@@ -1693,60 +1815,45 @@ function RevenueTab({ supabase }) {
   const [data, setData] = useState(null)
   useEffect(() => { load() }, [])
   async function load() {
-    const now = new Date()
-    const d30 = new Date(now - 30 * 86400000).toISOString()
-    const d7  = new Date(now - 7  * 86400000).toISOString()
-
-    // REAL revenue = recharges (type 'razorpay') + Pro subscriptions (type 'subscription')
-    // Platform fees (booking_fee/posting_fee) = engagement metric, mostly from bonus money
-    const [allTxn, proSubs] = await Promise.all([
-      supabase.from('wallet_transactions').select('amount, type, created_at')
-        .in('type', ['razorpay', 'subscription', 'booking_fee', 'posting_fee']),
+    // REAL revenue = money Razorpay actually captured: wallet recharges + Pro subscriptions.
+    // Added up in the database (19_admin_revenue.sql). The old version summed wallet_transactions.amount
+    // in the browser: Pro rows are ₹0 markers (price lives in the Razorpay ledger) so Pro always read ₹0,
+    // and the API's 1,000-row limit cut off the newest rows.
+    // Platform fees (booking_fee/posting_fee) = engagement metric, mostly from bonus money.
+    const [ovRes, proSubs] = await Promise.all([
+      supabase.rpc('admin_overview_stats'),
       supabase.from('profiles').select('id')
-        .not('subscription_expires_at','is',null).gt('subscription_expires_at', now.toISOString()),
+        .not('subscription_expires_at','is',null).gt('subscription_expires_at', new Date().toISOString()),
     ])
+    if (ovRes.error || !ovRes.data) { setData({ error: ovRes.error?.message || 'No data returned' }); return }
 
-    const txns = allTxn.data || []
+    const r = ovRes.data.rev
     const RAZ_RATE = 0.0236 // Razorpay ~2% + 18% GST on that
-
-    // Helper: sum absolute rupees for given types within optional date
-    const sumReal = (since) => {
-      return txns.filter(t =>
-        (t.type === 'razorpay' || t.type === 'subscription') &&
-        (!since || t.created_at >= since)
-      ).reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0) / 100
-    }
-    const sumByType = (type) =>
-      txns.filter(t => t.type === type).reduce((s,t)=>s+Math.abs(Number(t.amount||0)),0) / 100
-
-    const recharges = sumByType('razorpay')
-    const subscriptions = sumByType('subscription')
-    const platformFees = sumByType('booking_fee') + sumByType('posting_fee')
+    const recharges = rupees(r.recharge_all)
+    const subscriptions = rupees(r.pro_all)
     const realAll = recharges + subscriptions
-    const realNet = realAll * (1 - RAZ_RATE)
-
-    // Daily REAL revenue chart (last 30 days)
-    const byDay = {}
-    txns.filter(t => (t.type === 'razorpay' || t.type === 'subscription') && t.created_at >= d30)
-      .forEach(tx => {
-        const d = tx.created_at?.split('T')[0]
-        byDay[d] = (byDay[d] || 0) + Math.abs(Number(tx.amount)) / 100
-      })
-
     setData({
-      realAll, realNet, real30: sumReal(d30), real7: sumReal(d7),
-      recharges, subscriptions, platformFees,
-      proCount: proSubs.data?.length || 0, byDay,
+      realAll, realNet: realAll * (1 - RAZ_RATE),
+      real30: rupees(r.recharge_30d + r.pro_30d), real7: rupees(r.recharge_7d + r.pro_7d),
+      recharges, subscriptions, platformFees: rupees(ovRes.data.platform_fees),
+      proCount: proSubs.data?.length || 0,
+      days: (ovRes.data.daily || []).map(x => ({ date: x.d, label: dayLabel(x.d), recharge: rupees(x.recharge), pro: rupees(x.pro) })),
     })
   }
   if (!data) return <div style={{color:'#888',padding:40,textAlign:'center'}}>Loading...</div>
-  const days = Object.entries(data.byDay).sort(([a],[b])=>a.localeCompare(b))
-  const maxRev = Math.max(...days.map(([,v])=>v), 1)
+  if (data.error) return (
+    <div style={{background:'#2a1a05',border:'1px solid #92400e',borderRadius:12,padding:16,fontSize:13,color:'#fbbf24',lineHeight:1.7}}>
+      ⚠️ Revenue could not be loaded, so it is <b>not</b> ₹0 — it is unknown.<br />
+      Run <b>19_admin_revenue.sql</b> once in the Supabase SQL Editor, then reopen this tab.
+      <div style={{color:'#a16207',fontSize:11,marginTop:8,wordBreak:'break-word'}}>{data.error}</div>
+    </div>
+  )
+  const noRevenue = data.days.every(d => d.recharge + d.pro === 0)
   return (
     <div>
       {/* Top cards — REAL revenue */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:10,marginBottom:16}}>
-        {[['💰 Real (All Time)',`₹${data.realAll.toFixed(0)}`,'#facc15','#111'],['📅 30 Days',`₹${data.real30.toFixed(0)}`,'#16a34a','#fff'],['📅 7 Days',`₹${data.real7.toFixed(0)}`,'#2563eb','#fff'],['⭐ Pro Active',`${data.proCount}`,'#7c3aed','#fff']].map(([l,v,bg,c])=>(
+        {[['💰 Real (All Time)',`₹${money(data.realAll)}`,'#facc15','#111'],['📅 30 Days',`₹${money(data.real30)}`,'#16a34a','#fff'],['📅 7 Days',`₹${money(data.real7)}`,'#2563eb','#fff'],['⭐ Pro Active',`${data.proCount}`,'#7c3aed','#fff']].map(([l,v,bg,c])=>(
           <div key={l} style={{background:bg,borderRadius:12,padding:'14px 12px'}}>
             <div style={{fontSize:10,color:c==='#111'?'#854d0e':'rgba(255,255,255,0.6)',marginBottom:4}}>{l}</div>
             <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
@@ -1763,33 +1870,35 @@ function RevenueTab({ supabase }) {
         ].map(([l,v,c])=>(
           <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid #1a1a1a'}}>
             <span style={{color:'#888',fontSize:13}}>{l}</span>
-            <span style={{fontWeight:700,color:c,fontSize:14}}>₹{v.toFixed(0)}</span>
+            <span style={{fontWeight:700,color:c,fontSize:14}}>₹{money(v)}</span>
           </div>
         ))}
         <div style={{display:'flex',justifyContent:'space-between',padding:'12px 0 4px'}}>
           <span style={{color:'#fff',fontSize:14,fontWeight:800}}>🟢 Gross Revenue</span>
-          <span style={{fontWeight:900,color:'#facc15',fontSize:16}}>₹{data.realAll.toFixed(0)}</span>
+          <span style={{fontWeight:900,color:'#facc15',fontSize:16}}>₹{money(data.realAll)}</span>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0'}}>
           <span style={{color:'#888',fontSize:12}}>🏦 Net after Razorpay (~2.36%)</span>
-          <span style={{fontWeight:700,color:'#86efac',fontSize:13}}>≈ ₹{data.realNet.toFixed(0)}</span>
+          <span style={{fontWeight:700,color:'#86efac',fontSize:13}}>≈ ₹{money(data.realNet)}</span>
         </div>
       </div>
 
       {/* Daily real revenue chart */}
       <div style={{background:'#111',borderRadius:14,padding:16}}>
         <div style={{fontSize:12,fontWeight:700,color:'#facc15',marginBottom:14}}>📈 Real Revenue — Last 30 Days</div>
-        {days.length===0
-          ? <div style={{color:'#555',textAlign:'center',padding:30}}>No real revenue yet</div>
-          : <div style={{display:'flex',alignItems:'flex-end',gap:3,height:120,overflowX:'auto'}}>
-              {days.map(([day,rev])=>(
-                <div key={day} style={{flex:1,minWidth:20,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                  <div style={{fontSize:8,color:'#555'}}>₹{rev.toFixed(0)}</div>
-                  <div style={{width:'100%',background:'#facc15',borderRadius:'3px 3px 0 0',height:`${(rev/maxRev)*90}px`,minHeight:4}}/>
-                  <div style={{fontSize:7,color:'#444',transform:'rotate(-45deg)',transformOrigin:'top left',whiteSpace:'nowrap',marginTop:4}}>{new Date(day).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
-                </div>
-              ))}
-            </div>
+        {noRevenue
+          ? <div style={{color:'#555',textAlign:'center',padding:30}}>No real revenue in the last 30 days</div>
+          : <>
+              <RevenueBars days={data.days} height={90} />
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+                <span style={{fontSize:9,color:'#444'}}>{data.days[0]?.label}</span>
+                <span style={{fontSize:9,color:'#444'}}>{data.days[data.days.length-1]?.label}</span>
+              </div>
+              <div style={{display:'flex',justifyContent:'center',gap:14,fontSize:10,color:'#666',marginTop:6}}>
+                <span><span style={{color:'#facc15'}}>■</span> Wallet recharges</span>
+                <span><span style={{color:'#a855f7'}}>■</span> Pro</span>
+              </div>
+            </>
         }
       </div>
 
@@ -1797,7 +1906,7 @@ function RevenueTab({ supabase }) {
       <div style={{marginTop:12,padding:14,background:'#0a0a0a',border:'1px solid #1a1a1a',borderRadius:12}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <span style={{color:'#888',fontSize:13}}>📊 Platform fees collected</span>
-          <span style={{fontWeight:700,color:'#64748b',fontSize:14}}>₹{data.platformFees.toFixed(0)}</span>
+          <span style={{fontWeight:700,color:'#64748b',fontSize:14}}>₹{money(data.platformFees)}</span>
         </div>
         <div style={{fontSize:10,color:'#444',marginTop:6,lineHeight:1.5}}>
           ⚠️ Engagement metric only — NOT counted as real revenue. Most ₹2 fees are paid from signup/referral bonus money (gifted by us), so this isn't actual income.
@@ -1994,7 +2103,7 @@ function RatingsTab({ supabase }) {
     const ratedWithNames = (r1.data||[]).map(r => ({
       ...r,
       raterName: nameMap[r.rated_by] || r.rated_by?.slice(0,8) || '?',
-      rateeName: nameMap[r.rated_user_id] || r.rated_user_id?.slice(0,8) || '?',
+      rateeName: nameMap[r.rated_user] || r.rated_user?.slice(0,8) || '?',
     }))
     setRatings(ratedWithNames)
     setLowUsers(r2.data||[])
@@ -2037,7 +2146,7 @@ function RatingsTab({ supabase }) {
               {r.comment&&<div style={{fontSize:11,color:'#666',marginTop:4,fontStyle:'italic'}}>"{r.comment}"</div>}
               <div style={{fontSize:10,color:'#555',marginTop:3}}>{new Date(r.created_at).toLocaleDateString('en-IN')}</div>
             </div>
-            <div style={{fontSize:18,fontWeight:900,color:r.rating>=4?'#facc15':r.rating>=3?'#f97316':'#ef4444',marginLeft:12}}>{'⭐'.repeat(Math.min(r.rating||0,5))}</div>
+            <div style={{fontSize:18,fontWeight:900,color:r.stars>=4?'#facc15':r.stars>=3?'#f97316':'#ef4444',marginLeft:12,whiteSpace:'nowrap'}}>{'⭐'.repeat(Math.min(r.stars||0,5))}</div>
           </div>
         ))
       }
@@ -2237,16 +2346,17 @@ function SubscriptionsTab({ supabase }) {
   useEffect(() => { load() }, [])
   async function load() {
     setLoading(true)
-    const [profRes, subRevRes] = await Promise.all([
+    const [profRes, ovRes] = await Promise.all([
       supabase.from('profiles')
         .select('id,full_name,email,phone,subscription_expires_at,created_at')
         .not('subscription_expires_at', 'is', null)
         .order('subscription_expires_at', { ascending: false }),
-      supabase.from('wallet_transactions').select('amount').eq('type', 'subscription'),
+      // Pro money comes from the Razorpay ledger via 19_admin_revenue.sql. Summing wallet_transactions here
+      // always gave ₹0: a Pro purchase is stored there as a ₹0 marker row.
+      supabase.rpc('admin_overview_stats'),
     ])
     setSubs(profRes.data || [])
-    const rev = (subRevRes.data || []).reduce((s,t) => s + Math.abs(Number(t.amount||0)), 0) / 100
-    setSubRevenue(rev)
+    setSubRevenue(ovRes.error || !ovRes.data ? null : rupees(ovRes.data.rev.pro_all))
     setLoading(false)
   }
   async function grantPro(userId) {
@@ -2304,7 +2414,7 @@ function SubscriptionsTab({ supabase }) {
   return (
     <div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:20}}>
-        {[['⭐ Active Pro',active.length,'#facc15'],['💀 Expired',expired.length,'#ef4444'],['💰 Revenue',`₹${subRevenue.toFixed(0)}`,'#22c55e']].map(([l,v,c])=>(
+        {[['⭐ Active Pro',active.length,'#facc15'],['💀 Expired',expired.length,'#ef4444'],['💰 Pro revenue',subRevenue==null?'—':`₹${money(subRevenue)}`,'#22c55e']].map(([l,v,c])=>(
           <div key={l} style={{background:'#111',borderRadius:12,padding:14}}>
             <div style={{fontSize:10,color:'#555',marginBottom:6}}>{l}</div>
             <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
