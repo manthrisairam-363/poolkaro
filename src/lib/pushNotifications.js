@@ -23,15 +23,29 @@ function keysEqual(a, b) {
   return true
 }
 
+// Save this device's subscription on the server. Returns true only if the row is really there.
+// This used to ignore errors, so a device could show "Notifications On" while the server had
+// nothing (or an old dead endpoint) to send to — exactly what happens after an iPhone user
+// removes the Home Screen icon and adds it back: the new endpoint failed to save and the old
+// one stayed behind.
 async function saveSubscription(userId, subscription) {
   const j = subscription.toJSON()
-  await supabase.from('push_subscriptions').upsert({
+  const row = {
     user_id: userId,
     endpoint: j.endpoint,
     p256dh: j.keys?.p256dh,
     auth: j.keys?.auth,
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'endpoint' })
+  }
+  let { error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' })
+  if (error) {
+    // Most likely an old row for this user is in the way. Clear this user's rows and save again.
+    console.error('Push save failed, retrying clean:', error.code, error.message)
+    await supabase.from('push_subscriptions').delete().eq('user_id', userId)
+    ;({ error } = await supabase.from('push_subscriptions').insert(row))
+    if (error) { console.error('Push save failed:', error.code, error.message); return false }
+  }
+  return true
 }
 
 async function subscribeFresh(reg, userId) {
@@ -39,8 +53,7 @@ async function subscribeFresh(reg, userId) {
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
   })
-  await saveSubscription(userId, subscription)
-  return true
+  return await saveSubscription(userId, subscription)
 }
 
 const supported = () =>
@@ -69,7 +82,7 @@ async function ensureSubscribed(reg, userId, force = false) {
       const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       const existingKey = existing.options?.applicationServerKey
       const matches = existingKey && keysEqual(new Uint8Array(existingKey), currentKey)
-      if (matches) { await saveSubscription(userId, existing); return true }
+      if (matches && await saveSubscription(userId, existing)) return true
     }
     // force, or key mismatch → drop the old endpoint (DB + browser) and remake it.
     const oldEndpoint = existing.endpoint
@@ -100,8 +113,9 @@ export async function registerPushNotifications(userId, { interactive = false, f
       if (permission !== 'granted') return permission === 'denied' ? 'blocked' : 'off'
     }
 
-    await ensureSubscribed(reg, userId, force)
-    return 'on'
+    // 'on' only when the server really has this device's subscription.
+    const saved = await ensureSubscribed(reg, userId, force)
+    return saved ? 'on' : 'off'
   } catch (err) {
     console.error('Push registration failed:', err)
     return 'off'
